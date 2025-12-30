@@ -1,5 +1,5 @@
---:PLAYER TELEPORT (V50.5 MEDIUM SINK):ControlGui_Pro_V50_Slow.lua
--- === V50.5: MEDIUM SINK (Fixed Speed) ===
+--:PLAYER TELEPORT (V50.6 FIX PHYSICS):ControlGui_Pro_V50_Slow.lua
+-- === V50.6: FIX SINK/FLY GLITCH ===
 -- 1. ล้างระบบเก่า
 if _G.ProScript_Connections then
     for _, conn in pairs(_G.ProScript_Connections) do
@@ -53,7 +53,7 @@ local function addCorner(instance, radius)
     return corner
 end
 
--- [สถานะเมนู] (ใช้แสดงสถานะฟาร์ม)
+-- [สถานะเมนู]
 local statusLabel = Instance.new("TextLabel", sg)
 statusLabel.Size = UDim2.new(0, 350, 0, 30)
 statusLabel.Position = UDim2.new(1, -360, 1, -40)
@@ -89,7 +89,7 @@ layout.Padding = UDim.new(0, 5)
 local title = Instance.new("TextLabel", menuContainer)
 title.Size = UDim2.new(0, 300, 0, 40)
 title.Position = UDim2.new(1, -310, 0.20, -45)
-title.Text = "⚡ PLAYER TELEPORT (V50.5)"
+title.Text = "⚡ PLAYER TELEPORT (V50.6 FIX)"
 title.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 title.TextColor3 = Color3.fromRGB(255, 215, 0)
 title.Font = Enum.Font.GothamBold
@@ -163,10 +163,35 @@ speedTag.Font = Enum.Font.GothamBold
 speedTag.TextSize = 10
 speedTag.TextXAlignment = Enum.TextXAlignment.Left
 
--- === 3. ระบบการทำงาน ===
+-- === 3. ระบบการทำงาน (Optimized & Fixed) ===
 
 local function setStatus(text)
     statusLabel.Text = "Status: " .. text
+end
+
+-- ฟังก์ชันใหม่: กู้คืนสถานะตัวละคร (แก้จมดิน)
+local function restorePhysics()
+    if player.Character then
+        local hum = player.Character:FindFirstChild("Humanoid")
+        local root = player.Character:FindFirstChild("HumanoidRootPart")
+        
+        if hum then
+            hum.PlatformStand = false
+            hum:ChangeState(Enum.HumanoidStateType.GettingUp) -- บังคับให้ยืนขึ้น
+        end
+        
+        if root then
+            root.Velocity = Vector3.new(0,0,0)
+            root.AssemblyLinearVelocity = Vector3.new(0,0,0)
+        end
+
+        -- คืนค่า Collision ให้ทุกชิ้นส่วน
+        for _, v in pairs(player.Character:GetChildren()) do
+            if v:IsA("BasePart") then
+                v.CanCollide = true
+            end
+        end
+    end
 end
 
 sinkBtn.MouseButton1Click:Connect(function()
@@ -179,9 +204,7 @@ sinkBtn.MouseButton1Click:Connect(function()
         sinkBtn.Text = "SINK: OFF"
         sinkBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
         setStatus("Ready")
-        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            player.Character.HumanoidRootPart.Velocity = Vector3.new(0,0,0)
-        end
+        restorePhysics() -- เรียกใช้ฟังก์ชันแก้จมดิน
     end
 end)
 
@@ -231,22 +254,26 @@ local function smartMove(targetCFrame)
     if hum then hum:ChangeState(Enum.HumanoidStateType.Running) end
 end
 
--- Hybrid Interact
+-- Hybrid Interact (Optimized)
 local function forceInteract(duration)
     local char = player.Character
     if not char then return end
     local root = char:FindFirstChild("HumanoidRootPart")
-    
+    if not root then return end
+
     local found = false
-    for _, descendant in pairs(workspace:GetDescendants()) do
-        if descendant:IsA("ProximityPrompt") then
-            if descendant.Parent and descendant.Parent:IsA("BasePart") then
-                local dist = (descendant.Parent.Position - root.Position).Magnitude
-                if dist <= 30 and descendant.Enabled then 
-                    descendant:InputHoldBegin()
-                    found = true
-                end
-            end
+    
+    local overlapParams = OverlapParams.new()
+    overlapParams.FilterDescendantsInstances = {char}
+    overlapParams.FilterType = Enum.RaycastFilterType.Exclude
+    
+    local partsInRadius = workspace:GetPartBoundsInRadius(root.Position, 35, overlapParams)
+    
+    for _, part in ipairs(partsInRadius) do
+        local prompt = part:FindFirstChildWhichIsA("ProximityPrompt") or part.Parent:FindFirstChildWhichIsA("ProximityPrompt")
+        if prompt and prompt.Enabled then
+            prompt:InputHoldBegin()
+            found = true
         end
     end
 
@@ -254,9 +281,11 @@ local function forceInteract(duration)
         VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
         task.wait(duration)
         VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+        
         if found then
-            for _, descendant in pairs(workspace:GetDescendants()) do
-                if descendant:IsA("ProximityPrompt") then descendant:InputHoldEnd() end
+            for _, part in ipairs(partsInRadius) do
+                local prompt = part:FindFirstChildWhichIsA("ProximityPrompt") or part.Parent:FindFirstChildWhichIsA("ProximityPrompt")
+                if prompt then prompt:InputHoldEnd() end
             end
         end
     end)
@@ -300,6 +329,7 @@ local function runAutoFarm()
             task.wait(0.5)
         end
         removeStabilizer(player.Character)
+        restorePhysics() -- คืนค่าตอนจบฟาร์ม
         setStatus("Ready")
     end)
 end
@@ -314,6 +344,7 @@ farmBtn.MouseButton1Click:Connect(function()
         farmBtn.Text = "AUTO FARM: OFF"
         farmBtn.BackgroundColor3 = Color3.fromRGB(255, 170, 0)
         removeStabilizer(player.Character)
+        restorePhysics() -- คืนค่าตอนกดหยุดฟาร์ม
         setStatus("Ready")
     end
 end)
@@ -395,16 +426,17 @@ local function toggleFly()
             setStatus("Flying Mode")
         else
             if hrp:FindFirstChild("Elite_Movement") then hrp.Elite_Movement:Destroy() end
-            player.Character.Humanoid.PlatformStand = false
             setStatus("Ready")
+            restorePhysics() -- แก้ไข: คืนค่า Physics เมื่อหยุดบิน
         end
     end
 end
 
--- Update Loop
+-- Update Loop (Optimized for FPS)
 local runConn = RunService.Stepped:Connect(function()
     if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
         local hrp = player.Character.HumanoidRootPart
+        local hum = player.Character:FindFirstChild("Humanoid")
         
         -- Fly Logic
         if flying then
@@ -421,24 +453,31 @@ local runConn = RunService.Stepped:Connect(function()
                 if moveDir.Magnitude > 0 then hrp.CFrame = hrp.CFrame + (moveDir.Unit * speed) end
                 hrp.AssemblyLinearVelocity = Vector3.new(0,0,0)
             end
-            for _, v in pairs(player.Character:GetDescendants()) do
+            
+            if hum then hum:ChangeState(Enum.HumanoidStateType.Physics) end
+            
+            for _, v in pairs(player.Character:GetChildren()) do
                 if v:IsA("BasePart") then v.CanCollide = false end
             end
         end
 
         -- [SLOW SINK LOGIC] FIXED SPEED
         if sinkEnabled then
-            hrp.CFrame = hrp.CFrame * CFrame.new(0, -0.15, 0) -- ปรับเป็น -0.15 ให้เร็วขึ้นหน่อย
-            for _, v in pairs(player.Character:GetDescendants()) do
+            hrp.CFrame = hrp.CFrame * CFrame.new(0, -0.15, 0)
+            hrp.Velocity = Vector3.new(0,0,0)
+            if hum then hum:ChangeState(Enum.HumanoidStateType.Physics) end
+            
+            for _, v in pairs(player.Character:GetChildren()) do
                 if v:IsA("BasePart") then v.CanCollide = false end
             end
-            hrp.Velocity = Vector3.new(0,0,0)
         end
         
-        -- Auto Farm Noclip
+        -- Auto Farm Noclip (Optimized)
         if autoFarmEnabled then
-            for _, v in pairs(player.Character:GetDescendants()) do
-                if v:IsA("BasePart") then v.CanCollide = false end
+            for _, v in pairs(player.Character:GetChildren()) do
+                if v:IsA("BasePart") and v.CanCollide == true then 
+                    v.CanCollide = false 
+                end
             end
         end
     end
@@ -513,4 +552,4 @@ game:GetService("CoreGui").RobloxPromptGui.promptOverlay.ChildAdded:Connect(func
     end
 end)
 
-notify("V50.5 Loaded", "Medium Sink Active!")
+notify("V50.6 Fixed", "Physics Restore Added!")
