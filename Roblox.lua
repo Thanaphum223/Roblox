@@ -1,5 +1,5 @@
---:PLAYER TELEPORT (V50.9 RED ESP & AUTO SIZE):ControlGui_Pro_V50_Modern.lua
--- === V50.9: RED ESP + SMART STATUS BAR ===
+--:PLAYER TELEPORT (V50.9.3 ADD HOTKEY T):ControlGui_Pro_V50_Modern.lua
+-- === V50.9.3: ADDED 'T' HOTKEY FOR CLICK TP ===
 -- 1. ล้างระบบเก่า
 if _G.ProScript_Connections then
     for _, conn in pairs(_G.ProScript_Connections) do
@@ -27,6 +27,11 @@ local autoFarmEnabled = false
 local menuVisible = true 
 local speed = 1
 
+-- ตัวแปรสำหรับ Stats Farm
+local sellCount = 0
+local farmStartTime = 0
+local currentFarmState = "Idle"
+
 -- พิกัด Auto Farm
 local POINT_A_JOB   = CFrame.new(1146.80627, -245.849579, -561.207458)
 local POINT_B_FILL  = CFrame.new(1147.00024, -245.849609, -568.630432)
@@ -47,7 +52,7 @@ local Theme = {
     ButtonOff = Color3.fromRGB(35, 35, 40),
     ButtonOn_Start = Color3.fromRGB(0, 170, 255),
     ButtonOn_End = Color3.fromRGB(0, 100, 255),
-    ESP_Color = Color3.fromRGB(255, 0, 0), -- สีแดงสำหรับ ESP
+    ESP_Color = Color3.fromRGB(255, 0, 0),
     Text = Color3.fromRGB(240, 240, 240),
     TextDim = Color3.fromRGB(150, 150, 150),
     Stroke = Color3.fromRGB(60, 60, 70)
@@ -89,16 +94,15 @@ menuContainer.Name = "MenuContainer"
 
 -- [STATUS PILL - AUTO SIZE]
 local statusFrame = Instance.new("Frame", sg)
-statusFrame.AutomaticSize = Enum.AutomaticSize.X -- ปรับขนาดแนวนอนอัตโนมัติ
-statusFrame.Size = UDim2.new(0, 0, 0, 36) -- ความสูงคงที่
-statusFrame.AnchorPoint = Vector2.new(1, 1) -- จุดอ้างอิงอยู่ขวาล่าง
-statusFrame.Position = UDim2.new(1, -20, 1, -50) -- ตำแหน่งมุมขวาล่าง
+statusFrame.AutomaticSize = Enum.AutomaticSize.X 
+statusFrame.Size = UDim2.new(0, 0, 0, 36)
+statusFrame.AnchorPoint = Vector2.new(1, 1) 
+statusFrame.Position = UDim2.new(1, -20, 1, -50)
 statusFrame.BackgroundColor3 = Theme.Background
 statusFrame.BackgroundTransparency = 0.1
 addCorner(statusFrame, 10)
 addStroke(statusFrame, 0.3)
 
--- เพิ่ม Padding เพื่อให้ตัวหนังสือไม่ชิดขอบ
 local statusPad = Instance.new("UIPadding", statusFrame)
 statusPad.PaddingLeft = UDim.new(0, 15)
 statusPad.PaddingRight = UDim.new(0, 15)
@@ -110,7 +114,7 @@ statusLabel.Text = "Status: Ready"
 statusLabel.TextColor3 = Theme.Text
 statusLabel.Font = Enum.Font.GothamMedium
 statusLabel.TextSize = 14
-statusLabel.TextXAlignment = Enum.TextXAlignment.Center -- จัดกลางเพราะกรอบปรับตามคำแล้ว
+statusLabel.TextXAlignment = Enum.TextXAlignment.Center
 
 -- [SIDE MENU - PLAYER LIST]
 local sideFrame = Instance.new("Frame", menuContainer)
@@ -150,7 +154,6 @@ mainBar.BackgroundTransparency = 0.1
 addCorner(mainBar, 16)
 addStroke(mainBar, 0.3)
 
--- ฟังก์ชันสร้างปุ่ม
 local function createStyledBtn(parent, text, order, sizeScale)
     local btnContainer = Instance.new("Frame", parent)
     btnContainer.Size = UDim2.new(sizeScale, -10, 0, 45)
@@ -166,7 +169,6 @@ local function createStyledBtn(parent, text, order, sizeScale)
     btn.AutoButtonColor = false
     addCorner(btn, 10)
     local grad = addGradient(btn)
-    
     return btn, grad
 end
 
@@ -176,11 +178,11 @@ barLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 barLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 barLayout.Padding = UDim.new(0, 10)
 
--- Create Buttons
+-- ปุ่มต่างๆ (เพิ่ม (T) ที่ Click TP)
 local flyBtn, flyGrad = createStyledBtn(mainBar, "FLY (R)", 1, 0.12)
 local espBtn, espGrad = createStyledBtn(mainBar, "ESP (F)", 2, 0.12)
 local sinkBtn, sinkGrad = createStyledBtn(mainBar, "SINK", 3, 0.12)
-local clickTpBtn, clickTpGrad = createStyledBtn(mainBar, "CLICK TP", 4, 0.15)
+local clickTpBtn, clickTpGrad = createStyledBtn(mainBar, "CLICK TP (T)", 4, 0.15) -- เปลี่ยนชื่อปุ่ม
 local farmBtn, farmGrad = createStyledBtn(mainBar, "AUTO FARM", 5, 0.15)
 local stopSpecBtn, stopGrad = createStyledBtn(mainBar, "RESET CAM", 6, 0.12)
 
@@ -218,7 +220,22 @@ local function toggleBtnVisual(btn, gradient, isOn)
     end
 end
 
--- Fix Physics Function
+-- ฟังก์ชันเลื่อน Status Bar
+local function moveStatusUI(toCenter)
+    local tweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+    if toCenter then
+        statusFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+        TweenService:Create(statusFrame, tweenInfo, {
+            Position = UDim2.new(0.5, 0, 0.35, 0) 
+        }):Play()
+    else
+        statusFrame.AnchorPoint = Vector2.new(1, 1)
+        TweenService:Create(statusFrame, tweenInfo, {
+            Position = UDim2.new(1, -20, 1, -50)
+        }):Play()
+    end
+end
+
 local function restorePhysics()
     if player.Character then
         local hum = player.Character:FindFirstChild("Humanoid")
@@ -237,7 +254,6 @@ local function restorePhysics()
     end
 end
 
--- Button Logics
 sinkBtn.MouseButton1Click:Connect(function()
     sinkEnabled = not sinkEnabled
     toggleBtnVisual(sinkBtn, sinkGrad, sinkEnabled)
@@ -316,31 +332,58 @@ local function forceInteract(duration)
     task.wait(duration)
 end
 
+local function formatTime(seconds)
+    local h = math.floor(seconds / 3600)
+    local m = math.floor((seconds % 3600) / 60)
+    local s = seconds % 60
+    return string.format("%02d:%02d:%02d", h, m, s)
+end
+
 local function runAutoFarm()
+    farmStartTime = os.time()
+    sellCount = 0
+    currentFarmState = "Starting"
+
+    task.spawn(function()
+        while autoFarmEnabled do
+            local elapsed = os.time() - farmStartTime
+            local timeStr = formatTime(elapsed)
+            setStatus(string.format("%s | Time: %s | Sold: %d", currentFarmState, timeStr, sellCount))
+            task.wait(1)
+        end
+    end)
+
     task.spawn(function()
         while autoFarmEnabled do
             if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then return end
             addStabilizer(player.Character)
-            setStatus("Farming: Job")
+            
+            currentFarmState = "Job"
             smartMove(POINT_A_JOB)
             task.wait(0.5) 
             if not autoFarmEnabled then break end
             forceInteract(3.5)
-            setStatus("Farming: Fill")
+            
+            currentFarmState = "Fill"
             smartMove(POINT_B_FILL)
             task.wait(0.5) 
             if not autoFarmEnabled then break end
             forceInteract(3.5)
-            setStatus("Farming: Sell")
+            
+            currentFarmState = "Sell"
             smartMove(POINT_C_SELL)
             task.wait(0.5) 
             if not autoFarmEnabled then break end
             forceInteract(3.5)
+            
+            sellCount = sellCount + 1
             task.wait(0.5)
         end
+        
         removeStabilizer(player.Character)
         restorePhysics()
-        setStatus("Ready")
+        setStatus("Ready (Last Run: " .. sellCount .. " Sold)")
+        moveStatusUI(false) 
     end)
 end
 
@@ -348,15 +391,16 @@ farmBtn.MouseButton1Click:Connect(function()
     autoFarmEnabled = not autoFarmEnabled
     toggleBtnVisual(farmBtn, farmGrad, autoFarmEnabled)
     if autoFarmEnabled then
+        moveStatusUI(true)
         runAutoFarm()
     else
         removeStabilizer(player.Character)
         restorePhysics()
         setStatus("Ready")
+        moveStatusUI(false)
     end
 end)
 
--- ESP (RED COLOR)
 local function createESPItems(p, char)
     if not espEnabled then return end
     local root = char:WaitForChild("HumanoidRootPart", 1)
@@ -366,8 +410,8 @@ local function createESPItems(p, char)
     local hi = Instance.new("Highlight", char)
     hi.Name = "Elite_Highlight"
     hi.FillTransparency = 0.5
-    hi.OutlineColor = Theme.ESP_Color -- สีแดง (กรอบ)
-    hi.FillColor = Theme.ESP_Color -- สีแดง (ตัว)
+    hi.OutlineColor = Theme.ESP_Color
+    hi.FillColor = Theme.ESP_Color
     local bg = Instance.new("BillboardGui", char)
     bg.Name = "Elite_Tag"
     bg.Adornee = root
@@ -378,7 +422,7 @@ local function createESPItems(p, char)
     tl.BackgroundTransparency = 1
     tl.Size = UDim2.new(1, 0, 1, 0)
     tl.Text = p.DisplayName or p.Name
-    tl.TextColor3 = Theme.ESP_Color -- ชื่อสีแดงด้วย
+    tl.TextColor3 = Theme.ESP_Color
     tl.Font = Enum.Font.GothamBold
     tl.TextSize = 14
     tl.TextStrokeTransparency = 0.5
@@ -399,7 +443,6 @@ table.insert(_G.ProScript_Connections, Players.PlayerAdded:Connect(function(p) p
 
 espBtn.MouseButton1Click:Connect(toggleESP)
 
--- Click TP
 local clickTpConn = mouse.Button1Down:Connect(function()
     if clickTpEnabled and UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
         if mouse.Target and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
@@ -411,12 +454,19 @@ local clickTpConn = mouse.Button1Down:Connect(function()
 end)
 table.insert(_G.ProScript_Connections, clickTpConn)
 
-clickTpBtn.MouseButton1Click:Connect(function()
+-- ฟังก์ชัน Toggle Click TP (สำหรับปุ่มและคีย์ลัด)
+local function toggleClickTP()
     clickTpEnabled = not clickTpEnabled
     toggleBtnVisual(clickTpBtn, clickTpGrad, clickTpEnabled)
-end)
+    if clickTpEnabled then
+        setStatus("Click TP: ON (Ctrl+Click)")
+    else
+        setStatus("Click TP: OFF")
+    end
+end
 
--- Fly System
+clickTpBtn.MouseButton1Click:Connect(toggleClickTP)
+
 local function toggleFly()
     flying = not flying
     toggleBtnVisual(flyBtn, flyGrad, flying)
@@ -439,7 +489,6 @@ local function toggleFly()
 end
 flyBtn.MouseButton1Click:Connect(toggleFly)
 
--- Update Loop
 local runConn = RunService.Stepped:Connect(function()
     if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
         local hrp = player.Character.HumanoidRootPart
@@ -481,6 +530,7 @@ local inputConn = UserInputService.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     if input.KeyCode == Enum.KeyCode.R then toggleFly() end
     if input.KeyCode == Enum.KeyCode.F then toggleESP() end
+    if input.KeyCode == Enum.KeyCode.T then toggleClickTP() end -- เพิ่มปุ่ม T
     if input.KeyCode == Enum.KeyCode.X then
         menuVisible = not menuVisible
         menuContainer.Visible = menuVisible
@@ -491,7 +541,6 @@ table.insert(_G.ProScript_Connections, inputConn)
 local speedConn = speedInput:GetPropertyChangedSignal("Text"):Connect(function() speed = tonumber(speedInput.Text) or 1 end)
 table.insert(_G.ProScript_Connections, speedConn)
 
--- Update Player List (Styled)
 local function updatePlayerList()
     for _, item in pairs(scrollFrame:GetChildren()) do if item:IsA("Frame") then item:Destroy() end end
     for _, p in pairs(Players:GetPlayers()) do
@@ -549,11 +598,10 @@ stopSpecBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- Auto Rejoin System
 game:GetService("CoreGui").RobloxPromptGui.promptOverlay.ChildAdded:Connect(function(child)
     if child.Name == 'ErrorPrompt' then
         TeleportService:Teleport(game.PlaceId)
     end
 end)
 
-notify("V50.9 Updated", "Red ESP + Smart Status Bar")
+notify("V50.9.3 Updated", "Added 'T' Key for Click TP")
