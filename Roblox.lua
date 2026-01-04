@@ -1,5 +1,4 @@
---:PLAYER TELEPORT (V50.9.3 ADD HOTKEY T):ControlGui_Pro_V50_Modern.lua
--- === V50.9.3: ADDED 'T' HOTKEY FOR CLICK TP ===
+-- === V50.9.4: OPTIMIZED + ANTI-AFK + RESPAWN FIX ===
 -- 1. ล้างระบบเก่า
 if _G.ProScript_Connections then
     for _, conn in pairs(_G.ProScript_Connections) do
@@ -12,6 +11,7 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
+local VirtualUser = game:GetService("VirtualUser") -- เพิ่ม Service สำหรับ Anti-AFK
 local TweenService = game:GetService("TweenService")
 local StarterGui = game:GetService("StarterGui")
 local TeleportService = game:GetService("TeleportService")
@@ -19,6 +19,8 @@ local TeleportService = game:GetService("TeleportService")
 local player = Players.LocalPlayer
 local mouse = player:GetMouse() 
 local camera = workspace.CurrentCamera
+
+-- สถานะตัวแปร
 local flying = false
 local espEnabled = false
 local sinkEnabled = false
@@ -32,7 +34,7 @@ local sellCount = 0
 local farmStartTime = 0
 local currentFarmState = "Idle"
 
--- พิกัด Auto Farm
+-- พิกัด Auto Farm (คงเดิม)
 local POINT_A_JOB   = CFrame.new(1146.80627, -245.849579, -561.207458)
 local POINT_B_FILL  = CFrame.new(1147.00024, -245.849609, -568.630432)
 local POINT_C_SELL  = CFrame.new(1143.9364,  -245.849579, -580.007935)
@@ -61,6 +63,7 @@ local Theme = {
 local sg = Instance.new("ScreenGui", player.PlayerGui)
 sg.Name = "ControlGui_Pro_V50_Slow"
 sg.ResetOnSpawn = false
+sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
 local function addCorner(instance, radius)
     local corner = Instance.new("UICorner", instance)
@@ -92,7 +95,7 @@ menuContainer.Size = UDim2.new(1, 0, 1, 0)
 menuContainer.BackgroundTransparency = 1
 menuContainer.Name = "MenuContainer"
 
--- [STATUS PILL - AUTO SIZE]
+-- [STATUS PILL]
 local statusFrame = Instance.new("Frame", sg)
 statusFrame.AutomaticSize = Enum.AutomaticSize.X 
 statusFrame.Size = UDim2.new(0, 0, 0, 36)
@@ -178,11 +181,11 @@ barLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 barLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 barLayout.Padding = UDim.new(0, 10)
 
--- ปุ่มต่างๆ (เพิ่ม (T) ที่ Click TP)
+-- ปุ่มต่างๆ
 local flyBtn, flyGrad = createStyledBtn(mainBar, "FLY (R)", 1, 0.12)
 local espBtn, espGrad = createStyledBtn(mainBar, "ESP (F)", 2, 0.12)
 local sinkBtn, sinkGrad = createStyledBtn(mainBar, "SINK", 3, 0.12)
-local clickTpBtn, clickTpGrad = createStyledBtn(mainBar, "CLICK TP (T)", 4, 0.15) -- เปลี่ยนชื่อปุ่ม
+local clickTpBtn, clickTpGrad = createStyledBtn(mainBar, "CLICK TP (T)", 4, 0.15)
 local farmBtn, farmGrad = createStyledBtn(mainBar, "AUTO FARM", 5, 0.15)
 local stopSpecBtn, stopGrad = createStyledBtn(mainBar, "RESET CAM", 6, 0.12)
 
@@ -202,7 +205,7 @@ speedInput.PlaceholderText = "SPD"
 addCorner(speedInput, 10)
 addStroke(speedInput, 0.6)
 
--- === 3. ระบบการทำงาน ===
+-- === 3. ระบบการทำงานหลัก ===
 
 local function setStatus(text)
     statusLabel.Text = text
@@ -220,20 +223,13 @@ local function toggleBtnVisual(btn, gradient, isOn)
     end
 end
 
--- ฟังก์ชันเลื่อน Status Bar
 local function moveStatusUI(toCenter)
     local tweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
-    if toCenter then
-        statusFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-        TweenService:Create(statusFrame, tweenInfo, {
-            Position = UDim2.new(0.5, 0, 0.35, 0) 
-        }):Play()
-    else
-        statusFrame.AnchorPoint = Vector2.new(1, 1)
-        TweenService:Create(statusFrame, tweenInfo, {
-            Position = UDim2.new(1, -20, 1, -50)
-        }):Play()
-    end
+    local targetPos = toCenter and UDim2.new(0.5, 0, 0.35, 0) or UDim2.new(1, -20, 1, -50)
+    local targetAnchor = toCenter and Vector2.new(0.5, 0.5) or Vector2.new(1, 1)
+    
+    statusFrame.AnchorPoint = targetAnchor
+    TweenService:Create(statusFrame, tweenInfo, {Position = targetPos}):Play()
 end
 
 local function restorePhysics()
@@ -247,6 +243,8 @@ local function restorePhysics()
         if root then
             root.Velocity = Vector3.new(0,0,0)
             root.AssemblyLinearVelocity = Vector3.new(0,0,0)
+            -- ลบ BodyVelocity เก่าถ้ามี
+            if root:FindFirstChild("Elite_Movement") then root.Elite_Movement:Destroy() end
         end
         for _, v in pairs(player.Character:GetChildren()) do
             if v:IsA("BasePart") then v.CanCollide = true end
@@ -254,6 +252,14 @@ local function restorePhysics()
     end
 end
 
+-- === Anti-AFK Logic ===
+table.insert(_G.ProScript_Connections, player.Idled:Connect(function()
+    VirtualUser:CaptureController()
+    VirtualUser:ClickButton2(Vector2.new())
+    setStatus("Anti-AFK Triggered")
+end))
+
+-- === SINK ===
 sinkBtn.MouseButton1Click:Connect(function()
     sinkEnabled = not sinkEnabled
     toggleBtnVisual(sinkBtn, sinkGrad, sinkEnabled)
@@ -265,6 +271,7 @@ sinkBtn.MouseButton1Click:Connect(function()
     end
 end)
 
+-- === AUTO FARM UTILS ===
 local function addStabilizer(char)
     if not char then return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
@@ -311,6 +318,7 @@ local function forceInteract(duration)
     overlapParams.FilterDescendantsInstances = {char}
     overlapParams.FilterType = Enum.RaycastFilterType.Exclude
     local partsInRadius = workspace:GetPartBoundsInRadius(root.Position, 35, overlapParams)
+    
     for _, part in ipairs(partsInRadius) do
         local prompt = part:FindFirstChildWhichIsA("ProximityPrompt") or part.Parent:FindFirstChildWhichIsA("ProximityPrompt")
         if prompt and prompt.Enabled then
@@ -318,6 +326,7 @@ local function forceInteract(duration)
             found = true
         end
     end
+    
     task.spawn(function()
         VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
         task.wait(duration)
@@ -355,29 +364,35 @@ local function runAutoFarm()
 
     task.spawn(function()
         while autoFarmEnabled do
-            if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then return end
-            addStabilizer(player.Character)
+            if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then 
+                task.wait(1) -- รอเกิด
+                return 
+            end
             
-            currentFarmState = "Job"
-            smartMove(POINT_A_JOB)
-            task.wait(0.5) 
-            if not autoFarmEnabled then break end
-            forceInteract(3.5)
-            
-            currentFarmState = "Fill"
-            smartMove(POINT_B_FILL)
-            task.wait(0.5) 
-            if not autoFarmEnabled then break end
-            forceInteract(3.5)
-            
-            currentFarmState = "Sell"
-            smartMove(POINT_C_SELL)
-            task.wait(0.5) 
-            if not autoFarmEnabled then break end
-            forceInteract(3.5)
-            
-            sellCount = sellCount + 1
-            task.wait(0.5)
+            pcall(function()
+                addStabilizer(player.Character)
+                
+                currentFarmState = "Job"
+                smartMove(POINT_A_JOB)
+                task.wait(0.5) 
+                if not autoFarmEnabled then return end
+                forceInteract(3.5)
+                
+                currentFarmState = "Fill"
+                smartMove(POINT_B_FILL)
+                task.wait(0.5) 
+                if not autoFarmEnabled then return end
+                forceInteract(3.5)
+                
+                currentFarmState = "Sell"
+                smartMove(POINT_C_SELL)
+                task.wait(0.5) 
+                if not autoFarmEnabled then return end
+                forceInteract(3.5)
+                
+                sellCount = sellCount + 1
+                task.wait(0.5)
+            end)
         end
         
         removeStabilizer(player.Character)
@@ -401,23 +416,27 @@ farmBtn.MouseButton1Click:Connect(function()
     end
 end)
 
+-- === ESP ===
 local function createESPItems(p, char)
     if not espEnabled then return end
     local root = char:WaitForChild("HumanoidRootPart", 1)
     if not root then return end
     if char:FindFirstChild("Elite_Highlight") then char.Elite_Highlight:Destroy() end
     if char:FindFirstChild("Elite_Tag") then char.Elite_Tag:Destroy() end
+    
     local hi = Instance.new("Highlight", char)
     hi.Name = "Elite_Highlight"
     hi.FillTransparency = 0.5
     hi.OutlineColor = Theme.ESP_Color
     hi.FillColor = Theme.ESP_Color
+    
     local bg = Instance.new("BillboardGui", char)
     bg.Name = "Elite_Tag"
     bg.Adornee = root
     bg.Size = UDim2.new(0, 100, 0, 40)
     bg.StudsOffset = Vector3.new(0, 3.5, 0)
     bg.AlwaysOnTop = true
+    
     local tl = Instance.new("TextLabel", bg)
     tl.BackgroundTransparency = 1
     tl.Size = UDim2.new(1, 0, 1, 0)
@@ -439,22 +458,15 @@ local function toggleESP()
         end
     end
 end
-table.insert(_G.ProScript_Connections, Players.PlayerAdded:Connect(function(p) p.CharacterAdded:Connect(function(c) if espEnabled then createESPItems(p, c) end end) end))
+table.insert(_G.ProScript_Connections, Players.PlayerAdded:Connect(function(p) 
+    p.CharacterAdded:Connect(function(c) 
+        if espEnabled then createESPItems(p, c) end 
+    end) 
+end))
 
 espBtn.MouseButton1Click:Connect(toggleESP)
 
-local clickTpConn = mouse.Button1Down:Connect(function()
-    if clickTpEnabled and UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
-        if mouse.Target and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            local targetPos = mouse.Hit.p + Vector3.new(0, 3, 0)
-            player.Character.HumanoidRootPart.CFrame = CFrame.new(targetPos)
-            setStatus("Teleported!")
-        end
-    end
-end)
-table.insert(_G.ProScript_Connections, clickTpConn)
-
--- ฟังก์ชัน Toggle Click TP (สำหรับปุ่มและคีย์ลัด)
+-- === CLICK TP (Ctrl + Click) ===
 local function toggleClickTP()
     clickTpEnabled = not clickTpEnabled
     toggleBtnVisual(clickTpBtn, clickTpGrad, clickTpEnabled)
@@ -465,53 +477,70 @@ local function toggleClickTP()
     end
 end
 
+local clickTpConn = mouse.Button1Down:Connect(function()
+    if clickTpEnabled and UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+        if mouse.Target and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            -- เพิ่มการยกตัวขึ้นนิดหน่อยเพื่อป้องกันการจมดิน
+            local targetPos = mouse.Hit.p + Vector3.new(0, 3.5, 0)
+            player.Character.HumanoidRootPart.CFrame = CFrame.new(targetPos)
+            setStatus("Teleported!")
+        end
+    end
+end)
+table.insert(_G.ProScript_Connections, clickTpConn)
 clickTpBtn.MouseButton1Click:Connect(toggleClickTP)
 
+-- === FLY SYSTEM ===
 local function toggleFly()
     flying = not flying
     toggleBtnVisual(flyBtn, flyGrad, flying)
-    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-        local hrp = player.Character.HumanoidRootPart
-        if flying then
-            local bv = Instance.new("BodyVelocity")
-            bv.Name = "Elite_Movement"
-            bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-            bv.Velocity = Vector3.new(0, 0, 0)
-            bv.Parent = hrp
-            player.Character.Humanoid.PlatformStand = true
-            setStatus("Flying Mode")
-        else
-            if hrp:FindFirstChild("Elite_Movement") then hrp.Elite_Movement:Destroy() end
-            setStatus("Ready")
-            restorePhysics()
-        end
+    if flying then
+        setStatus("Flying Mode")
+        -- เริ่มต้น BV จะถูกสร้างใน loop เพื่อรองรับการเกิดใหม่
+    else
+        setStatus("Ready")
+        restorePhysics()
     end
 end
 flyBtn.MouseButton1Click:Connect(toggleFly)
 
+-- === MAIN LOOP ===
 local runConn = RunService.Stepped:Connect(function()
     if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
         local hrp = player.Character.HumanoidRootPart
         local hum = player.Character:FindFirstChild("Humanoid")
         
+        -- Fly Logic (Respawn Compatible)
         if flying then
+            -- เช็คว่ามี BodyVelocity หรือไม่ ถ้าไม่มีให้สร้างใหม่ (เช่นเพิ่งเกิด)
             local bv = hrp:FindFirstChild("Elite_Movement")
-            if bv then
-                bv.Velocity = Vector3.new(0, 0, 0)
-                local moveDir = Vector3.new(0,0,0)
-                if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir += camera.CFrame.LookVector end
-                if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir -= camera.CFrame.LookVector end
-                if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir -= camera.CFrame.RightVector end
-                if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir += camera.CFrame.RightVector end
-                if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir += Vector3.new(0, 1, 0) end
-                if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveDir -= Vector3.new(0, 1, 0) end
-                if moveDir.Magnitude > 0 then hrp.CFrame = hrp.CFrame + (moveDir.Unit * speed) end
-                hrp.AssemblyLinearVelocity = Vector3.new(0,0,0)
+            if not bv then
+                bv = Instance.new("BodyVelocity")
+                bv.Name = "Elite_Movement"
+                bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+                bv.Parent = hrp
             end
+            
+            -- ควบคุมทิศทาง
+            bv.Velocity = Vector3.new(0, 0, 0)
+            local moveDir = Vector3.new(0,0,0)
+            if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + camera.CFrame.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - camera.CFrame.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - camera.CFrame.RightVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + camera.CFrame.RightVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir = moveDir + Vector3.new(0, 1, 0) end
+            if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveDir = moveDir - Vector3.new(0, 1, 0) end
+            
+            if moveDir.Magnitude > 0 then 
+                hrp.CFrame = hrp.CFrame + (moveDir.Unit * speed) 
+            end
+            hrp.AssemblyLinearVelocity = Vector3.new(0,0,0)
+            
             if hum then hum:ChangeState(Enum.HumanoidStateType.Physics) end
             for _, v in pairs(player.Character:GetChildren()) do if v:IsA("BasePart") then v.CanCollide = false end end
         end
 
+        -- Sink Logic
         if sinkEnabled then
             hrp.CFrame = hrp.CFrame * CFrame.new(0, -0.15, 0)
             hrp.Velocity = Vector3.new(0,0,0)
@@ -519,18 +548,22 @@ local runConn = RunService.Stepped:Connect(function()
             for _, v in pairs(player.Character:GetChildren()) do if v:IsA("BasePart") then v.CanCollide = false end end
         end
         
+        -- Auto Farm Collision Fix
         if autoFarmEnabled then
-            for _, v in pairs(player.Character:GetChildren()) do if v:IsA("BasePart") and v.CanCollide == true then v.CanCollide = false end end
+            for _, v in pairs(player.Character:GetChildren()) do 
+                if v:IsA("BasePart") and v.CanCollide == true then v.CanCollide = false end 
+            end
         end
     end
 end)
 table.insert(_G.ProScript_Connections, runConn)
 
+-- === INPUTS ===
 local inputConn = UserInputService.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     if input.KeyCode == Enum.KeyCode.R then toggleFly() end
     if input.KeyCode == Enum.KeyCode.F then toggleESP() end
-    if input.KeyCode == Enum.KeyCode.T then toggleClickTP() end -- เพิ่มปุ่ม T
+    if input.KeyCode == Enum.KeyCode.T then toggleClickTP() end -- ปุ่ม T ยังอยู่ครบถ้วน
     if input.KeyCode == Enum.KeyCode.X then
         menuVisible = not menuVisible
         menuContainer.Visible = menuVisible
@@ -541,6 +574,7 @@ table.insert(_G.ProScript_Connections, inputConn)
 local speedConn = speedInput:GetPropertyChangedSignal("Text"):Connect(function() speed = tonumber(speedInput.Text) or 1 end)
 table.insert(_G.ProScript_Connections, speedConn)
 
+-- === PLAYER LIST UPDATER ===
 local function updatePlayerList()
     for _, item in pairs(scrollFrame:GetChildren()) do if item:IsA("Frame") then item:Destroy() end end
     for _, p in pairs(Players:GetPlayers()) do
@@ -561,7 +595,7 @@ local function updatePlayerList()
             tBtn.Font = Enum.Font.GothamMedium
             tBtn.TextSize = 14
             tBtn.MouseButton1Click:Connect(function()
-                if p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                if p.Character and p.Character:FindFirstChild("HumanoidRootPart") and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
                     player.Character.HumanoidRootPart.CFrame = p.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
                     setStatus("TP to " .. p.DisplayName)
                 end
@@ -598,10 +632,11 @@ stopSpecBtn.MouseButton1Click:Connect(function()
     end
 end)
 
+-- Auto Rejoin
 game:GetService("CoreGui").RobloxPromptGui.promptOverlay.ChildAdded:Connect(function(child)
     if child.Name == 'ErrorPrompt' then
         TeleportService:Teleport(game.PlaceId)
     end
 end)
 
-notify("V50.9.3 Updated", "Added 'T' Key for Click TP")
+notify("V50.9.4 Optimized", "Added Anti-AFK & Stability Fixes")
