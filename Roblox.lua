@@ -1,4 +1,9 @@
--- === V50.9.4: OPTIMIZED + ANTI-AFK + RESPAWN FIX ===
+--[[
+    CONTROL GUI PRO V50.9.5: ESP FIX EDITION
+    Author: Gemini
+    Fix: ESP now auto-updates when players respawn (No need to toggle on/off)
+]]
+
 -- 1. ล้างระบบเก่า
 if _G.ProScript_Connections then
     for _, conn in pairs(_G.ProScript_Connections) do
@@ -11,7 +16,7 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
-local VirtualUser = game:GetService("VirtualUser") -- เพิ่ม Service สำหรับ Anti-AFK
+local VirtualUser = game:GetService("VirtualUser")
 local TweenService = game:GetService("TweenService")
 local StarterGui = game:GetService("StarterGui")
 local TeleportService = game:GetService("TeleportService")
@@ -34,7 +39,7 @@ local sellCount = 0
 local farmStartTime = 0
 local currentFarmState = "Idle"
 
--- พิกัด Auto Farm (คงเดิม)
+-- พิกัด Auto Farm
 local POINT_A_JOB   = CFrame.new(1146.80627, -245.849579, -561.207458)
 local POINT_B_FILL  = CFrame.new(1147.00024, -245.849609, -568.630432)
 local POINT_C_SELL  = CFrame.new(1143.9364,  -245.849579, -580.007935)
@@ -243,7 +248,6 @@ local function restorePhysics()
         if root then
             root.Velocity = Vector3.new(0,0,0)
             root.AssemblyLinearVelocity = Vector3.new(0,0,0)
-            -- ลบ BodyVelocity เก่าถ้ามี
             if root:FindFirstChild("Elite_Movement") then root.Elite_Movement:Destroy() end
         end
         for _, v in pairs(player.Character:GetChildren()) do
@@ -365,7 +369,7 @@ local function runAutoFarm()
     task.spawn(function()
         while autoFarmEnabled do
             if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then 
-                task.wait(1) -- รอเกิด
+                task.wait(1) 
                 return 
             end
             
@@ -416,13 +420,21 @@ farmBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- === ESP ===
-local function createESPItems(p, char)
-    if not espEnabled then return end
-    local root = char:WaitForChild("HumanoidRootPart", 1)
-    if not root then return end
+-- === ESP SYSTEM (FIXED) ===
+-- ฟังก์ชันลบ ESP
+local function removeESP(char)
+    if not char then return end
     if char:FindFirstChild("Elite_Highlight") then char.Elite_Highlight:Destroy() end
     if char:FindFirstChild("Elite_Tag") then char.Elite_Tag:Destroy() end
+end
+
+-- ฟังก์ชันสร้าง ESP
+local function createESPItems(p, char)
+    if not char then return end
+    removeESP(char) -- ลบอันเก่าออกก่อนเสมอ
+
+    local root = char:WaitForChild("HumanoidRootPart", 5) -- รอโหลด 5 วิ
+    if not root then return end
     
     local hi = Instance.new("Highlight", char)
     hi.Name = "Elite_Highlight"
@@ -447,24 +459,56 @@ local function createESPItems(p, char)
     tl.TextStrokeTransparency = 0.5
 end
 
-local function toggleESP()
-    espEnabled = not espEnabled
-    toggleBtnVisual(espBtn, espGrad, espEnabled)
-    for _, p in pairs(Players:GetPlayers()) do
-        if espEnabled and p ~= player and p.Character then createESPItems(p, p.Character) end
-        if not espEnabled and p.Character then 
-            if p.Character:FindFirstChild("Elite_Highlight") then p.Character.Elite_Highlight:Destroy() end
-            if p.Character:FindFirstChild("Elite_Tag") then p.Character.Elite_Tag:Destroy() end
+-- ฟังก์ชัน Hook ผู้เล่น (ทำงานเมื่อเกิดใหม่)
+local function setupPlayerESP(p)
+    if p == player then return end -- ไม่ทำใส่ตัวเอง
+    
+    -- ดักรอตอนเกิดใหม่
+    p.CharacterAdded:Connect(function(c)
+        if espEnabled then 
+            task.wait(1) -- รอตัวละครโหลดเสร็จสักนิด
+            createESPItems(p, c) 
+        end
+    end)
+    
+    -- ถ้ามีตัวอยู่แล้ว ให้ใส่เลย
+    if p.Character then
+        if espEnabled then
+            createESPItems(p, p.Character)
         end
     end
 end
-table.insert(_G.ProScript_Connections, Players.PlayerAdded:Connect(function(p) 
-    p.CharacterAdded:Connect(function(c) 
-        if espEnabled then createESPItems(p, c) end 
-    end) 
-end))
 
+-- ปุ่มเปิด/ปิด ESP
+local function toggleESP()
+    espEnabled = not espEnabled
+    toggleBtnVisual(espBtn, espGrad, espEnabled)
+    
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= player and p.Character then
+            if espEnabled then
+                createESPItems(p, p.Character)
+            else
+                removeESP(p.Character)
+            end
+        end
+    end
+    
+    if espEnabled then
+        setStatus("ESP: ON")
+    else
+        setStatus("ESP: OFF")
+    end
+end
 espBtn.MouseButton1Click:Connect(toggleESP)
+
+-- เริ่มต้นระบบ Hook ใส่ผู้เล่นทุกคน (ทั้งเก่าและใหม่)
+for _, p in pairs(Players:GetPlayers()) do
+    setupPlayerESP(p)
+end
+table.insert(_G.ProScript_Connections, Players.PlayerAdded:Connect(function(p)
+    setupPlayerESP(p)
+end))
 
 -- === CLICK TP (Ctrl + Click) ===
 local function toggleClickTP()
@@ -563,7 +607,7 @@ local inputConn = UserInputService.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     if input.KeyCode == Enum.KeyCode.R then toggleFly() end
     if input.KeyCode == Enum.KeyCode.F then toggleESP() end
-    if input.KeyCode == Enum.KeyCode.T then toggleClickTP() end -- ปุ่ม T ยังอยู่ครบถ้วน
+    if input.KeyCode == Enum.KeyCode.T then toggleClickTP() end
     if input.KeyCode == Enum.KeyCode.X then
         menuVisible = not menuVisible
         menuContainer.Visible = menuVisible
@@ -639,4 +683,4 @@ game:GetService("CoreGui").RobloxPromptGui.promptOverlay.ChildAdded:Connect(func
     end
 end)
 
-notify("V50.9.4 Optimized", "Added Anti-AFK & Stability Fixes")
+notify("V50.9.5 Fixed", "ESP now auto-updates on respawn!")
