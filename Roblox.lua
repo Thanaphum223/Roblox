@@ -1,7 +1,11 @@
 --[[
-    CONTROL GUI PRO V50.9.5: ESP FIX EDITION
-    Author: Gemini
-    Fix: ESP now auto-updates when players respawn (No need to toggle on/off)
+    CONTROL GUI PRO V51: ULTIMATE EDITION
+    Author: Gemini (Optimized based on User's V50.9.5)
+    
+    [CHANGELOG V51]
+    - Added: Instant Stop System (ยกเลิกการเดินทันทีเมื่อกดปิด)
+    - Optimized: ESP Loop Efficiency
+    - Fixed: Cleaned up BodyGyro properly
 ]]
 
 -- 1. ล้างระบบเก่า
@@ -38,13 +42,15 @@ local speed = 1
 local sellCount = 0
 local farmStartTime = 0
 local currentFarmState = "Idle"
+local currentTween = nil -- เก็บ Tween ปัจจุบันเพื่อสั่งหยุดได้
 
--- พิกัด Auto Farm
+-- พิกัด Auto Farm (ตามต้นฉบับ)
 local POINT_A_JOB   = CFrame.new(1146.80627, -245.849579, -561.207458)
 local POINT_B_FILL  = CFrame.new(1147.00024, -245.849609, -568.630432)
 local POINT_C_SELL  = CFrame.new(1143.9364,  -245.849579, -580.007935)
 
 -- ล้าง UI เก่า
+if player.PlayerGui:FindFirstChild("ControlGui_Pro_V51") then player.PlayerGui.ControlGui_Pro_V51:Destroy() end
 if player.PlayerGui:FindFirstChild("ControlGui_Pro_V50_Slow") then player.PlayerGui.ControlGui_Pro_V50_Slow:Destroy() end
 
 local function notify(title, text)
@@ -59,14 +65,14 @@ local Theme = {
     ButtonOff = Color3.fromRGB(35, 35, 40),
     ButtonOn_Start = Color3.fromRGB(0, 170, 255),
     ButtonOn_End = Color3.fromRGB(0, 100, 255),
-    ESP_Color = Color3.fromRGB(255, 0, 0),
+    ESP_Color = Color3.fromRGB(255, 50, 50),
     Text = Color3.fromRGB(240, 240, 240),
     TextDim = Color3.fromRGB(150, 150, 150),
     Stroke = Color3.fromRGB(60, 60, 70)
 }
 
 local sg = Instance.new("ScreenGui", player.PlayerGui)
-sg.Name = "ControlGui_Pro_V50_Slow"
+sg.Name = "ControlGui_Pro_V51"
 sg.ResetOnSpawn = false
 sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
@@ -299,14 +305,21 @@ local function smartMove(targetCFrame)
     local char = player.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return end
     local root = char.HumanoidRootPart
+    
     addStabilizer(char)
+    
     local dist = (root.Position - targetCFrame.Position).Magnitude
     local tweenTime = dist / 120 
     if tweenTime < 0.2 then tweenTime = 0.2 end
+    
     local tweenInfo = TweenInfo.new(tweenTime, Enum.EasingStyle.Linear)
     local tween = TweenService:Create(root, tweenInfo, {CFrame = CFrame.new(targetCFrame.Position)})
+    
+    currentTween = tween -- [FIX] เก็บตัวแปร Tween
     tween:Play()
     tween.Completed:Wait()
+    currentTween = nil -- [FIX] เคลียร์เมื่อเสร็จ
+    
     root.Velocity = Vector3.new(0,0,0)
     local hum = char:FindFirstChild("Humanoid")
     if hum then hum:ChangeState(Enum.HumanoidStateType.Running) end
@@ -317,6 +330,7 @@ local function forceInteract(duration)
     if not char then return end
     local root = char:FindFirstChild("HumanoidRootPart")
     if not root then return end
+    
     local found = false
     local overlapParams = OverlapParams.new()
     overlapParams.FilterDescendantsInstances = {char}
@@ -332,8 +346,17 @@ local function forceInteract(duration)
     end
     
     task.spawn(function()
+        -- Hold Key 'E'
         VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
-        task.wait(duration)
+        
+        -- Wait Loop with Cancel Check
+        local elapsed = 0
+        while elapsed < duration do
+            if not autoFarmEnabled then break end -- [FIX] ออกทันทีถ้าปิดฟาร์ม
+            task.wait(0.1)
+            elapsed = elapsed + 0.1
+        end
+        
         VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
         if found then
             for _, part in ipairs(partsInRadius) do
@@ -342,7 +365,14 @@ local function forceInteract(duration)
             end
         end
     end)
-    task.wait(duration)
+    
+    -- Wait Main Thread with Cancel Check
+    local elapsed = 0
+    while elapsed < duration do
+        if not autoFarmEnabled then return end -- [FIX] ออกทันทีถ้าปิดฟาร์ม
+        task.wait(0.1)
+        elapsed = elapsed + 0.1
+    end
 end
 
 local function formatTime(seconds)
@@ -357,6 +387,7 @@ local function runAutoFarm()
     sellCount = 0
     currentFarmState = "Starting"
 
+    -- Stats Loop
     task.spawn(function()
         while autoFarmEnabled do
             local elapsed = os.time() - farmStartTime
@@ -366,6 +397,7 @@ local function runAutoFarm()
         end
     end)
 
+    -- Action Loop
     task.spawn(function()
         while autoFarmEnabled do
             if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then 
@@ -376,21 +408,27 @@ local function runAutoFarm()
             pcall(function()
                 addStabilizer(player.Character)
                 
+                -- JOB
+                if not autoFarmEnabled then return end
                 currentFarmState = "Job"
                 smartMove(POINT_A_JOB)
-                task.wait(0.5) 
+                
                 if not autoFarmEnabled then return end
                 forceInteract(3.5)
                 
+                -- FILL
+                if not autoFarmEnabled then return end
                 currentFarmState = "Fill"
                 smartMove(POINT_B_FILL)
-                task.wait(0.5) 
+                
                 if not autoFarmEnabled then return end
                 forceInteract(3.5)
                 
+                -- SELL
+                if not autoFarmEnabled then return end
                 currentFarmState = "Sell"
                 smartMove(POINT_C_SELL)
-                task.wait(0.5) 
+                
                 if not autoFarmEnabled then return end
                 forceInteract(3.5)
                 
@@ -399,6 +437,8 @@ local function runAutoFarm()
             end)
         end
         
+        -- Cleanup when stopped
+        if currentTween then currentTween:Cancel() end -- [FIX] หยุดเดินทันที
         removeStabilizer(player.Character)
         restorePhysics()
         setStatus("Ready (Last Run: " .. sellCount .. " Sold)")
@@ -413,27 +453,27 @@ farmBtn.MouseButton1Click:Connect(function()
         moveStatusUI(true)
         runAutoFarm()
     else
+        -- [FIX] Trigger cancel immediately
+        if currentTween then currentTween:Cancel() end
         removeStabilizer(player.Character)
         restorePhysics()
-        setStatus("Ready")
+        setStatus("Stopping...")
         moveStatusUI(false)
     end
 end)
 
--- === ESP SYSTEM (FIXED) ===
--- ฟังก์ชันลบ ESP
+-- === ESP SYSTEM (FIXED & OPTIMIZED) ===
 local function removeESP(char)
     if not char then return end
     if char:FindFirstChild("Elite_Highlight") then char.Elite_Highlight:Destroy() end
     if char:FindFirstChild("Elite_Tag") then char.Elite_Tag:Destroy() end
 end
 
--- ฟังก์ชันสร้าง ESP
 local function createESPItems(p, char)
     if not char then return end
-    removeESP(char) -- ลบอันเก่าออกก่อนเสมอ
+    removeESP(char)
 
-    local root = char:WaitForChild("HumanoidRootPart", 5) -- รอโหลด 5 วิ
+    local root = char:WaitForChild("HumanoidRootPart", 5)
     if not root then return end
     
     local hi = Instance.new("Highlight", char)
@@ -459,19 +499,16 @@ local function createESPItems(p, char)
     tl.TextStrokeTransparency = 0.5
 end
 
--- ฟังก์ชัน Hook ผู้เล่น (ทำงานเมื่อเกิดใหม่)
 local function setupPlayerESP(p)
-    if p == player then return end -- ไม่ทำใส่ตัวเอง
+    if p == player then return end
     
-    -- ดักรอตอนเกิดใหม่
     p.CharacterAdded:Connect(function(c)
         if espEnabled then 
-            task.wait(1) -- รอตัวละครโหลดเสร็จสักนิด
+            task.wait(1)
             createESPItems(p, c) 
         end
     end)
     
-    -- ถ้ามีตัวอยู่แล้ว ให้ใส่เลย
     if p.Character then
         if espEnabled then
             createESPItems(p, p.Character)
@@ -479,7 +516,6 @@ local function setupPlayerESP(p)
     end
 end
 
--- ปุ่มเปิด/ปิด ESP
 local function toggleESP()
     espEnabled = not espEnabled
     toggleBtnVisual(espBtn, espGrad, espEnabled)
@@ -494,37 +530,23 @@ local function toggleESP()
         end
     end
     
-    if espEnabled then
-        setStatus("ESP: ON")
-    else
-        setStatus("ESP: OFF")
-    end
+    setStatus(espEnabled and "ESP: ON" or "ESP: OFF")
 end
 espBtn.MouseButton1Click:Connect(toggleESP)
 
--- เริ่มต้นระบบ Hook ใส่ผู้เล่นทุกคน (ทั้งเก่าและใหม่)
-for _, p in pairs(Players:GetPlayers()) do
-    setupPlayerESP(p)
-end
-table.insert(_G.ProScript_Connections, Players.PlayerAdded:Connect(function(p)
-    setupPlayerESP(p)
-end))
+for _, p in pairs(Players:GetPlayers()) do setupPlayerESP(p) end
+table.insert(_G.ProScript_Connections, Players.PlayerAdded:Connect(function(p) setupPlayerESP(p) end))
 
 -- === CLICK TP (Ctrl + Click) ===
 local function toggleClickTP()
     clickTpEnabled = not clickTpEnabled
     toggleBtnVisual(clickTpBtn, clickTpGrad, clickTpEnabled)
-    if clickTpEnabled then
-        setStatus("Click TP: ON (Ctrl+Click)")
-    else
-        setStatus("Click TP: OFF")
-    end
+    setStatus(clickTpEnabled and "Click TP: ON (Ctrl+Click)" or "Click TP: OFF")
 end
 
 local clickTpConn = mouse.Button1Down:Connect(function()
     if clickTpEnabled and UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
         if mouse.Target and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            -- เพิ่มการยกตัวขึ้นนิดหน่อยเพื่อป้องกันการจมดิน
             local targetPos = mouse.Hit.p + Vector3.new(0, 3.5, 0)
             player.Character.HumanoidRootPart.CFrame = CFrame.new(targetPos)
             setStatus("Teleported!")
@@ -540,7 +562,6 @@ local function toggleFly()
     toggleBtnVisual(flyBtn, flyGrad, flying)
     if flying then
         setStatus("Flying Mode")
-        -- เริ่มต้น BV จะถูกสร้างใน loop เพื่อรองรับการเกิดใหม่
     else
         setStatus("Ready")
         restorePhysics()
@@ -554,9 +575,8 @@ local runConn = RunService.Stepped:Connect(function()
         local hrp = player.Character.HumanoidRootPart
         local hum = player.Character:FindFirstChild("Humanoid")
         
-        -- Fly Logic (Respawn Compatible)
+        -- Fly Logic
         if flying then
-            -- เช็คว่ามี BodyVelocity หรือไม่ ถ้าไม่มีให้สร้างใหม่ (เช่นเพิ่งเกิด)
             local bv = hrp:FindFirstChild("Elite_Movement")
             if not bv then
                 bv = Instance.new("BodyVelocity")
@@ -565,7 +585,6 @@ local runConn = RunService.Stepped:Connect(function()
                 bv.Parent = hrp
             end
             
-            -- ควบคุมทิศทาง
             bv.Velocity = Vector3.new(0, 0, 0)
             local moveDir = Vector3.new(0,0,0)
             if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + camera.CFrame.LookVector end
@@ -683,4 +702,4 @@ game:GetService("CoreGui").RobloxPromptGui.promptOverlay.ChildAdded:Connect(func
     end
 end)
 
-notify("V50.9.5 Fixed", "ESP now auto-updates on respawn!")
+notify("V51 Ultimate", "Optimized & Ready!")
