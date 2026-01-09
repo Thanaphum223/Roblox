@@ -1,11 +1,9 @@
 --[[
-    CONTROL GUI PRO V51: ULTIMATE EDITION
-    Author: Gemini (Optimized based on User's V50.9.5)
+    CONTROL GUI PRO V55.1: VACUUM FIX
+    Author: Gemini
     
-    [CHANGELOG V51]
-    - Added: Instant Stop System (ยกเลิกการเดินทันทีเมื่อกดปิด)
-    - Optimized: ESP Loop Efficiency
-    - Fixed: Cleaned up BodyGyro properly
+    [CHANGELOG]
+    - Fixed: Status Pill Size (แก้กรอบสถานะเล็กกว่าข้อความ)
 ]]
 
 -- 1. ล้างระบบเก่า
@@ -42,40 +40,74 @@ local speed = 1
 local sellCount = 0
 local farmStartTime = 0
 local currentFarmState = "Idle"
-local currentTween = nil -- เก็บ Tween ปัจจุบันเพื่อสั่งหยุดได้
+local currentTween = nil
 
--- พิกัด Auto Farm (ตามต้นฉบับ)
+-- พิกัด Auto Farm
 local POINT_A_JOB   = CFrame.new(1146.80627, -245.849579, -561.207458)
 local POINT_B_FILL  = CFrame.new(1147.00024, -245.849609, -568.630432)
 local POINT_C_SELL  = CFrame.new(1143.9364,  -245.849579, -580.007935)
 
 -- ล้าง UI เก่า
-if player.PlayerGui:FindFirstChild("ControlGui_Pro_V51") then player.PlayerGui.ControlGui_Pro_V51:Destroy() end
-if player.PlayerGui:FindFirstChild("ControlGui_Pro_V50_Slow") then player.PlayerGui.ControlGui_Pro_V50_Slow:Destroy() end
+if player.PlayerGui:FindFirstChild("ControlGui_Pro_V55") then player.PlayerGui.ControlGui_Pro_V55:Destroy() end
+if player.PlayerGui:FindFirstChild("ControlGui_Pro_V54") then player.PlayerGui.ControlGui_Pro_V54:Destroy() end
 
-local function notify(title, text)
-    pcall(function()
-        StarterGui:SetCore("SendNotification", {Title = title; Text = text; Duration = 2;})
-    end)
-end
-
--- === 2. สร้าง UI (MODERN DESIGN) ===
+-- === THEME: VACUUM ===
 local Theme = {
-    Background = Color3.fromRGB(20, 20, 25),
-    ButtonOff = Color3.fromRGB(35, 35, 40),
-    ButtonOn_Start = Color3.fromRGB(0, 170, 255),
-    ButtonOn_End = Color3.fromRGB(0, 100, 255),
-    ESP_Color = Color3.fromRGB(255, 50, 50),
-    Text = Color3.fromRGB(240, 240, 240),
-    TextDim = Color3.fromRGB(150, 150, 150),
-    Stroke = Color3.fromRGB(60, 60, 70)
+    Background = Color3.fromRGB(5, 5, 10),
+    ButtonOff = Color3.fromRGB(20, 20, 25),
+    ButtonOn_Start = Color3.fromRGB(120, 0, 255),
+    ButtonOn_End = Color3.fromRGB(50, 0, 150),
+    ESP_Color = Color3.fromRGB(180, 100, 255),
+    Text = Color3.fromRGB(240, 240, 255),
+    TextDim = Color3.fromRGB(100, 100, 120),
+    Stroke = Color3.fromRGB(60, 30, 90)
 }
 
 local sg = Instance.new("ScreenGui", player.PlayerGui)
-sg.Name = "ControlGui_Pro_V51"
+sg.Name = "ControlGui_Pro_V55"
 sg.ResetOnSpawn = false
 sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
+-- === INTRO ===
+local function playIntro()
+    local introFrame = Instance.new("Frame", sg)
+    introFrame.Size = UDim2.new(1, 0, 1, 0)
+    introFrame.BackgroundColor3 = Color3.new(0, 0, 0)
+    introFrame.BackgroundTransparency = 0
+    introFrame.ZIndex = 100
+
+    local title = Instance.new("TextLabel", introFrame)
+    title.Size = UDim2.new(1, 0, 0, 100)
+    title.Position = UDim2.new(0, 0, 0.4, 0)
+    title.Text = "PROJECT: VACUUM"
+    title.TextColor3 = Color3.fromRGB(150, 50, 255)
+    title.Font = Enum.Font.GothamBlack
+    title.TextSize = 0
+    title.BackgroundTransparency = 1
+    
+    local subTitle = Instance.new("TextLabel", introFrame)
+    subTitle.Size = UDim2.new(1, 0, 0, 50)
+    subTitle.Position = UDim2.new(0, 0, 0.52, 0)
+    subTitle.Text = "[🌑] สุญญากาศ"
+    subTitle.TextColor3 = Color3.fromRGB(200, 200, 200)
+    subTitle.Font = Enum.Font.GothamBold
+    subTitle.TextSize = 20
+    subTitle.BackgroundTransparency = 1
+    subTitle.TextTransparency = 1
+
+    TweenService:Create(title, TweenInfo.new(1.5, Enum.EasingStyle.Elastic), {TextSize = 60}):Play()
+    task.wait(1)
+    TweenService:Create(subTitle, TweenInfo.new(1), {TextTransparency = 0}):Play()
+    task.wait(1.5)
+    
+    TweenService:Create(title, TweenInfo.new(0.5), {TextTransparency = 1, Position = UDim2.new(0,0,0.3,0)}):Play()
+    TweenService:Create(subTitle, TweenInfo.new(0.5), {TextTransparency = 1, Position = UDim2.new(0,0,0.6,0)}):Play()
+    TweenService:Create(introFrame, TweenInfo.new(0.8), {BackgroundTransparency = 1}):Play()
+    task.wait(0.8)
+    introFrame:Destroy()
+end
+
+-- === UTILS ===
 local function addCorner(instance, radius)
     local corner = Instance.new("UICorner", instance)
     corner.CornerRadius = UDim.new(0, radius)
@@ -101,14 +133,41 @@ local function addGradient(instance)
     return grad
 end
 
+local function makeDraggable(frame)
+    local dragging, dragInput, dragStart, startPos
+    frame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
+            end)
+        end
+    end)
+    frame.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            local delta = input.Position - dragStart
+            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+end
+
+-- === UI SETUP ===
 local menuContainer = Instance.new("Frame", sg)
 menuContainer.Size = UDim2.new(1, 0, 1, 0)
 menuContainer.BackgroundTransparency = 1
 menuContainer.Name = "MenuContainer"
+menuContainer.Visible = false
 
--- [STATUS PILL]
+-- [STATUS PILL - FIXED]
 local statusFrame = Instance.new("Frame", sg)
-statusFrame.AutomaticSize = Enum.AutomaticSize.X 
+statusFrame.AutomaticSize = Enum.AutomaticSize.X -- ให้ Frame ขยายตาม
 statusFrame.Size = UDim2.new(0, 0, 0, 36)
 statusFrame.AnchorPoint = Vector2.new(1, 1) 
 statusFrame.Position = UDim2.new(1, -20, 1, -50)
@@ -117,20 +176,18 @@ statusFrame.BackgroundTransparency = 0.1
 addCorner(statusFrame, 10)
 addStroke(statusFrame, 0.3)
 
-local statusPad = Instance.new("UIPadding", statusFrame)
-statusPad.PaddingLeft = UDim.new(0, 15)
-statusPad.PaddingRight = UDim.new(0, 15)
-
 local statusLabel = Instance.new("TextLabel", statusFrame)
-statusLabel.Size = UDim2.new(1, 0, 1, 0)
+statusLabel.AutomaticSize = Enum.AutomaticSize.X -- [FIX] ให้ Label ขยายตามข้อความ
+statusLabel.Size = UDim2.new(0, 0, 1, 0) -- [FIX] ปรับ Size X เป็น 0 เพื่อให้ AutoSize ทำงาน
 statusLabel.BackgroundTransparency = 1
-statusLabel.Text = "Status: Ready"
+statusLabel.Text = "Vacuum: Waiting..."
 statusLabel.TextColor3 = Theme.Text
 statusLabel.Font = Enum.Font.GothamMedium
 statusLabel.TextSize = 14
-statusLabel.TextXAlignment = Enum.TextXAlignment.Center
+Instance.new("UIPadding", statusFrame).PaddingLeft = UDim.new(0, 15)
+Instance.new("UIPadding", statusFrame).PaddingRight = UDim.new(0, 15)
 
--- [SIDE MENU - PLAYER LIST]
+-- [SIDE MENU]
 local sideFrame = Instance.new("Frame", menuContainer)
 sideFrame.Size = UDim2.new(0, 260, 0, 350)
 sideFrame.Position = UDim2.new(1, -280, 0.2, 0)
@@ -138,11 +195,12 @@ sideFrame.BackgroundColor3 = Theme.Background
 sideFrame.BackgroundTransparency = 0.1
 addCorner(sideFrame, 12)
 addStroke(sideFrame, 0.4)
+makeDraggable(sideFrame)
 
 local sideTitle = Instance.new("TextLabel", sideFrame)
 sideTitle.Size = UDim2.new(1, 0, 0, 40)
 sideTitle.BackgroundTransparency = 1
-sideTitle.Text = "PLAYER LIST"
+sideTitle.Text = "ENTITIES LIST"
 sideTitle.TextColor3 = Theme.TextDim
 sideTitle.Font = Enum.Font.GothamBold
 sideTitle.TextSize = 12
@@ -154,12 +212,11 @@ scrollFrame.BackgroundTransparency = 1
 scrollFrame.BorderSizePixel = 0
 scrollFrame.ScrollBarThickness = 2
 scrollFrame.ScrollBarImageColor3 = Theme.ButtonOn_Start
-
 local layout = Instance.new("UIListLayout", scrollFrame)
 layout.SortOrder = Enum.SortOrder.Name
 layout.Padding = UDim.new(0, 6)
 
--- [BOTTOM BAR - CONTROLS]
+-- [BOTTOM BAR]
 local mainBar = Instance.new("Frame", menuContainer)
 mainBar.Size = UDim2.new(0, 800, 0, 65)
 mainBar.Position = UDim2.new(0.5, -400, 0.85, 0) 
@@ -167,6 +224,7 @@ mainBar.BackgroundColor3 = Theme.Background
 mainBar.BackgroundTransparency = 0.1
 addCorner(mainBar, 16)
 addStroke(mainBar, 0.3)
+makeDraggable(mainBar)
 
 local function createStyledBtn(parent, text, order, sizeScale)
     local btnContainer = Instance.new("Frame", parent)
@@ -192,7 +250,7 @@ barLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 barLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 barLayout.Padding = UDim.new(0, 10)
 
--- ปุ่มต่างๆ
+-- ปุ่ม
 local flyBtn, flyGrad = createStyledBtn(mainBar, "FLY (R)", 1, 0.12)
 local espBtn, espGrad = createStyledBtn(mainBar, "ESP (F)", 2, 0.12)
 local sinkBtn, sinkGrad = createStyledBtn(mainBar, "SINK", 3, 0.12)
@@ -216,11 +274,8 @@ speedInput.PlaceholderText = "SPD"
 addCorner(speedInput, 10)
 addStroke(speedInput, 0.6)
 
--- === 3. ระบบการทำงานหลัก ===
-
-local function setStatus(text)
-    statusLabel.Text = text
-end
+-- === FUNCTIONS ===
+local function setStatus(text) statusLabel.Text = text end
 
 local function toggleBtnVisual(btn, gradient, isOn)
     if isOn then
@@ -238,7 +293,6 @@ local function moveStatusUI(toCenter)
     local tweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
     local targetPos = toCenter and UDim2.new(0.5, 0, 0.35, 0) or UDim2.new(1, -20, 1, -50)
     local targetAnchor = toCenter and Vector2.new(0.5, 0.5) or Vector2.new(1, 1)
-    
     statusFrame.AnchorPoint = targetAnchor
     TweenService:Create(statusFrame, tweenInfo, {Position = targetPos}):Play()
 end
@@ -262,26 +316,26 @@ local function restorePhysics()
     end
 end
 
--- === Anti-AFK Logic ===
+-- Anti-AFK
 table.insert(_G.ProScript_Connections, player.Idled:Connect(function()
     VirtualUser:CaptureController()
     VirtualUser:ClickButton2(Vector2.new())
-    setStatus("Anti-AFK Triggered")
+    setStatus("System: Anti-AFK")
 end))
 
--- === SINK ===
+-- SINK
 sinkBtn.MouseButton1Click:Connect(function()
     sinkEnabled = not sinkEnabled
     toggleBtnVisual(sinkBtn, sinkGrad, sinkEnabled)
     if sinkEnabled then
-        setStatus("Sinking Active...")
+        setStatus("State: Sinking")
     else
-        setStatus("Ready")
+        setStatus("Vacuum: Ready")
         restorePhysics()
     end
 end)
 
--- === AUTO FARM UTILS ===
+-- AUTO FARM
 local function addStabilizer(char)
     if not char then return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
@@ -305,21 +359,16 @@ local function smartMove(targetCFrame)
     local char = player.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return end
     local root = char.HumanoidRootPart
-    
     addStabilizer(char)
-    
     local dist = (root.Position - targetCFrame.Position).Magnitude
     local tweenTime = dist / 120 
     if tweenTime < 0.2 then tweenTime = 0.2 end
-    
     local tweenInfo = TweenInfo.new(tweenTime, Enum.EasingStyle.Linear)
     local tween = TweenService:Create(root, tweenInfo, {CFrame = CFrame.new(targetCFrame.Position)})
-    
-    currentTween = tween -- [FIX] เก็บตัวแปร Tween
+    currentTween = tween
     tween:Play()
     tween.Completed:Wait()
-    currentTween = nil -- [FIX] เคลียร์เมื่อเสร็จ
-    
+    currentTween = nil
     root.Velocity = Vector3.new(0,0,0)
     local hum = char:FindFirstChild("Humanoid")
     if hum then hum:ChangeState(Enum.HumanoidStateType.Running) end
@@ -330,33 +379,19 @@ local function forceInteract(duration)
     if not char then return end
     local root = char:FindFirstChild("HumanoidRootPart")
     if not root then return end
-    
     local found = false
     local overlapParams = OverlapParams.new()
     overlapParams.FilterDescendantsInstances = {char}
     overlapParams.FilterType = Enum.RaycastFilterType.Exclude
     local partsInRadius = workspace:GetPartBoundsInRadius(root.Position, 35, overlapParams)
-    
     for _, part in ipairs(partsInRadius) do
         local prompt = part:FindFirstChildWhichIsA("ProximityPrompt") or part.Parent:FindFirstChildWhichIsA("ProximityPrompt")
-        if prompt and prompt.Enabled then
-            prompt:InputHoldBegin()
-            found = true
-        end
+        if prompt and prompt.Enabled then prompt:InputHoldBegin() found = true end
     end
-    
     task.spawn(function()
-        -- Hold Key 'E'
         VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
-        
-        -- Wait Loop with Cancel Check
         local elapsed = 0
-        while elapsed < duration do
-            if not autoFarmEnabled then break end -- [FIX] ออกทันทีถ้าปิดฟาร์ม
-            task.wait(0.1)
-            elapsed = elapsed + 0.1
-        end
-        
+        while elapsed < duration do if not autoFarmEnabled then break end task.wait(0.1) elapsed = elapsed + 0.1 end
         VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
         if found then
             for _, part in ipairs(partsInRadius) do
@@ -365,14 +400,8 @@ local function forceInteract(duration)
             end
         end
     end)
-    
-    -- Wait Main Thread with Cancel Check
     local elapsed = 0
-    while elapsed < duration do
-        if not autoFarmEnabled then return end -- [FIX] ออกทันทีถ้าปิดฟาร์ม
-        task.wait(0.1)
-        elapsed = elapsed + 0.1
-    end
+    while elapsed < duration do if not autoFarmEnabled then return end task.wait(0.1) elapsed = elapsed + 0.1 end
 end
 
 local function formatTime(seconds)
@@ -385,9 +414,8 @@ end
 local function runAutoFarm()
     farmStartTime = os.time()
     sellCount = 0
-    currentFarmState = "Starting"
+    currentFarmState = "Init"
 
-    -- Stats Loop
     task.spawn(function()
         while autoFarmEnabled do
             local elapsed = os.time() - farmStartTime
@@ -397,38 +425,26 @@ local function runAutoFarm()
         end
     end)
 
-    -- Action Loop
     task.spawn(function()
         while autoFarmEnabled do
-            if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then 
-                task.wait(1) 
-                return 
-            end
-            
+            if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then task.wait(1) return end
             pcall(function()
                 addStabilizer(player.Character)
-                
-                -- JOB
-                if not autoFarmEnabled then return end
                 currentFarmState = "Job"
                 smartMove(POINT_A_JOB)
-                
+                task.wait(0.5) 
                 if not autoFarmEnabled then return end
                 forceInteract(3.5)
                 
-                -- FILL
-                if not autoFarmEnabled then return end
                 currentFarmState = "Fill"
                 smartMove(POINT_B_FILL)
-                
+                task.wait(0.5) 
                 if not autoFarmEnabled then return end
                 forceInteract(3.5)
                 
-                -- SELL
-                if not autoFarmEnabled then return end
                 currentFarmState = "Sell"
                 smartMove(POINT_C_SELL)
-                
+                task.wait(0.5) 
                 if not autoFarmEnabled then return end
                 forceInteract(3.5)
                 
@@ -436,12 +452,10 @@ local function runAutoFarm()
                 task.wait(0.5)
             end)
         end
-        
-        -- Cleanup when stopped
-        if currentTween then currentTween:Cancel() end -- [FIX] หยุดเดินทันที
+        if currentTween then currentTween:Cancel() end
         removeStabilizer(player.Character)
         restorePhysics()
-        setStatus("Ready (Last Run: " .. sellCount .. " Sold)")
+        setStatus("Vacuum: Ready (Last Run: " .. sellCount .. " Sold)")
         moveStatusUI(false) 
     end)
 end
@@ -449,20 +463,16 @@ end
 farmBtn.MouseButton1Click:Connect(function()
     autoFarmEnabled = not autoFarmEnabled
     toggleBtnVisual(farmBtn, farmGrad, autoFarmEnabled)
-    if autoFarmEnabled then
-        moveStatusUI(true)
-        runAutoFarm()
-    else
-        -- [FIX] Trigger cancel immediately
+    if autoFarmEnabled then moveStatusUI(true) runAutoFarm() else 
         if currentTween then currentTween:Cancel() end
         removeStabilizer(player.Character)
         restorePhysics()
-        setStatus("Stopping...")
+        setStatus("Aborted.")
         moveStatusUI(false)
     end
 end)
 
--- === ESP SYSTEM (FIXED & OPTIMIZED) ===
+-- ESP SYSTEM
 local function removeESP(char)
     if not char then return end
     if char:FindFirstChild("Elite_Highlight") then char.Elite_Highlight:Destroy() end
@@ -471,24 +481,20 @@ end
 
 local function createESPItems(p, char)
     if not char then return end
-    removeESP(char)
-
-    local root = char:WaitForChild("HumanoidRootPart", 5)
+    removeESP(char) 
+    local root = char:WaitForChild("HumanoidRootPart", 5) 
     if not root then return end
-    
     local hi = Instance.new("Highlight", char)
     hi.Name = "Elite_Highlight"
     hi.FillTransparency = 0.5
     hi.OutlineColor = Theme.ESP_Color
     hi.FillColor = Theme.ESP_Color
-    
     local bg = Instance.new("BillboardGui", char)
     bg.Name = "Elite_Tag"
     bg.Adornee = root
     bg.Size = UDim2.new(0, 100, 0, 40)
     bg.StudsOffset = Vector3.new(0, 3.5, 0)
     bg.AlwaysOnTop = true
-    
     local tl = Instance.new("TextLabel", bg)
     tl.BackgroundTransparency = 1
     tl.Size = UDim2.new(1, 0, 1, 0)
@@ -500,91 +506,59 @@ local function createESPItems(p, char)
 end
 
 local function setupPlayerESP(p)
-    if p == player then return end
-    
-    p.CharacterAdded:Connect(function(c)
-        if espEnabled then 
-            task.wait(1)
-            createESPItems(p, c) 
-        end
-    end)
-    
-    if p.Character then
-        if espEnabled then
-            createESPItems(p, p.Character)
-        end
-    end
+    if p == player then return end 
+    p.CharacterAdded:Connect(function(c) if espEnabled then task.wait(1) createESPItems(p, c) end end)
+    if p.Character then if espEnabled then createESPItems(p, p.Character) end end
 end
 
 local function toggleESP()
     espEnabled = not espEnabled
     toggleBtnVisual(espBtn, espGrad, espEnabled)
-    
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= player and p.Character then
-            if espEnabled then
-                createESPItems(p, p.Character)
-            else
-                removeESP(p.Character)
-            end
+            if espEnabled then createESPItems(p, p.Character) else removeESP(p.Character) end
         end
     end
-    
-    setStatus(espEnabled and "ESP: ON" or "ESP: OFF")
+    setStatus(espEnabled and "Visuals: ON" or "Visuals: OFF")
 end
 espBtn.MouseButton1Click:Connect(toggleESP)
-
 for _, p in pairs(Players:GetPlayers()) do setupPlayerESP(p) end
 table.insert(_G.ProScript_Connections, Players.PlayerAdded:Connect(function(p) setupPlayerESP(p) end))
 
--- === CLICK TP (Ctrl + Click) ===
+-- CLICK TP
 local function toggleClickTP()
     clickTpEnabled = not clickTpEnabled
     toggleBtnVisual(clickTpBtn, clickTpGrad, clickTpEnabled)
-    setStatus(clickTpEnabled and "Click TP: ON (Ctrl+Click)" or "Click TP: OFF")
+    setStatus(clickTpEnabled and "Warp: READY" or "Warp: OFF")
 end
-
 local clickTpConn = mouse.Button1Down:Connect(function()
     if clickTpEnabled and UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
         if mouse.Target and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
             local targetPos = mouse.Hit.p + Vector3.new(0, 3.5, 0)
             player.Character.HumanoidRootPart.CFrame = CFrame.new(targetPos)
-            setStatus("Teleported!")
+            setStatus("Warped.")
         end
     end
 end)
 table.insert(_G.ProScript_Connections, clickTpConn)
 clickTpBtn.MouseButton1Click:Connect(toggleClickTP)
 
--- === FLY SYSTEM ===
+-- FLY
 local function toggleFly()
     flying = not flying
     toggleBtnVisual(flyBtn, flyGrad, flying)
-    if flying then
-        setStatus("Flying Mode")
-    else
-        setStatus("Ready")
-        restorePhysics()
-    end
+    if flying then setStatus("Flight Enabled") else setStatus("Vacuum: Ready") restorePhysics() end
 end
 flyBtn.MouseButton1Click:Connect(toggleFly)
 
--- === MAIN LOOP ===
+-- MAIN LOOP
 local runConn = RunService.Stepped:Connect(function()
     if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
         local hrp = player.Character.HumanoidRootPart
         local hum = player.Character:FindFirstChild("Humanoid")
-        
-        -- Fly Logic
         if flying then
             local bv = hrp:FindFirstChild("Elite_Movement")
-            if not bv then
-                bv = Instance.new("BodyVelocity")
-                bv.Name = "Elite_Movement"
-                bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-                bv.Parent = hrp
-            end
-            
+            if not bv then bv = Instance.new("BodyVelocity") bv.Name = "Elite_Movement" bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge) bv.Parent = hrp end
             bv.Velocity = Vector3.new(0, 0, 0)
             local moveDir = Vector3.new(0,0,0)
             if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + camera.CFrame.LookVector end
@@ -593,51 +567,36 @@ local runConn = RunService.Stepped:Connect(function()
             if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + camera.CFrame.RightVector end
             if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir = moveDir + Vector3.new(0, 1, 0) end
             if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveDir = moveDir - Vector3.new(0, 1, 0) end
-            
-            if moveDir.Magnitude > 0 then 
-                hrp.CFrame = hrp.CFrame + (moveDir.Unit * speed) 
-            end
+            if moveDir.Magnitude > 0 then hrp.CFrame = hrp.CFrame + (moveDir.Unit * speed) end
             hrp.AssemblyLinearVelocity = Vector3.new(0,0,0)
-            
             if hum then hum:ChangeState(Enum.HumanoidStateType.Physics) end
             for _, v in pairs(player.Character:GetChildren()) do if v:IsA("BasePart") then v.CanCollide = false end end
         end
-
-        -- Sink Logic
         if sinkEnabled then
-            hrp.CFrame = hrp.CFrame * CFrame.new(0, -0.15, 0)
-            hrp.Velocity = Vector3.new(0,0,0)
+            hrp.CFrame = hrp.CFrame * CFrame.new(0, -0.15, 0) hrp.Velocity = Vector3.new(0,0,0)
             if hum then hum:ChangeState(Enum.HumanoidStateType.Physics) end
             for _, v in pairs(player.Character:GetChildren()) do if v:IsA("BasePart") then v.CanCollide = false end end
         end
-        
-        -- Auto Farm Collision Fix
         if autoFarmEnabled then
-            for _, v in pairs(player.Character:GetChildren()) do 
-                if v:IsA("BasePart") and v.CanCollide == true then v.CanCollide = false end 
-            end
+            for _, v in pairs(player.Character:GetChildren()) do if v:IsA("BasePart") and v.CanCollide == true then v.CanCollide = false end end
         end
     end
 end)
 table.insert(_G.ProScript_Connections, runConn)
 
--- === INPUTS ===
+-- INPUTS
 local inputConn = UserInputService.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     if input.KeyCode == Enum.KeyCode.R then toggleFly() end
     if input.KeyCode == Enum.KeyCode.F then toggleESP() end
     if input.KeyCode == Enum.KeyCode.T then toggleClickTP() end
-    if input.KeyCode == Enum.KeyCode.X then
-        menuVisible = not menuVisible
-        menuContainer.Visible = menuVisible
-    end
+    if input.KeyCode == Enum.KeyCode.X then menuVisible = not menuVisible menuContainer.Visible = menuVisible end
 end)
 table.insert(_G.ProScript_Connections, inputConn)
-
 local speedConn = speedInput:GetPropertyChangedSignal("Text"):Connect(function() speed = tonumber(speedInput.Text) or 1 end)
 table.insert(_G.ProScript_Connections, speedConn)
 
--- === PLAYER LIST UPDATER ===
+-- PLAYER LIST
 local function updatePlayerList()
     for _, item in pairs(scrollFrame:GetChildren()) do if item:IsA("Frame") then item:Destroy() end end
     for _, p in pairs(Players:GetPlayers()) do
@@ -647,7 +606,6 @@ local function updatePlayerList()
             pRow.BackgroundTransparency = 0.5
             pRow.BackgroundColor3 = Theme.ButtonOff
             addCorner(pRow, 8)
-
             local tBtn = Instance.new("TextButton", pRow)
             tBtn.Size = UDim2.new(0.7, -5, 1, 0)
             tBtn.Position = UDim2.new(0, 5, 0, 0)
@@ -660,10 +618,8 @@ local function updatePlayerList()
             tBtn.MouseButton1Click:Connect(function()
                 if p.Character and p.Character:FindFirstChild("HumanoidRootPart") and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
                     player.Character.HumanoidRootPart.CFrame = p.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
-                    setStatus("TP to " .. p.DisplayName)
                 end
             end)
-            
             local sBtn = Instance.new("TextButton", pRow)
             sBtn.Size = UDim2.new(0.25, 0, 0.8, 0)
             sBtn.Position = UDim2.new(0.73, 0, 0.1, 0)
@@ -673,33 +629,19 @@ local function updatePlayerList()
             sBtn.Font = Enum.Font.GothamBold
             sBtn.TextSize = 10
             addCorner(sBtn, 6)
-            sBtn.MouseButton1Click:Connect(function()
-                if p.Character and p.Character:FindFirstChild("Humanoid") then
-                    camera.CameraSubject = p.Character.Humanoid
-                    setStatus("Watch: " .. p.DisplayName)
-                end
-            end)
+            sBtn.MouseButton1Click:Connect(function() if p.Character and p.Character:FindFirstChild("Humanoid") then camera.CameraSubject = p.Character.Humanoid end end)
         end
     end
     scrollFrame.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 10)
 end
-
 table.insert(_G.ProScript_Connections, Players.PlayerAdded:Connect(updatePlayerList))
 table.insert(_G.ProScript_Connections, Players.PlayerRemoving:Connect(updatePlayerList))
 updatePlayerList()
 
-stopSpecBtn.MouseButton1Click:Connect(function()
-    if player.Character and player.Character:FindFirstChild("Humanoid") then
-        camera.CameraSubject = player.Character.Humanoid
-        setStatus("Camera Reset")
-    end
-end)
+stopSpecBtn.MouseButton1Click:Connect(function() if player.Character and player.Character:FindFirstChild("Humanoid") then camera.CameraSubject = player.Character.Humanoid setStatus("Cam Reset") end end)
 
--- Auto Rejoin
-game:GetService("CoreGui").RobloxPromptGui.promptOverlay.ChildAdded:Connect(function(child)
-    if child.Name == 'ErrorPrompt' then
-        TeleportService:Teleport(game.PlaceId)
-    end
-end)
+game:GetService("CoreGui").RobloxPromptGui.promptOverlay.ChildAdded:Connect(function(child) if child.Name == 'ErrorPrompt' then TeleportService:Teleport(game.PlaceId) end end)
 
-notify("V51 Ultimate", "Optimized & Ready!")
+playIntro()
+task.wait(3.2)
+menuContainer.Visible = true
