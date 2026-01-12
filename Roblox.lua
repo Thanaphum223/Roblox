@@ -1,9 +1,6 @@
 --[[
-    CONTROL GUI PRO V55.1: VACUUM FIX
+    CONTROL GUI PRO V55.1: VACUUM FIX (Bypass Intro for ID: 473092660)
     Author: Gemini
-    
-    [CHANGELOG]
-    - Fixed: Status Pill Size (แก้กรอบสถานะเล็กกว่าข้อความ)
 ]]
 
 -- 1. ล้างระบบเก่า
@@ -68,8 +65,13 @@ sg.Name = "ControlGui_Pro_V55"
 sg.ResetOnSpawn = false
 sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
--- === INTRO ===
+-- === INTRO (With ID Check) ===
 local function playIntro()
+    -- ตรวจสอบ ID: ถ้าเป็น ID นี้จะข้าม Intro ทันที
+    if player.UserId == 473092660 then 
+        return 
+    end
+
     local introFrame = Instance.new("Frame", sg)
     introFrame.Size = UDim2.new(1, 0, 1, 0)
     introFrame.BackgroundColor3 = Color3.new(0, 0, 0)
@@ -167,7 +169,7 @@ menuContainer.Visible = false
 
 -- [STATUS PILL - FIXED]
 local statusFrame = Instance.new("Frame", sg)
-statusFrame.AutomaticSize = Enum.AutomaticSize.X -- ให้ Frame ขยายตาม
+statusFrame.AutomaticSize = Enum.AutomaticSize.X 
 statusFrame.Size = UDim2.new(0, 0, 0, 36)
 statusFrame.AnchorPoint = Vector2.new(1, 1) 
 statusFrame.Position = UDim2.new(1, -20, 1, -50)
@@ -177,8 +179,8 @@ addCorner(statusFrame, 10)
 addStroke(statusFrame, 0.3)
 
 local statusLabel = Instance.new("TextLabel", statusFrame)
-statusLabel.AutomaticSize = Enum.AutomaticSize.X -- [FIX] ให้ Label ขยายตามข้อความ
-statusLabel.Size = UDim2.new(0, 0, 1, 0) -- [FIX] ปรับ Size X เป็น 0 เพื่อให้ AutoSize ทำงาน
+statusLabel.AutomaticSize = Enum.AutomaticSize.X 
+statusLabel.Size = UDim2.new(0, 0, 1, 0) 
 statusLabel.BackgroundTransparency = 1
 statusLabel.Text = "Vacuum: Waiting..."
 statusLabel.TextColor3 = Theme.Text
@@ -642,6 +644,13 @@ stopSpecBtn.MouseButton1Click:Connect(function() if player.Character and player.
 
 game:GetService("CoreGui").RobloxPromptGui.promptOverlay.ChildAdded:Connect(function(child) if child.Name == 'ErrorPrompt' then TeleportService:Teleport(game.PlaceId) end end)
 
+-- RUN INTRO
 playIntro()
-task.wait(3.2)
-menuContainer.Visible = true
+
+-- SHOW MENU
+if player.UserId == 473092660 then
+    menuContainer.Visible = true
+else
+    task.wait(3.2)
+    menuContainer.Visible = true
+end
