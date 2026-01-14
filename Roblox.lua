@@ -31,7 +31,7 @@ local sinkEnabled = false
 local clickTpEnabled = false 
 local autoFarmEnabled = false 
 local menuVisible = true 
-local speed = 1
+local speed = 2
 
 -- ตัวแปรสำหรับ Stats Farm
 local sellCount = 0
