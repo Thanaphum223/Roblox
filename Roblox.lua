@@ -1,9 +1,3 @@
---[[
-    CONTROL GUI PRO V55.1: VACUUM FIX (Bypass Intro for ID: 473092660)
-    Author: Gemini
-]]
-
--- 1. ล้างระบบเก่า
 if _G.ProScript_Connections then
     for _, conn in pairs(_G.ProScript_Connections) do
         if conn then conn:Disconnect() end
@@ -32,6 +26,7 @@ local clickTpEnabled = false
 local autoFarmEnabled = false 
 local menuVisible = true 
 local speed = 2
+local currentLang = "EN" -- เริ่มต้นที่ภาษาอังกฤษ
 
 -- ตัวแปรสำหรับ Stats Farm
 local sellCount = 0
@@ -58,6 +53,21 @@ local Theme = {
     Text = Color3.fromRGB(240, 240, 255),
     TextDim = Color3.fromRGB(100, 100, 120),
     Stroke = Color3.fromRGB(60, 30, 90)
+}
+
+-- === LANGUAGE DATA ===
+local Translations = {
+    FLY = {EN = "FLY (R)", TH = "บิน (R)"},
+    ESP = {EN = "ESP (F)", TH = "มองทะลุ (F)"},
+    SINK = {EN = "SINK", TH = "จมดิน"},
+    TP = {EN = "CLICK TP (T)", TH = "วาร์ป (T)"},
+    FARM = {EN = "AUTO FARM", TH = "ออโต้ฟาร์ม"},
+    RESET = {EN = "RESET CAM", TH = "รีเซ็ตกล้อง"},
+    LIST = {EN = "ENTITIES LIST", TH = "รายชื่อผู้เล่น"},
+    HINT = {EN = "[X] TOGGLE MENU", TH = "[X] เปิด/ปิด เมนู"},
+    STATUS_WAIT = {EN = "Vacuum: Waiting...", TH = "Vacuum: รอคำสั่ง..."},
+    STATUS_READY = {EN = "Vacuum: Ready", TH = "สถานะ: พร้อมใช้งาน"},
+    LANG_BTN = {EN = "LANG: EN", TH = "ภาษา: TH"}
 }
 
 local sg = Instance.new("ScreenGui", player.PlayerGui)
@@ -161,6 +171,18 @@ local function makeDraggable(frame)
 end
 
 -- === UI SETUP ===
+
+-- [TOGGLE HINT - NEW]
+local hintLabel = Instance.new("TextLabel", sg)
+hintLabel.Size = UDim2.new(0, 200, 0, 30)
+hintLabel.Position = UDim2.new(0.5, -100, 0, 5) -- อยู่ด้านบนตรงกลาง
+hintLabel.BackgroundTransparency = 1
+hintLabel.Text = Translations.HINT.EN
+hintLabel.TextColor3 = Theme.TextDim
+hintLabel.Font = Enum.Font.GothamBold
+hintLabel.TextSize = 14
+hintLabel.TextTransparency = 0.5
+
 local menuContainer = Instance.new("Frame", sg)
 menuContainer.Size = UDim2.new(1, 0, 1, 0)
 menuContainer.BackgroundTransparency = 1
@@ -182,7 +204,7 @@ local statusLabel = Instance.new("TextLabel", statusFrame)
 statusLabel.AutomaticSize = Enum.AutomaticSize.X 
 statusLabel.Size = UDim2.new(0, 0, 1, 0) 
 statusLabel.BackgroundTransparency = 1
-statusLabel.Text = "Vacuum: Waiting..."
+statusLabel.Text = Translations.STATUS_WAIT.EN
 statusLabel.TextColor3 = Theme.Text
 statusLabel.Font = Enum.Font.GothamMedium
 statusLabel.TextSize = 14
@@ -202,7 +224,7 @@ makeDraggable(sideFrame)
 local sideTitle = Instance.new("TextLabel", sideFrame)
 sideTitle.Size = UDim2.new(1, 0, 0, 40)
 sideTitle.BackgroundTransparency = 1
-sideTitle.Text = "ENTITIES LIST"
+sideTitle.Text = Translations.LIST.EN
 sideTitle.TextColor3 = Theme.TextDim
 sideTitle.Font = Enum.Font.GothamBold
 sideTitle.TextSize = 12
@@ -220,15 +242,15 @@ layout.Padding = UDim.new(0, 6)
 
 -- [BOTTOM BAR]
 local mainBar = Instance.new("Frame", menuContainer)
-mainBar.Size = UDim2.new(0, 800, 0, 65)
-mainBar.Position = UDim2.new(0.5, -400, 0.85, 0) 
+mainBar.Size = UDim2.new(0, 900, 0, 65) -- ขยายขนาดนิดหน่อยเพื่อปุ่มภาษา
+mainBar.Position = UDim2.new(0.5, -450, 0.85, 0) 
 mainBar.BackgroundColor3 = Theme.Background
 mainBar.BackgroundTransparency = 0.1
 addCorner(mainBar, 16)
 addStroke(mainBar, 0.3)
 makeDraggable(mainBar)
 
-local function createStyledBtn(parent, text, order, sizeScale)
+local function createStyledBtn(parent, text, sizeScale)
     local btnContainer = Instance.new("Frame", parent)
     btnContainer.Size = UDim2.new(sizeScale, -10, 0, 45)
     btnContainer.BackgroundTransparency = 1
@@ -250,18 +272,19 @@ local barLayout = Instance.new("UIListLayout", mainBar)
 barLayout.FillDirection = Enum.FillDirection.Horizontal
 barLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 barLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-barLayout.Padding = UDim.new(0, 10)
+barLayout.Padding = UDim.new(0, 8)
 
 -- ปุ่ม
-local flyBtn, flyGrad = createStyledBtn(mainBar, "FLY (R)", 1, 0.12)
-local espBtn, espGrad = createStyledBtn(mainBar, "ESP (F)", 2, 0.12)
-local sinkBtn, sinkGrad = createStyledBtn(mainBar, "SINK", 3, 0.12)
-local clickTpBtn, clickTpGrad = createStyledBtn(mainBar, "CLICK TP (T)", 4, 0.15)
-local farmBtn, farmGrad = createStyledBtn(mainBar, "AUTO FARM", 5, 0.15)
-local stopSpecBtn, stopGrad = createStyledBtn(mainBar, "RESET CAM", 6, 0.12)
+local flyBtn, flyGrad = createStyledBtn(mainBar, Translations.FLY.EN, 0.11)
+local espBtn, espGrad = createStyledBtn(mainBar, Translations.ESP.EN, 0.11)
+local sinkBtn, sinkGrad = createStyledBtn(mainBar, Translations.SINK.EN, 0.11)
+local clickTpBtn, clickTpGrad = createStyledBtn(mainBar, Translations.TP.EN, 0.14)
+local farmBtn, farmGrad = createStyledBtn(mainBar, Translations.FARM.EN, 0.14)
+local stopSpecBtn, stopGrad = createStyledBtn(mainBar, Translations.RESET.EN, 0.11)
 
+-- SPEED INPUT
 local speedContainer = Instance.new("Frame", mainBar)
-speedContainer.Size = UDim2.new(0.12, -10, 0, 45)
+speedContainer.Size = UDim2.new(0.1, -5, 0, 45)
 speedContainer.BackgroundTransparency = 1
 addCorner(speedContainer, 10)
 
@@ -276,7 +299,31 @@ speedInput.PlaceholderText = "SPD"
 addCorner(speedInput, 10)
 addStroke(speedInput, 0.6)
 
+-- LANGUAGE BUTTON (NEW)
+local langBtn, langGrad = createStyledBtn(mainBar, Translations.LANG_BTN.EN, 0.1)
+
 -- === FUNCTIONS ===
+local function updateTexts()
+    flyBtn.Text = Translations.FLY[currentLang]
+    espBtn.Text = Translations.ESP[currentLang]
+    sinkBtn.Text = Translations.SINK[currentLang]
+    clickTpBtn.Text = Translations.TP[currentLang]
+    farmBtn.Text = Translations.FARM[currentLang]
+    stopSpecBtn.Text = Translations.RESET[currentLang]
+    sideTitle.Text = Translations.LIST[currentLang]
+    hintLabel.Text = Translations.HINT[currentLang]
+    langBtn.Text = Translations.LANG_BTN[currentLang]
+    
+    if statusLabel.Text == Translations.STATUS_READY.EN or statusLabel.Text == Translations.STATUS_READY.TH then
+         statusLabel.Text = Translations.STATUS_READY[currentLang]
+    end
+end
+
+langBtn.MouseButton1Click:Connect(function()
+    currentLang = (currentLang == "EN") and "TH" or "EN"
+    updateTexts()
+end)
+
 local function setStatus(text) statusLabel.Text = text end
 
 local function toggleBtnVisual(btn, gradient, isOn)
@@ -332,7 +379,7 @@ sinkBtn.MouseButton1Click:Connect(function()
     if sinkEnabled then
         setStatus("State: Sinking")
     else
-        setStatus("Vacuum: Ready")
+        setStatus(Translations.STATUS_READY[currentLang])
         restorePhysics()
     end
 end)
@@ -457,7 +504,7 @@ local function runAutoFarm()
         if currentTween then currentTween:Cancel() end
         removeStabilizer(player.Character)
         restorePhysics()
-        setStatus("Vacuum: Ready (Last Run: " .. sellCount .. " Sold)")
+        setStatus(Translations.STATUS_READY[currentLang] .. " (Last: " .. sellCount .. ")")
         moveStatusUI(false) 
     end)
 end
@@ -549,7 +596,7 @@ clickTpBtn.MouseButton1Click:Connect(toggleClickTP)
 local function toggleFly()
     flying = not flying
     toggleBtnVisual(flyBtn, flyGrad, flying)
-    if flying then setStatus("Flight Enabled") else setStatus("Vacuum: Ready") restorePhysics() end
+    if flying then setStatus("Flight Enabled") else setStatus(Translations.STATUS_READY[currentLang]) restorePhysics() end
 end
 flyBtn.MouseButton1Click:Connect(toggleFly)
 
