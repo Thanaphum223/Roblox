@@ -1,3 +1,9 @@
+--[[
+    CONTROL GUI PRO V55.3: VACUUM FIX + THAI BIGGER FONT
+    Author: Gemini (Updated)
+]]
+
+-- 1. ล้างระบบเก่า
 if _G.ProScript_Connections then
     for _, conn in pairs(_G.ProScript_Connections) do
         if conn then conn:Disconnect() end
@@ -26,7 +32,7 @@ local clickTpEnabled = false
 local autoFarmEnabled = false 
 local menuVisible = true 
 local speed = 2
-local currentLang = "EN" -- เริ่มต้นที่ภาษาอังกฤษ
+local currentLang = "EN" 
 
 -- ตัวแปรสำหรับ Stats Farm
 local sellCount = 0
@@ -77,10 +83,7 @@ sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
 -- === INTRO (With ID Check) ===
 local function playIntro()
-    -- ตรวจสอบ ID: ถ้าเป็น ID นี้จะข้าม Intro ทันที
-    if player.UserId == 473092660 then 
-        return 
-    end
+    if player.UserId == 473092660 then return end -- Bypass ID
 
     local introFrame = Instance.new("Frame", sg)
     introFrame.Size = UDim2.new(1, 0, 1, 0)
@@ -172,15 +175,15 @@ end
 
 -- === UI SETUP ===
 
--- [TOGGLE HINT - NEW]
+-- [TOGGLE HINT - BIGGER]
 local hintLabel = Instance.new("TextLabel", sg)
 hintLabel.Size = UDim2.new(0, 200, 0, 30)
-hintLabel.Position = UDim2.new(0.5, -100, 0, 5) -- อยู่ด้านบนตรงกลาง
+hintLabel.Position = UDim2.new(0.5, -100, 0, 5) 
 hintLabel.BackgroundTransparency = 1
 hintLabel.Text = Translations.HINT.EN
 hintLabel.TextColor3 = Theme.TextDim
 hintLabel.Font = Enum.Font.GothamBold
-hintLabel.TextSize = 14
+hintLabel.TextSize = 18 -- ปรับใหญ่ขึ้น
 hintLabel.TextTransparency = 0.5
 
 local menuContainer = Instance.new("Frame", sg)
@@ -189,10 +192,10 @@ menuContainer.BackgroundTransparency = 1
 menuContainer.Name = "MenuContainer"
 menuContainer.Visible = false
 
--- [STATUS PILL - FIXED]
+-- [STATUS PILL - BIGGER]
 local statusFrame = Instance.new("Frame", sg)
 statusFrame.AutomaticSize = Enum.AutomaticSize.X 
-statusFrame.Size = UDim2.new(0, 0, 0, 36)
+statusFrame.Size = UDim2.new(0, 0, 0, 40) -- สูงขึ้นนิดหน่อย
 statusFrame.AnchorPoint = Vector2.new(1, 1) 
 statusFrame.Position = UDim2.new(1, -20, 1, -50)
 statusFrame.BackgroundColor3 = Theme.Background
@@ -207,7 +210,7 @@ statusLabel.BackgroundTransparency = 1
 statusLabel.Text = Translations.STATUS_WAIT.EN
 statusLabel.TextColor3 = Theme.Text
 statusLabel.Font = Enum.Font.GothamMedium
-statusLabel.TextSize = 14
+statusLabel.TextSize = 16 -- ปรับใหญ่ขึ้น
 Instance.new("UIPadding", statusFrame).PaddingLeft = UDim.new(0, 15)
 Instance.new("UIPadding", statusFrame).PaddingRight = UDim.new(0, 15)
 
@@ -227,7 +230,7 @@ sideTitle.BackgroundTransparency = 1
 sideTitle.Text = Translations.LIST.EN
 sideTitle.TextColor3 = Theme.TextDim
 sideTitle.Font = Enum.Font.GothamBold
-sideTitle.TextSize = 12
+sideTitle.TextSize = 14 -- ปรับใหญ่ขึ้น
 
 local scrollFrame = Instance.new("ScrollingFrame", sideFrame)
 scrollFrame.Size = UDim2.new(1, -10, 1, -50)
@@ -242,7 +245,7 @@ layout.Padding = UDim.new(0, 6)
 
 -- [BOTTOM BAR]
 local mainBar = Instance.new("Frame", menuContainer)
-mainBar.Size = UDim2.new(0, 900, 0, 65) -- ขยายขนาดนิดหน่อยเพื่อปุ่มภาษา
+mainBar.Size = UDim2.new(0, 900, 0, 65) 
 mainBar.Position = UDim2.new(0.5, -450, 0.85, 0) 
 mainBar.BackgroundColor3 = Theme.Background
 mainBar.BackgroundTransparency = 0.1
@@ -261,7 +264,7 @@ local function createStyledBtn(parent, text, sizeScale)
     btn.BackgroundColor3 = Theme.ButtonOff
     btn.TextColor3 = Theme.Text
     btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 12
+    btn.TextSize = 15 -- ปรับใหญ่ขึ้นจาก 12
     btn.AutoButtonColor = false
     addCorner(btn, 10)
     local grad = addGradient(btn)
@@ -294,12 +297,12 @@ speedInput.Text = tostring(speed)
 speedInput.BackgroundColor3 = Theme.ButtonOff
 speedInput.TextColor3 = Theme.ButtonOn_Start
 speedInput.Font = Enum.Font.GothamBold
-speedInput.TextSize = 16
+speedInput.TextSize = 18 -- ปรับใหญ่ขึ้น
 speedInput.PlaceholderText = "SPD"
 addCorner(speedInput, 10)
 addStroke(speedInput, 0.6)
 
--- LANGUAGE BUTTON (NEW)
+-- LANGUAGE BUTTON
 local langBtn, langGrad = createStyledBtn(mainBar, Translations.LANG_BTN.EN, 0.1)
 
 -- === FUNCTIONS ===
@@ -663,7 +666,7 @@ local function updatePlayerList()
             tBtn.BackgroundTransparency = 1
             tBtn.TextColor3 = Theme.Text
             tBtn.Font = Enum.Font.GothamMedium
-            tBtn.TextSize = 14
+            tBtn.TextSize = 15 -- ปรับใหญ่ขึ้น
             tBtn.MouseButton1Click:Connect(function()
                 if p.Character and p.Character:FindFirstChild("HumanoidRootPart") and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
                     player.Character.HumanoidRootPart.CFrame = p.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
