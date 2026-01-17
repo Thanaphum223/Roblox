@@ -1,4 +1,4 @@
--- 1. ล้างระบบเก่า
+-- 1. ล้างระบบเก่า (Clean Re-execution)
 if _G.ProScript_Connections then
     for _, conn in pairs(_G.ProScript_Connections) do
         if conn then conn:Disconnect() end
@@ -14,6 +14,7 @@ local VirtualUser = game:GetService("VirtualUser")
 local TweenService = game:GetService("TweenService")
 local StarterGui = game:GetService("StarterGui")
 local TeleportService = game:GetService("TeleportService")
+local CoreGui = game:GetService("CoreGui")
 
 local player = Players.LocalPlayer
 local mouse = player:GetMouse() 
@@ -178,7 +179,7 @@ hintLabel.BackgroundTransparency = 1
 hintLabel.Text = Translations.HINT.EN
 hintLabel.TextColor3 = Theme.TextDim
 hintLabel.Font = Enum.Font.GothamBold
-hintLabel.TextSize = 18 -- ปรับใหญ่ขึ้น
+hintLabel.TextSize = 18
 hintLabel.TextTransparency = 0.5
 
 local menuContainer = Instance.new("Frame", sg)
@@ -187,10 +188,10 @@ menuContainer.BackgroundTransparency = 1
 menuContainer.Name = "MenuContainer"
 menuContainer.Visible = false
 
--- [STATUS PILL - BIGGER]
+-- [STATUS PILL]
 local statusFrame = Instance.new("Frame", sg)
 statusFrame.AutomaticSize = Enum.AutomaticSize.X 
-statusFrame.Size = UDim2.new(0, 0, 0, 40) -- สูงขึ้นนิดหน่อย
+statusFrame.Size = UDim2.new(0, 0, 0, 40)
 statusFrame.AnchorPoint = Vector2.new(1, 1) 
 statusFrame.Position = UDim2.new(1, -20, 1, -50)
 statusFrame.BackgroundColor3 = Theme.Background
@@ -205,7 +206,7 @@ statusLabel.BackgroundTransparency = 1
 statusLabel.Text = Translations.STATUS_WAIT.EN
 statusLabel.TextColor3 = Theme.Text
 statusLabel.Font = Enum.Font.GothamMedium
-statusLabel.TextSize = 16 -- ปรับใหญ่ขึ้น
+statusLabel.TextSize = 16
 Instance.new("UIPadding", statusFrame).PaddingLeft = UDim.new(0, 15)
 Instance.new("UIPadding", statusFrame).PaddingRight = UDim.new(0, 15)
 
@@ -225,7 +226,7 @@ sideTitle.BackgroundTransparency = 1
 sideTitle.Text = Translations.LIST.EN
 sideTitle.TextColor3 = Theme.TextDim
 sideTitle.Font = Enum.Font.GothamBold
-sideTitle.TextSize = 14 -- ปรับใหญ่ขึ้น
+sideTitle.TextSize = 14
 
 local scrollFrame = Instance.new("ScrollingFrame", sideFrame)
 scrollFrame.Size = UDim2.new(1, -10, 1, -50)
@@ -259,7 +260,7 @@ local function createStyledBtn(parent, text, sizeScale)
     btn.BackgroundColor3 = Theme.ButtonOff
     btn.TextColor3 = Theme.Text
     btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 15 -- ปรับใหญ่ขึ้นจาก 12
+    btn.TextSize = 15
     btn.AutoButtonColor = false
     addCorner(btn, 10)
     local grad = addGradient(btn)
@@ -292,7 +293,7 @@ speedInput.Text = tostring(speed)
 speedInput.BackgroundColor3 = Theme.ButtonOff
 speedInput.TextColor3 = Theme.ButtonOn_Start
 speedInput.Font = Enum.Font.GothamBold
-speedInput.TextSize = 18 -- ปรับใหญ่ขึ้น
+speedInput.TextSize = 18
 speedInput.PlaceholderText = "SPD"
 addCorner(speedInput, 10)
 addStroke(speedInput, 0.6)
@@ -353,12 +354,22 @@ local function restorePhysics()
             hum:ChangeState(Enum.HumanoidStateType.GettingUp)
         end
         if root then
-            root.Velocity = Vector3.new(0,0,0)
-            root.AssemblyLinearVelocity = Vector3.new(0,0,0)
+            root.Velocity = Vector3.zero
+            root.AssemblyLinearVelocity = Vector3.zero
             if root:FindFirstChild("Elite_Movement") then root.Elite_Movement:Destroy() end
         end
         for _, v in pairs(player.Character:GetChildren()) do
             if v:IsA("BasePart") then v.CanCollide = true end
+        end
+    end
+end
+
+-- HELPER: Optimized Noclip (Only sets if true)
+local function performNoclip(char)
+    if not char then return end
+    for _, v in pairs(char:GetChildren()) do
+        if v:IsA("BasePart") and v.CanCollide == true then 
+            v.CanCollide = false 
         end
     end
 end
@@ -416,7 +427,7 @@ local function smartMove(targetCFrame)
     tween:Play()
     tween.Completed:Wait()
     currentTween = nil
-    root.Velocity = Vector3.new(0,0,0)
+    root.Velocity = Vector3.zero
     local hum = char:FindFirstChild("Humanoid")
     if hum then hum:ChangeState(Enum.HumanoidStateType.Running) end
 end
@@ -431,24 +442,34 @@ local function forceInteract(duration)
     overlapParams.FilterDescendantsInstances = {char}
     overlapParams.FilterType = Enum.RaycastFilterType.Exclude
     local partsInRadius = workspace:GetPartBoundsInRadius(root.Position, 35, overlapParams)
+    
     for _, part in ipairs(partsInRadius) do
-        local prompt = part:FindFirstChildWhichIsA("ProximityPrompt") or part.Parent:FindFirstChildWhichIsA("ProximityPrompt")
+        local prompt = part:FindFirstChildWhichIsA("ProximityPrompt") or part.Parent and part.Parent:FindFirstChildWhichIsA("ProximityPrompt")
         if prompt and prompt.Enabled then prompt:InputHoldBegin() found = true end
     end
+    
     task.spawn(function()
         VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
         local elapsed = 0
-        while elapsed < duration do if not autoFarmEnabled then break end task.wait(0.1) elapsed = elapsed + 0.1 end
+        while elapsed < duration do 
+            if not autoFarmEnabled then break end 
+            task.wait(0.1) 
+            elapsed = elapsed + 0.1 
+        end
         VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
         if found then
             for _, part in ipairs(partsInRadius) do
-                local prompt = part:FindFirstChildWhichIsA("ProximityPrompt") or part.Parent:FindFirstChildWhichIsA("ProximityPrompt")
+                local prompt = part:FindFirstChildWhichIsA("ProximityPrompt") or part.Parent and part.Parent:FindFirstChildWhichIsA("ProximityPrompt")
                 if prompt then prompt:InputHoldEnd() end
             end
         end
     end)
     local elapsed = 0
-    while elapsed < duration do if not autoFarmEnabled then return end task.wait(0.1) elapsed = elapsed + 0.1 end
+    while elapsed < duration do 
+        if not autoFarmEnabled then return end 
+        task.wait(0.1) 
+        elapsed = elapsed + 0.1 
+    end
 end
 
 local function formatTime(seconds)
@@ -519,7 +540,7 @@ farmBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- ESP SYSTEM
+-- ESP SYSTEM (OPTIMIZED)
 local function removeESP(char)
     if not char then return end
     if char:FindFirstChild("Elite_Highlight") then char.Elite_Highlight:Destroy() end
@@ -529,19 +550,23 @@ end
 local function createESPItems(p, char)
     if not char then return end
     removeESP(char) 
-    local root = char:WaitForChild("HumanoidRootPart", 5) 
+    -- Change wait(1) to WaitForChild for stability
+    local root = char:WaitForChild("HumanoidRootPart", 10) 
     if not root then return end
+    
     local hi = Instance.new("Highlight", char)
     hi.Name = "Elite_Highlight"
     hi.FillTransparency = 0.5
     hi.OutlineColor = Theme.ESP_Color
     hi.FillColor = Theme.ESP_Color
+    
     local bg = Instance.new("BillboardGui", char)
     bg.Name = "Elite_Tag"
     bg.Adornee = root
     bg.Size = UDim2.new(0, 100, 0, 40)
     bg.StudsOffset = Vector3.new(0, 3.5, 0)
     bg.AlwaysOnTop = true
+    
     local tl = Instance.new("TextLabel", bg)
     tl.BackgroundTransparency = 1
     tl.Size = UDim2.new(1, 0, 1, 0)
@@ -554,8 +579,14 @@ end
 
 local function setupPlayerESP(p)
     if p == player then return end 
-    p.CharacterAdded:Connect(function(c) if espEnabled then task.wait(1) createESPItems(p, c) end end)
-    if p.Character then if espEnabled then createESPItems(p, p.Character) end end
+    p.CharacterAdded:Connect(function(c) 
+        if espEnabled then 
+            createESPItems(p, c) 
+        end 
+    end)
+    if p.Character then 
+        if espEnabled then createESPItems(p, p.Character) end 
+    end
 end
 
 local function toggleESP()
@@ -590,7 +621,7 @@ end)
 table.insert(_G.ProScript_Connections, clickTpConn)
 clickTpBtn.MouseButton1Click:Connect(toggleClickTP)
 
--- FLY
+-- FLY & PHYSICS LOOP (OPTIMIZED)
 local function toggleFly()
     flying = not flying
     toggleBtnVisual(flyBtn, flyGrad, flying)
@@ -598,34 +629,48 @@ local function toggleFly()
 end
 flyBtn.MouseButton1Click:Connect(toggleFly)
 
--- MAIN LOOP
+-- MAIN LOOP (HEAVILY OPTIMIZED)
 local runConn = RunService.Stepped:Connect(function()
-    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-        local hrp = player.Character.HumanoidRootPart
-        local hum = player.Character:FindFirstChild("Humanoid")
+    local char = player.Character
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        local hrp = char.HumanoidRootPart
+        local hum = char:FindFirstChild("Humanoid")
+        
         if flying then
             local bv = hrp:FindFirstChild("Elite_Movement")
-            if not bv then bv = Instance.new("BodyVelocity") bv.Name = "Elite_Movement" bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge) bv.Parent = hrp end
-            bv.Velocity = Vector3.new(0, 0, 0)
-            local moveDir = Vector3.new(0,0,0)
-            if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + camera.CFrame.LookVector end
-            if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - camera.CFrame.LookVector end
-            if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - camera.CFrame.RightVector end
-            if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + camera.CFrame.RightVector end
+            if not bv then 
+                bv = Instance.new("BodyVelocity") 
+                bv.Name = "Elite_Movement" 
+                bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge) 
+                bv.Parent = hrp 
+            end
+            
+            local camCF = camera.CFrame
+            local moveDir = Vector3.zero
+            
+            if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + camCF.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - camCF.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - camCF.RightVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + camCF.RightVector end
             if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir = moveDir + Vector3.new(0, 1, 0) end
             if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveDir = moveDir - Vector3.new(0, 1, 0) end
-            if moveDir.Magnitude > 0 then hrp.CFrame = hrp.CFrame + (moveDir.Unit * speed) end
-            hrp.AssemblyLinearVelocity = Vector3.new(0,0,0)
+            
+            bv.Velocity = moveDir.Magnitude > 0 and (moveDir.Unit * (speed * 50)) or Vector3.zero
+            hrp.AssemblyLinearVelocity = Vector3.zero
+            
             if hum then hum:ChangeState(Enum.HumanoidStateType.Physics) end
-            for _, v in pairs(player.Character:GetChildren()) do if v:IsA("BasePart") then v.CanCollide = false end end
+            performNoclip(char)
         end
+        
         if sinkEnabled then
-            hrp.CFrame = hrp.CFrame * CFrame.new(0, -0.15, 0) hrp.Velocity = Vector3.new(0,0,0)
+            hrp.CFrame = hrp.CFrame * CFrame.new(0, -0.15, 0) 
+            hrp.Velocity = Vector3.zero
             if hum then hum:ChangeState(Enum.HumanoidStateType.Physics) end
-            for _, v in pairs(player.Character:GetChildren()) do if v:IsA("BasePart") then v.CanCollide = false end end
+            performNoclip(char)
         end
+        
         if autoFarmEnabled then
-            for _, v in pairs(player.Character:GetChildren()) do if v:IsA("BasePart") and v.CanCollide == true then v.CanCollide = false end end
+            performNoclip(char)
         end
     end
 end)
@@ -653,6 +698,7 @@ local function updatePlayerList()
             pRow.BackgroundTransparency = 0.5
             pRow.BackgroundColor3 = Theme.ButtonOff
             addCorner(pRow, 8)
+            
             local tBtn = Instance.new("TextButton", pRow)
             tBtn.Size = UDim2.new(0.7, -5, 1, 0)
             tBtn.Position = UDim2.new(0, 5, 0, 0)
@@ -661,12 +707,13 @@ local function updatePlayerList()
             tBtn.BackgroundTransparency = 1
             tBtn.TextColor3 = Theme.Text
             tBtn.Font = Enum.Font.GothamMedium
-            tBtn.TextSize = 15 -- ปรับใหญ่ขึ้น
+            tBtn.TextSize = 15
             tBtn.MouseButton1Click:Connect(function()
                 if p.Character and p.Character:FindFirstChild("HumanoidRootPart") and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
                     player.Character.HumanoidRootPart.CFrame = p.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
                 end
             end)
+            
             local sBtn = Instance.new("TextButton", pRow)
             sBtn.Size = UDim2.new(0.25, 0, 0.8, 0)
             sBtn.Position = UDim2.new(0.73, 0, 0.1, 0)
@@ -687,7 +734,9 @@ updatePlayerList()
 
 stopSpecBtn.MouseButton1Click:Connect(function() if player.Character and player.Character:FindFirstChild("Humanoid") then camera.CameraSubject = player.Character.Humanoid setStatus("Cam Reset") end end)
 
-game:GetService("CoreGui").RobloxPromptGui.promptOverlay.ChildAdded:Connect(function(child) if child.Name == 'ErrorPrompt' then TeleportService:Teleport(game.PlaceId) end end)
+if CoreGui:FindFirstChild("RobloxPromptGui") then
+    CoreGui.RobloxPromptGui.promptOverlay.ChildAdded:Connect(function(child) if child.Name == 'ErrorPrompt' then TeleportService:Teleport(game.PlaceId) end end)
+end
 
 -- RUN INTRO
 playIntro()
@@ -696,6 +745,6 @@ playIntro()
 if player.UserId == 473092660 then
     menuContainer.Visible = true
 else
-    task.wait(3.2)
+    task.wait(2.0) -- ลดเวลาลงนิดหน่อย
     menuContainer.Visible = true
 end
