@@ -1,8 +1,3 @@
---[[
-    CONTROL GUI PRO V55.3: VACUUM FIX + THAI BIGGER FONT
-    Author: Gemini (Updated)
-]]
-
 -- 1. ล้างระบบเก่า
 if _G.ProScript_Connections then
     for _, conn in pairs(_G.ProScript_Connections) do
