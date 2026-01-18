@@ -1,7 +1,10 @@
+-- [[ ส่วนตรวจสอบรหัสแมพ (Place ID Check) ]] --
 if game.PlaceId ~= 8391915840 then
     warn("Script stopped: This script only supports Place ID 8391915840")
     return
 end
+-------------------------------------------------
+
 -- 1. ล้างระบบเก่า (Clean Re-execution)
 if _G.ProScript_Connections then
     for _, conn in pairs(_G.ProScript_Connections) do
@@ -27,7 +30,6 @@ local camera = workspace.CurrentCamera
 -- สถานะตัวแปร
 local flying = false
 local espEnabled = false
-local sinkEnabled = false
 local clickTpEnabled = false 
 local autoFarmEnabled = false 
 local menuVisible = true 
@@ -39,6 +41,10 @@ local sellCount = 0
 local farmStartTime = 0
 local currentFarmState = "Idle"
 local currentTween = nil
+
+-- ตัวแปรสำหรับ Sink (ปรับปรุงใหม่)
+local isSinkActive = false 
+local sinkConnection = nil
 
 -- พิกัด Auto Farm
 local POINT_A_JOB   = CFrame.new(1146.80627, -245.849579, -561.207458)
@@ -65,7 +71,7 @@ local Theme = {
 local Translations = {
     FLY = {EN = "FLY (R)", TH = "บิน (R)"},
     ESP = {EN = "ESP (F)", TH = "มองทะลุ (F)"},
-    SINK = {EN = "SINK", TH = "จมดิน"},
+    SINK = {EN = "ASCENSION", TH = "จมแล้วลอย"}, -- เปลี่ยนชื่อปุ่ม
     TP = {EN = "CLICK TP (T)", TH = "วาร์ป (T)"},
     FARM = {EN = "AUTO FARM", TH = "ออโต้ฟาร์ม"},
     RESET = {EN = "RESET CAM", TH = "รีเซ็ตกล้อง"},
@@ -175,7 +181,7 @@ end
 
 -- === UI SETUP ===
 
--- [TOGGLE HINT - BIGGER]
+-- [TOGGLE HINT]
 local hintLabel = Instance.new("TextLabel", sg)
 hintLabel.Size = UDim2.new(0, 200, 0, 30)
 hintLabel.Position = UDim2.new(0.5, -100, 0, 5) 
@@ -361,6 +367,9 @@ local function restorePhysics()
             root.Velocity = Vector3.zero
             root.AssemblyLinearVelocity = Vector3.zero
             if root:FindFirstChild("Elite_Movement") then root.Elite_Movement:Destroy() end
+            if root:FindFirstChild("SinkLift") then root.SinkLift:Destroy() end -- เคลียร์ตัวลอย
+            if root:FindFirstChild("SinkGyro") then root.SinkGyro:Destroy() end -- เคลียร์ตัวหมุน
+            root.Anchored = false 
         end
         for _, v in pairs(player.Character:GetChildren()) do
             if v:IsA("BasePart") then v.CanCollide = true end
@@ -368,7 +377,7 @@ local function restorePhysics()
     end
 end
 
--- HELPER: Optimized Noclip (Only sets if true)
+-- HELPER: Noclip
 local function performNoclip(char)
     if not char then return end
     for _, v in pairs(char:GetChildren()) do
@@ -385,17 +394,79 @@ table.insert(_G.ProScript_Connections, player.Idled:Connect(function()
     setStatus("System: Anti-AFK")
 end))
 
--- SINK
-sinkBtn.MouseButton1Click:Connect(function()
-    sinkEnabled = not sinkEnabled
-    toggleBtnVisual(sinkBtn, sinkGrad, sinkEnabled)
-    if sinkEnabled then
-        setStatus("State: Sinking")
+-- [[ NEW SINK & INFINITE RISE LOGIC ]]
+local function toggleSinkLevitate()
+    isSinkActive = not isSinkActive
+    toggleBtnVisual(sinkBtn, sinkGrad, isSinkActive)
+
+    local char = player.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    local hum = char and char:FindFirstChild("Humanoid")
+
+    if isSinkActive then
+        -- === เริ่มทำงาน (จม -> รอ -> ลอยยาวๆ) ===
+        if not root then return end
+        
+        task.spawn(function()
+            -- Step 1: จมดิน
+            setStatus("Action: Sinking...")
+            if hum then hum.PlatformStand = true end
+            root.Anchored = true 
+            performNoclip(char)
+
+            local startCF = root.CFrame
+            local downCF = startCF * CFrame.new(0, -10, 0)
+            local tweenDown = TweenService:Create(root, TweenInfo.new(1.5, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {CFrame = downCF})
+            tweenDown:Play()
+            tweenDown.Completed:Wait()
+
+            -- Step 2: หยุดรอ (ถ้ากดยกเลิกกลางคัน ให้จบเลย)
+            if not isSinkActive then return end
+            setStatus("Action: Holding...")
+            task.wait(1.5)
+
+            -- Step 3: ลอยขึ้นเรื่อยๆ (Infinite Rise)
+            if not isSinkActive then return end
+            setStatus("Action: Ascending...")
+            
+            root.Anchored = false -- ปลดล็อคเพื่อให้ BodyVelocity ทำงาน
+
+            -- แรงยกตัว
+            local bv = Instance.new("BodyVelocity")
+            bv.Name = "SinkLift"
+            bv.Velocity = Vector3.new(0, 6, 0) -- ความเร็วในการลอย (ปรับเลขนี้ได้ถ้าอยากให้เร็ว/ช้า)
+            bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+            bv.Parent = root
+
+            -- ตัวทรงตัว (ไม่ให้หมุนติ้ว)
+            local bg = Instance.new("BodyGyro")
+            bg.Name = "SinkGyro"
+            bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+            bg.P = 9e4
+            bg.CFrame = root.CFrame
+            bg.Parent = root
+
+            -- ลูป Noclip ตลอดเวลาที่ลอย
+            if sinkConnection then sinkConnection:Disconnect() end
+            sinkConnection = RunService.Stepped:Connect(function()
+                if isSinkActive and char then
+                    performNoclip(char)
+                else
+                    if sinkConnection then sinkConnection:Disconnect() end
+                end
+            end)
+            table.insert(_G.ProScript_Connections, sinkConnection)
+        end)
+
     else
+        -- === หยุดทำงาน (Reset) ===
         setStatus(Translations.STATUS_READY[currentLang])
-        restorePhysics()
+        if sinkConnection then sinkConnection:Disconnect() end
+        restorePhysics() -- ฟังก์ชันนี้จะลบ SinkLift และ SinkGyro ให้เอง
     end
-end)
+end
+
+sinkBtn.MouseButton1Click:Connect(toggleSinkLevitate)
 
 -- AUTO FARM
 local function addStabilizer(char)
@@ -554,7 +625,6 @@ end
 local function createESPItems(p, char)
     if not char then return end
     removeESP(char) 
-    -- Change wait(1) to WaitForChild for stability
     local root = char:WaitForChild("HumanoidRootPart", 10) 
     if not root then return end
     
@@ -662,13 +732,6 @@ local runConn = RunService.Stepped:Connect(function()
             bv.Velocity = moveDir.Magnitude > 0 and (moveDir.Unit * (speed * 50)) or Vector3.zero
             hrp.AssemblyLinearVelocity = Vector3.zero
             
-            if hum then hum:ChangeState(Enum.HumanoidStateType.Physics) end
-            performNoclip(char)
-        end
-        
-        if sinkEnabled then
-            hrp.CFrame = hrp.CFrame * CFrame.new(0, -0.15, 0) 
-            hrp.Velocity = Vector3.zero
             if hum then hum:ChangeState(Enum.HumanoidStateType.Physics) end
             performNoclip(char)
         end
