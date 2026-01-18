@@ -42,7 +42,7 @@ local farmStartTime = 0
 local currentFarmState = "Idle"
 local currentTween = nil
 
--- ตัวแปรสำหรับ Sink (ปรับปรุงใหม่)
+-- ตัวแปรสำหรับ Sink
 local isSinkActive = false 
 local sinkConnection = nil
 
@@ -67,19 +67,49 @@ local Theme = {
     Stroke = Color3.fromRGB(60, 30, 90)
 }
 
--- === LANGUAGE DATA ===
+-- === LANGUAGE DATA (เพิ่มคำแปลสถานะ) ===
 local Translations = {
+    -- Buttons
     FLY = {EN = "FLY (R)", TH = "บิน (R)"},
     ESP = {EN = "ESP (F)", TH = "มองทะลุ (F)"},
-    SINK = {EN = "ASCENSION", TH = "จมแล้วลอย"}, -- เปลี่ยนชื่อปุ่ม
+    SINK = {EN = "ASCENSION", TH = "จมแล้วลอย"},
     TP = {EN = "CLICK TP (T)", TH = "วาร์ป (T)"},
     FARM = {EN = "AUTO FARM", TH = "ออโต้ฟาร์ม"},
     RESET = {EN = "RESET CAM", TH = "รีเซ็ตกล้อง"},
     LIST = {EN = "ENTITIES LIST", TH = "รายชื่อผู้เล่น"},
     HINT = {EN = "[X] TOGGLE MENU", TH = "[X] เปิด/ปิด เมนู"},
+    LANG_BTN = {EN = "LANG: EN", TH = "ภาษา: TH"},
+    
+    -- Status Messages
     STATUS_WAIT = {EN = "Vacuum: Waiting...", TH = "Vacuum: รอคำสั่ง..."},
     STATUS_READY = {EN = "Vacuum: Ready", TH = "สถานะ: พร้อมใช้งาน"},
-    LANG_BTN = {EN = "LANG: EN", TH = "ภาษา: TH"}
+    AFK = {EN = "System: Anti-AFK", TH = "ระบบ: กัน AFK ทำงาน"},
+    
+    SINK_START = {EN = "Action: Sinking...", TH = "สถานะ: กำลังจมดิน..."},
+    SINK_HOLD = {EN = "Action: Holding...", TH = "สถานะ: รอจังหวะ..."},
+    SINK_RISE = {EN = "Action: Ascending...", TH = "สถานะ: กำลังลอยขึ้น..."},
+    
+    ABORT = {EN = "Aborted.", TH = "ยกเลิกคำสั่งแล้ว"},
+    
+    VISUAL_ON = {EN = "Visuals: ON", TH = "การมองเห็น: เปิด"},
+    VISUAL_OFF = {EN = "Visuals: OFF", TH = "การมองเห็น: ปิด"},
+    
+    WARP_READY = {EN = "Warp: READY", TH = "วาร์ป: พร้อม (กด Ctrl+คลิก)"},
+    WARP_OFF = {EN = "Warp: OFF", TH = "วาร์ป: ปิด"},
+    WARPED = {EN = "Warped.", TH = "วาร์ปสำเร็จ!"},
+    
+    FLY_ON = {EN = "Flight Enabled", TH = "โหมดการบิน: เปิด"},
+    CAM_RESET = {EN = "Cam Reset", TH = "รีเซ็ตกล้องเรียบร้อย"},
+    
+    -- Farm Status
+    FARM_STATE = {
+        Init = {EN = "Init", TH = "เริ่มระบบ"},
+        Job = {EN = "Job", TH = "รับงาน"},
+        Fill = {EN = "Fill", TH = "เติมของ"},
+        Sell = {EN = "Sell", TH = "ขายของ"},
+        Idle = {EN = "Idle", TH = "ว่าง"}
+    },
+    FARM_FMT = {EN = "%s | Time: %s | Sold: %d", TH = "สถานะ: %s | เวลา: %s | ขาย: %d"}
 }
 
 local sg = Instance.new("ScreenGui", player.PlayerGui)
@@ -312,7 +342,10 @@ addStroke(speedInput, 0.6)
 local langBtn, langGrad = createStyledBtn(mainBar, Translations.LANG_BTN.EN, 0.1)
 
 -- === FUNCTIONS ===
+local function setStatus(text) statusLabel.Text = text end
+
 local function updateTexts()
+    -- Update Button Texts
     flyBtn.Text = Translations.FLY[currentLang]
     espBtn.Text = Translations.ESP[currentLang]
     sinkBtn.Text = Translations.SINK[currentLang]
@@ -323,8 +356,19 @@ local function updateTexts()
     hintLabel.Text = Translations.HINT[currentLang]
     langBtn.Text = Translations.LANG_BTN[currentLang]
     
-    if statusLabel.Text == Translations.STATUS_READY.EN or statusLabel.Text == Translations.STATUS_READY.TH then
-         statusLabel.Text = Translations.STATUS_READY[currentLang]
+    -- Update Active Status Messages Dynamically
+    if autoFarmEnabled then
+         -- Do nothing, loop will update
+    elseif isSinkActive then
+         setStatus(Translations.SINK_RISE[currentLang])
+    elseif flying then
+         setStatus(Translations.FLY_ON[currentLang])
+    elseif clickTpEnabled then
+         setStatus(Translations.WARP_READY[currentLang])
+    elseif espEnabled then
+         setStatus(Translations.VISUAL_ON[currentLang])
+    else
+         setStatus(Translations.STATUS_READY[currentLang])
     end
 end
 
@@ -333,7 +377,6 @@ langBtn.MouseButton1Click:Connect(function()
     updateTexts()
 end)
 
-local function setStatus(text) statusLabel.Text = text end
 
 local function toggleBtnVisual(btn, gradient, isOn)
     if isOn then
@@ -391,7 +434,7 @@ end
 table.insert(_G.ProScript_Connections, player.Idled:Connect(function()
     VirtualUser:CaptureController()
     VirtualUser:ClickButton2(Vector2.new())
-    setStatus("System: Anti-AFK")
+    setStatus(Translations.AFK[currentLang])
 end))
 
 -- [[ NEW SINK & INFINITE RISE LOGIC ]]
@@ -409,25 +452,25 @@ local function toggleSinkLevitate()
         
         task.spawn(function()
             -- Step 1: จมดิน
-            setStatus("Action: Sinking...")
+            setStatus(Translations.SINK_START[currentLang])
             if hum then hum.PlatformStand = true end
             root.Anchored = true 
             performNoclip(char)
 
             local startCF = root.CFrame
             local downCF = startCF * CFrame.new(0, -10, 0)
-            local tweenDown = TweenService:Create(root, TweenInfo.new(1.5, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {CFrame = downCF})
+            local tweenDown = TweenService:Create(root, TweenInfo.new(1.0, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {CFrame = downCF})
             tweenDown:Play()
             tweenDown.Completed:Wait()
 
             -- Step 2: หยุดรอ (ถ้ากดยกเลิกกลางคัน ให้จบเลย)
             if not isSinkActive then return end
-            setStatus("Action: Holding...")
-            task.wait(1.5)
+            setStatus(Translations.SINK_HOLD[currentLang])
+            task.wait(1.0)
 
             -- Step 3: ลอยขึ้นเรื่อยๆ (Infinite Rise)
             if not isSinkActive then return end
-            setStatus("Action: Ascending...")
+            setStatus(Translations.SINK_RISE[currentLang])
             
             root.Anchored = false -- ปลดล็อคเพื่อให้ BodyVelocity ทำงาน
 
@@ -554,6 +597,12 @@ local function formatTime(seconds)
     return string.format("%02d:%02d:%02d", h, m, s)
 end
 
+-- Function to get translated state text
+local function getFarmStateText(state)
+    local trans = Translations.FARM_STATE[state]
+    return trans and trans[currentLang] or state
+end
+
 local function runAutoFarm()
     farmStartTime = os.time()
     sellCount = 0
@@ -563,7 +612,12 @@ local function runAutoFarm()
         while autoFarmEnabled do
             local elapsed = os.time() - farmStartTime
             local timeStr = formatTime(elapsed)
-            setStatus(string.format("%s | Time: %s | Sold: %d", currentFarmState, timeStr, sellCount))
+            
+            -- Use translated format and state
+            local stateText = getFarmStateText(currentFarmState)
+            local fmt = Translations.FARM_FMT[currentLang]
+            setStatus(string.format(fmt, stateText, timeStr, sellCount))
+            
             task.wait(1)
         end
     end)
@@ -610,7 +664,7 @@ farmBtn.MouseButton1Click:Connect(function()
         if currentTween then currentTween:Cancel() end
         removeStabilizer(player.Character)
         restorePhysics()
-        setStatus("Aborted.")
+        setStatus(Translations.ABORT[currentLang])
         moveStatusUI(false)
     end
 end)
@@ -671,7 +725,7 @@ local function toggleESP()
             if espEnabled then createESPItems(p, p.Character) else removeESP(p.Character) end
         end
     end
-    setStatus(espEnabled and "Visuals: ON" or "Visuals: OFF")
+    setStatus(espEnabled and Translations.VISUAL_ON[currentLang] or Translations.VISUAL_OFF[currentLang])
 end
 espBtn.MouseButton1Click:Connect(toggleESP)
 for _, p in pairs(Players:GetPlayers()) do setupPlayerESP(p) end
@@ -681,14 +735,14 @@ table.insert(_G.ProScript_Connections, Players.PlayerAdded:Connect(function(p) s
 local function toggleClickTP()
     clickTpEnabled = not clickTpEnabled
     toggleBtnVisual(clickTpBtn, clickTpGrad, clickTpEnabled)
-    setStatus(clickTpEnabled and "Warp: READY" or "Warp: OFF")
+    setStatus(clickTpEnabled and Translations.WARP_READY[currentLang] or Translations.WARP_OFF[currentLang])
 end
 local clickTpConn = mouse.Button1Down:Connect(function()
     if clickTpEnabled and UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
         if mouse.Target and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
             local targetPos = mouse.Hit.p + Vector3.new(0, 3.5, 0)
             player.Character.HumanoidRootPart.CFrame = CFrame.new(targetPos)
-            setStatus("Warped.")
+            setStatus(Translations.WARPED[currentLang])
         end
     end
 end)
@@ -699,7 +753,7 @@ clickTpBtn.MouseButton1Click:Connect(toggleClickTP)
 local function toggleFly()
     flying = not flying
     toggleBtnVisual(flyBtn, flyGrad, flying)
-    if flying then setStatus("Flight Enabled") else setStatus(Translations.STATUS_READY[currentLang]) restorePhysics() end
+    if flying then setStatus(Translations.FLY_ON[currentLang]) else setStatus(Translations.STATUS_READY[currentLang]) restorePhysics() end
 end
 flyBtn.MouseButton1Click:Connect(toggleFly)
 
@@ -799,7 +853,7 @@ table.insert(_G.ProScript_Connections, Players.PlayerAdded:Connect(updatePlayerL
 table.insert(_G.ProScript_Connections, Players.PlayerRemoving:Connect(updatePlayerList))
 updatePlayerList()
 
-stopSpecBtn.MouseButton1Click:Connect(function() if player.Character and player.Character:FindFirstChild("Humanoid") then camera.CameraSubject = player.Character.Humanoid setStatus("Cam Reset") end end)
+stopSpecBtn.MouseButton1Click:Connect(function() if player.Character and player.Character:FindFirstChild("Humanoid") then camera.CameraSubject = player.Character.Humanoid setStatus(Translations.CAM_RESET[currentLang]) end end)
 
 if CoreGui:FindFirstChild("RobloxPromptGui") then
     CoreGui.RobloxPromptGui.promptOverlay.ChildAdded:Connect(function(child) if child.Name == 'ErrorPrompt' then TeleportService:Teleport(game.PlaceId) end end)
