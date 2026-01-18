@@ -1,3 +1,7 @@
+if game.PlaceId ~= 8391915840 then
+    warn("Script stopped: This script only supports Place ID 8391915840")
+    return
+end
 -- 1. ล้างระบบเก่า (Clean Re-execution)
 if _G.ProScript_Connections then
     for _, conn in pairs(_G.ProScript_Connections) do
@@ -745,6 +749,6 @@ playIntro()
 if player.UserId == 473092660 then
     menuContainer.Visible = true
 else
-    task.wait(2.0) -- ลดเวลาลงนิดหน่อย
+    task.wait(3.0)
     menuContainer.Visible = true
 end
