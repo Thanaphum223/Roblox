@@ -42,8 +42,8 @@ local farmStartTime = 0
 local currentFarmState = "Idle"
 local currentTween = nil
 
--- ตัวแปรสำหรับ Sink
-local isSinkActive = false 
+-- ตัวแปรสำหรับ Sink & Rise (ระบบใหม่)
+local currentVerticalMode = "None" -- "Sink", "Rise", หรือ "None"
 local sinkConnection = nil
 
 -- พิกัด Auto Farm
@@ -67,12 +67,13 @@ local Theme = {
     Stroke = Color3.fromRGB(60, 30, 90)
 }
 
--- === LANGUAGE DATA (เพิ่มคำแปลสถานะ) ===
+-- === LANGUAGE DATA ===
 local Translations = {
     -- Buttons
     FLY = {EN = "FLY (R)", TH = "บิน (R)"},
     ESP = {EN = "ESP (F)", TH = "มองทะลุ (F)"},
-    SINK = {EN = "ASCENSION", TH = "จมแล้วลอย"},
+    SINK_BTN = {EN = "SINK (J)", TH = "จมดิน (J)"},
+    RISE_BTN = {EN = "RISE (K)", TH = "ลอยฟ้า (K)"},
     TP = {EN = "CLICK TP (T)", TH = "วาร์ป (T)"},
     FARM = {EN = "AUTO FARM", TH = "ออโต้ฟาร์ม"},
     RESET = {EN = "RESET CAM", TH = "รีเซ็ตกล้อง"},
@@ -85,9 +86,8 @@ local Translations = {
     STATUS_READY = {EN = "Vacuum: Ready", TH = "สถานะ: พร้อมใช้งาน"},
     AFK = {EN = "System: Anti-AFK", TH = "ระบบ: กัน AFK ทำงาน"},
     
-    SINK_START = {EN = "Action: Sinking...", TH = "สถานะ: กำลังจมดิน..."},
-    SINK_HOLD = {EN = "Action: Holding...", TH = "สถานะ: รอจังหวะ..."},
-    SINK_RISE = {EN = "Action: Ascending...", TH = "สถานะ: กำลังลอยขึ้น..."},
+    SINK_STATUS = {EN = "Action: Sinking...", TH = "สถานะ: กำลังจมดิน..."},
+    RISE_STATUS = {EN = "Action: Rising...", TH = "สถานะ: กำลังลอยขึ้น..."},
     
     ABORT = {EN = "Aborted.", TH = "ยกเลิกคำสั่งแล้ว"},
     
@@ -117,9 +117,9 @@ sg.Name = "ControlGui_Pro_V55"
 sg.ResetOnSpawn = false
 sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
--- === INTRO (With ID Check) ===
+-- === INTRO ===
 local function playIntro()
-    if player.UserId == 473092660 then return end -- Bypass ID
+    if player.UserId == 473092660 then return end 
 
     local introFrame = Instance.new("Frame", sg)
     introFrame.Size = UDim2.new(1, 0, 1, 0)
@@ -210,8 +210,6 @@ local function makeDraggable(frame)
 end
 
 -- === UI SETUP ===
-
--- [TOGGLE HINT]
 local hintLabel = Instance.new("TextLabel", sg)
 hintLabel.Size = UDim2.new(0, 200, 0, 30)
 hintLabel.Position = UDim2.new(0.5, -100, 0, 5) 
@@ -228,7 +226,6 @@ menuContainer.BackgroundTransparency = 1
 menuContainer.Name = "MenuContainer"
 menuContainer.Visible = false
 
--- [STATUS PILL]
 local statusFrame = Instance.new("Frame", sg)
 statusFrame.AutomaticSize = Enum.AutomaticSize.X 
 statusFrame.Size = UDim2.new(0, 0, 0, 40)
@@ -281,8 +278,8 @@ layout.Padding = UDim.new(0, 6)
 
 -- [BOTTOM BAR]
 local mainBar = Instance.new("Frame", menuContainer)
-mainBar.Size = UDim2.new(0, 900, 0, 65) 
-mainBar.Position = UDim2.new(0.5, -450, 0.85, 0) 
+mainBar.Size = UDim2.new(0, 950, 0, 65) 
+mainBar.Position = UDim2.new(0.5, -475, 0.85, 0) 
 mainBar.BackgroundColor3 = Theme.Background
 mainBar.BackgroundTransparency = 0.1
 addCorner(mainBar, 16)
@@ -300,7 +297,7 @@ local function createStyledBtn(parent, text, sizeScale)
     btn.BackgroundColor3 = Theme.ButtonOff
     btn.TextColor3 = Theme.Text
     btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 15
+    btn.TextSize = 13
     btn.AutoButtonColor = false
     addCorner(btn, 10)
     local grad = addGradient(btn)
@@ -311,19 +308,19 @@ local barLayout = Instance.new("UIListLayout", mainBar)
 barLayout.FillDirection = Enum.FillDirection.Horizontal
 barLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 barLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-barLayout.Padding = UDim.new(0, 8)
+barLayout.Padding = UDim.new(0, 6)
 
--- ปุ่ม
-local flyBtn, flyGrad = createStyledBtn(mainBar, Translations.FLY.EN, 0.11)
-local espBtn, espGrad = createStyledBtn(mainBar, Translations.ESP.EN, 0.11)
-local sinkBtn, sinkGrad = createStyledBtn(mainBar, Translations.SINK.EN, 0.11)
-local clickTpBtn, clickTpGrad = createStyledBtn(mainBar, Translations.TP.EN, 0.14)
-local farmBtn, farmGrad = createStyledBtn(mainBar, Translations.FARM.EN, 0.14)
-local stopSpecBtn, stopGrad = createStyledBtn(mainBar, Translations.RESET.EN, 0.11)
+-- ปุ่ม Main Bar
+local flyBtn, flyGrad = createStyledBtn(mainBar, Translations.FLY.EN, 0.1)
+local espBtn, espGrad = createStyledBtn(mainBar, Translations.ESP.EN, 0.1)
+local sinkBtn, sinkGrad = createStyledBtn(mainBar, Translations.SINK_BTN.EN, 0.1)
+local riseBtn, riseGrad = createStyledBtn(mainBar, Translations.RISE_BTN.EN, 0.1)
+local clickTpBtn, clickTpGrad = createStyledBtn(mainBar, Translations.TP.EN, 0.13)
+local farmBtn, farmGrad = createStyledBtn(mainBar, Translations.FARM.EN, 0.13)
+local stopSpecBtn, stopGrad = createStyledBtn(mainBar, Translations.RESET.EN, 0.1)
 
--- SPEED INPUT
 local speedContainer = Instance.new("Frame", mainBar)
-speedContainer.Size = UDim2.new(0.1, -5, 0, 45)
+speedContainer.Size = UDim2.new(0.08, -5, 0, 45)
 speedContainer.BackgroundTransparency = 1
 addCorner(speedContainer, 10)
 
@@ -333,50 +330,15 @@ speedInput.Text = tostring(speed)
 speedInput.BackgroundColor3 = Theme.ButtonOff
 speedInput.TextColor3 = Theme.ButtonOn_Start
 speedInput.Font = Enum.Font.GothamBold
-speedInput.TextSize = 18
+speedInput.TextSize = 16
 speedInput.PlaceholderText = "SPD"
 addCorner(speedInput, 10)
 addStroke(speedInput, 0.6)
 
--- LANGUAGE BUTTON
-local langBtn, langGrad = createStyledBtn(mainBar, Translations.LANG_BTN.EN, 0.1)
+local langBtn, langGrad = createStyledBtn(mainBar, Translations.LANG_BTN.EN, 0.08)
 
 -- === FUNCTIONS ===
 local function setStatus(text) statusLabel.Text = text end
-
-local function updateTexts()
-    -- Update Button Texts
-    flyBtn.Text = Translations.FLY[currentLang]
-    espBtn.Text = Translations.ESP[currentLang]
-    sinkBtn.Text = Translations.SINK[currentLang]
-    clickTpBtn.Text = Translations.TP[currentLang]
-    farmBtn.Text = Translations.FARM[currentLang]
-    stopSpecBtn.Text = Translations.RESET[currentLang]
-    sideTitle.Text = Translations.LIST[currentLang]
-    hintLabel.Text = Translations.HINT[currentLang]
-    langBtn.Text = Translations.LANG_BTN[currentLang]
-    
-    -- Update Active Status Messages Dynamically
-    if autoFarmEnabled then
-         -- Do nothing, loop will update
-    elseif isSinkActive then
-         setStatus(Translations.SINK_RISE[currentLang])
-    elseif flying then
-         setStatus(Translations.FLY_ON[currentLang])
-    elseif clickTpEnabled then
-         setStatus(Translations.WARP_READY[currentLang])
-    elseif espEnabled then
-         setStatus(Translations.VISUAL_ON[currentLang])
-    else
-         setStatus(Translations.STATUS_READY[currentLang])
-    end
-end
-
-langBtn.MouseButton1Click:Connect(function()
-    currentLang = (currentLang == "EN") and "TH" or "EN"
-    updateTexts()
-end)
-
 
 local function toggleBtnVisual(btn, gradient, isOn)
     if isOn then
@@ -410,8 +372,8 @@ local function restorePhysics()
             root.Velocity = Vector3.zero
             root.AssemblyLinearVelocity = Vector3.zero
             if root:FindFirstChild("Elite_Movement") then root.Elite_Movement:Destroy() end
-            if root:FindFirstChild("SinkLift") then root.SinkLift:Destroy() end -- เคลียร์ตัวลอย
-            if root:FindFirstChild("SinkGyro") then root.SinkGyro:Destroy() end -- เคลียร์ตัวหมุน
+            if root:FindFirstChild("SinkLift") then root.SinkLift:Destroy() end
+            if root:FindFirstChild("SinkGyro") then root.SinkGyro:Destroy() end
             root.Anchored = false 
         end
         for _, v in pairs(player.Character:GetChildren()) do
@@ -420,7 +382,6 @@ local function restorePhysics()
     end
 end
 
--- HELPER: Noclip
 local function performNoclip(char)
     if not char then return end
     for _, v in pairs(char:GetChildren()) do
@@ -430,86 +391,111 @@ local function performNoclip(char)
     end
 end
 
+-- === NEW LOGIC: SINK & RISE SEPARATED ===
+local function stopVerticalMovement()
+    currentVerticalMode = "None"
+    toggleBtnVisual(sinkBtn, sinkGrad, false)
+    toggleBtnVisual(riseBtn, riseGrad, false)
+    if sinkConnection then sinkConnection:Disconnect() sinkConnection = nil end
+    restorePhysics()
+    setStatus(Translations.STATUS_READY[currentLang])
+end
+
+local function startVerticalMovement(mode)
+    -- ถ้าโหมดที่กดเหมือนโหมดเดิม = หยุด
+    if currentVerticalMode == mode then
+        stopVerticalMovement()
+        return
+    end
+
+    -- สั่งหยุดของเก่าก่อน (ถ้ามี)
+    stopVerticalMovement()
+    currentVerticalMode = mode
+    
+    local char = player.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    local hum = char and char:FindFirstChild("Humanoid")
+    if not root or not hum then return end
+
+    -- อัปเดตสถานะและ UI
+    if mode == "Sink" then
+        toggleBtnVisual(sinkBtn, sinkGrad, true)
+        setStatus(Translations.SINK_STATUS[currentLang])
+    else
+        toggleBtnVisual(riseBtn, riseGrad, true)
+        setStatus(Translations.RISE_STATUS[currentLang])
+    end
+
+    hum.PlatformStand = true
+    performNoclip(char)
+
+    -- สร้างแรงเคลื่อนที่แนวตั้ง
+    local bv = Instance.new("BodyVelocity")
+    bv.Name = "SinkLift"
+    -- จมลง (-6) หรือ ลอยขึ้น (6)
+    bv.Velocity = Vector3.new(0, (mode == "Sink" and -6 or 6), 0)
+    bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    bv.Parent = root
+
+    local bg = Instance.new("BodyGyro")
+    bg.Name = "SinkGyro"
+    bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+    bg.CFrame = root.CFrame
+    bg.Parent = root
+
+    -- ลูป Noclip ตลอดการทำงาน
+    sinkConnection = RunService.Stepped:Connect(function()
+        if currentVerticalMode ~= "None" and char then
+            performNoclip(char)
+        else
+            if sinkConnection then sinkConnection:Disconnect() sinkConnection = nil end
+        end
+    end)
+    table.insert(_G.ProScript_Connections, sinkConnection)
+end
+
+local function updateTexts()
+    flyBtn.Text = Translations.FLY[currentLang]
+    espBtn.Text = Translations.ESP[currentLang]
+    sinkBtn.Text = Translations.SINK_BTN[currentLang]
+    riseBtn.Text = Translations.RISE_BTN[currentLang]
+    clickTpBtn.Text = Translations.TP[currentLang]
+    farmBtn.Text = Translations.FARM[currentLang]
+    stopSpecBtn.Text = Translations.RESET[currentLang]
+    sideTitle.Text = Translations.LIST[currentLang]
+    hintLabel.Text = Translations.HINT[currentLang]
+    langBtn.Text = Translations.LANG_BTN[currentLang]
+    
+    if autoFarmEnabled then
+    elseif currentVerticalMode == "Sink" then
+        setStatus(Translations.SINK_STATUS[currentLang])
+    elseif currentVerticalMode == "Rise" then
+        setStatus(Translations.RISE_STATUS[currentLang])
+    elseif flying then
+        setStatus(Translations.FLY_ON[currentLang])
+    elseif clickTpEnabled then
+        setStatus(Translations.WARP_READY[currentLang])
+    elseif espEnabled then
+        setStatus(Translations.VISUAL_ON[currentLang])
+    else
+        setStatus(Translations.STATUS_READY[currentLang])
+    end
+end
+
+langBtn.MouseButton1Click:Connect(function()
+    currentLang = (currentLang == "EN") and "TH" or "EN"
+    updateTexts()
+end)
+
+sinkBtn.MouseButton1Click:Connect(function() startVerticalMovement("Sink") end)
+riseBtn.MouseButton1Click:Connect(function() startVerticalMovement("Rise") end)
+
 -- Anti-AFK
 table.insert(_G.ProScript_Connections, player.Idled:Connect(function()
     VirtualUser:CaptureController()
     VirtualUser:ClickButton2(Vector2.new())
     setStatus(Translations.AFK[currentLang])
 end))
-
--- [[ NEW SINK & INFINITE RISE LOGIC ]]
-local function toggleSinkLevitate()
-    isSinkActive = not isSinkActive
-    toggleBtnVisual(sinkBtn, sinkGrad, isSinkActive)
-
-    local char = player.Character
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    local hum = char and char:FindFirstChild("Humanoid")
-
-    if isSinkActive then
-        -- === เริ่มทำงาน (จม -> รอ -> ลอยยาวๆ) ===
-        if not root then return end
-        
-        task.spawn(function()
-            -- Step 1: จมดิน
-            setStatus(Translations.SINK_START[currentLang])
-            if hum then hum.PlatformStand = true end
-            root.Anchored = true 
-            performNoclip(char)
-
-            local startCF = root.CFrame
-            local downCF = startCF * CFrame.new(0, -10, 0)
-            local tweenDown = TweenService:Create(root, TweenInfo.new(1.0, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {CFrame = downCF})
-            tweenDown:Play()
-            tweenDown.Completed:Wait()
-
-            -- Step 2: หยุดรอ (ถ้ากดยกเลิกกลางคัน ให้จบเลย)
-            if not isSinkActive then return end
-            setStatus(Translations.SINK_HOLD[currentLang])
-            task.wait(1.0)
-
-            -- Step 3: ลอยขึ้นเรื่อยๆ (Infinite Rise)
-            if not isSinkActive then return end
-            setStatus(Translations.SINK_RISE[currentLang])
-            
-            root.Anchored = false -- ปลดล็อคเพื่อให้ BodyVelocity ทำงาน
-
-            -- แรงยกตัว
-            local bv = Instance.new("BodyVelocity")
-            bv.Name = "SinkLift"
-            bv.Velocity = Vector3.new(0, 6, 0) -- ความเร็วในการลอย (ปรับเลขนี้ได้ถ้าอยากให้เร็ว/ช้า)
-            bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-            bv.Parent = root
-
-            -- ตัวทรงตัว (ไม่ให้หมุนติ้ว)
-            local bg = Instance.new("BodyGyro")
-            bg.Name = "SinkGyro"
-            bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
-            bg.P = 9e4
-            bg.CFrame = root.CFrame
-            bg.Parent = root
-
-            -- ลูป Noclip ตลอดเวลาที่ลอย
-            if sinkConnection then sinkConnection:Disconnect() end
-            sinkConnection = RunService.Stepped:Connect(function()
-                if isSinkActive and char then
-                    performNoclip(char)
-                else
-                    if sinkConnection then sinkConnection:Disconnect() end
-                end
-            end)
-            table.insert(_G.ProScript_Connections, sinkConnection)
-        end)
-
-    else
-        -- === หยุดทำงาน (Reset) ===
-        setStatus(Translations.STATUS_READY[currentLang])
-        if sinkConnection then sinkConnection:Disconnect() end
-        restorePhysics() -- ฟังก์ชันนี้จะลบ SinkLift และ SinkGyro ให้เอง
-    end
-end
-
-sinkBtn.MouseButton1Click:Connect(toggleSinkLevitate)
 
 -- AUTO FARM
 local function addStabilizer(char)
@@ -597,7 +583,6 @@ local function formatTime(seconds)
     return string.format("%02d:%02d:%02d", h, m, s)
 end
 
--- Function to get translated state text
 local function getFarmStateText(state)
     local trans = Translations.FARM_STATE[state]
     return trans and trans[currentLang] or state
@@ -607,21 +592,16 @@ local function runAutoFarm()
     farmStartTime = os.time()
     sellCount = 0
     currentFarmState = "Init"
-
     task.spawn(function()
         while autoFarmEnabled do
             local elapsed = os.time() - farmStartTime
             local timeStr = formatTime(elapsed)
-            
-            -- Use translated format and state
             local stateText = getFarmStateText(currentFarmState)
             local fmt = Translations.FARM_FMT[currentLang]
             setStatus(string.format(fmt, stateText, timeStr, sellCount))
-            
             task.wait(1)
         end
     end)
-
     task.spawn(function()
         while autoFarmEnabled do
             if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then task.wait(1) return end
@@ -632,19 +612,16 @@ local function runAutoFarm()
                 task.wait(0.5) 
                 if not autoFarmEnabled then return end
                 forceInteract(3.5)
-                
                 currentFarmState = "Fill"
                 smartMove(POINT_B_FILL)
                 task.wait(0.5) 
                 if not autoFarmEnabled then return end
                 forceInteract(3.5)
-                
                 currentFarmState = "Sell"
                 smartMove(POINT_C_SELL)
                 task.wait(0.5) 
                 if not autoFarmEnabled then return end
                 forceInteract(3.5)
-                
                 sellCount = sellCount + 1
                 task.wait(0.5)
             end)
@@ -669,7 +646,7 @@ farmBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- ESP SYSTEM (OPTIMIZED)
+-- ESP SYSTEM
 local function removeESP(char)
     if not char then return end
     if char:FindFirstChild("Elite_Highlight") then char.Elite_Highlight:Destroy() end
@@ -681,20 +658,17 @@ local function createESPItems(p, char)
     removeESP(char) 
     local root = char:WaitForChild("HumanoidRootPart", 10) 
     if not root then return end
-    
     local hi = Instance.new("Highlight", char)
     hi.Name = "Elite_Highlight"
     hi.FillTransparency = 0.5
     hi.OutlineColor = Theme.ESP_Color
     hi.FillColor = Theme.ESP_Color
-    
     local bg = Instance.new("BillboardGui", char)
     bg.Name = "Elite_Tag"
     bg.Adornee = root
     bg.Size = UDim2.new(0, 100, 0, 40)
     bg.StudsOffset = Vector3.new(0, 3.5, 0)
     bg.AlwaysOnTop = true
-    
     local tl = Instance.new("TextLabel", bg)
     tl.BackgroundTransparency = 1
     tl.Size = UDim2.new(1, 0, 1, 0)
@@ -707,14 +681,8 @@ end
 
 local function setupPlayerESP(p)
     if p == player then return end 
-    p.CharacterAdded:Connect(function(c) 
-        if espEnabled then 
-            createESPItems(p, c) 
-        end 
-    end)
-    if p.Character then 
-        if espEnabled then createESPItems(p, p.Character) end 
-    end
+    p.CharacterAdded:Connect(function(c) if espEnabled then createESPItems(p, c) end end)
+    if p.Character then if espEnabled then createESPItems(p, p.Character) end end
 end
 
 local function toggleESP()
@@ -729,7 +697,7 @@ local function toggleESP()
 end
 espBtn.MouseButton1Click:Connect(toggleESP)
 for _, p in pairs(Players:GetPlayers()) do setupPlayerESP(p) end
-table.insert(_G.ProScript_Connections, Players.PlayerAdded:Connect(function(p) setupPlayerESP(p) end))
+table.insert(_G.ProScript_Connections, Players.PlayerAdded:Connect(setupPlayerESP))
 
 -- CLICK TP
 local function toggleClickTP()
@@ -749,7 +717,7 @@ end)
 table.insert(_G.ProScript_Connections, clickTpConn)
 clickTpBtn.MouseButton1Click:Connect(toggleClickTP)
 
--- FLY & PHYSICS LOOP (OPTIMIZED)
+-- FLY
 local function toggleFly()
     flying = not flying
     toggleBtnVisual(flyBtn, flyGrad, flying)
@@ -757,7 +725,7 @@ local function toggleFly()
 end
 flyBtn.MouseButton1Click:Connect(toggleFly)
 
--- MAIN LOOP (HEAVILY OPTIMIZED)
+-- MAIN LOOP
 local runConn = RunService.Stepped:Connect(function()
     local char = player.Character
     if char and char:FindFirstChild("HumanoidRootPart") then
@@ -772,40 +740,38 @@ local runConn = RunService.Stepped:Connect(function()
                 bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge) 
                 bv.Parent = hrp 
             end
-            
             local camCF = camera.CFrame
             local moveDir = Vector3.zero
-            
             if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + camCF.LookVector end
             if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - camCF.LookVector end
             if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - camCF.RightVector end
             if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + camCF.RightVector end
             if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir = moveDir + Vector3.new(0, 1, 0) end
             if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveDir = moveDir - Vector3.new(0, 1, 0) end
-            
             bv.Velocity = moveDir.Magnitude > 0 and (moveDir.Unit * (speed * 50)) or Vector3.zero
             hrp.AssemblyLinearVelocity = Vector3.zero
-            
             if hum then hum:ChangeState(Enum.HumanoidStateType.Physics) end
             performNoclip(char)
         end
-        
-        if autoFarmEnabled then
+        if autoFarmEnabled or currentVerticalMode ~= "None" then
             performNoclip(char)
         end
     end
 end)
 table.insert(_G.ProScript_Connections, runConn)
 
--- INPUTS
+-- INPUTS (HOTKEYS)
 local inputConn = UserInputService.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     if input.KeyCode == Enum.KeyCode.R then toggleFly() end
     if input.KeyCode == Enum.KeyCode.F then toggleESP() end
     if input.KeyCode == Enum.KeyCode.T then toggleClickTP() end
+    if input.KeyCode == Enum.KeyCode.J then startVerticalMovement("Sink") end
+    if input.KeyCode == Enum.KeyCode.K then startVerticalMovement("Rise") end
     if input.KeyCode == Enum.KeyCode.X then menuVisible = not menuVisible menuContainer.Visible = menuVisible end
 end)
 table.insert(_G.ProScript_Connections, inputConn)
+
 local speedConn = speedInput:GetPropertyChangedSignal("Text"):Connect(function() speed = tonumber(speedInput.Text) or 1 end)
 table.insert(_G.ProScript_Connections, speedConn)
 
@@ -819,7 +785,6 @@ local function updatePlayerList()
             pRow.BackgroundTransparency = 0.5
             pRow.BackgroundColor3 = Theme.ButtonOff
             addCorner(pRow, 8)
-            
             local tBtn = Instance.new("TextButton", pRow)
             tBtn.Size = UDim2.new(0.7, -5, 1, 0)
             tBtn.Position = UDim2.new(0, 5, 0, 0)
@@ -834,7 +799,6 @@ local function updatePlayerList()
                     player.Character.HumanoidRootPart.CFrame = p.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
                 end
             end)
-            
             local sBtn = Instance.new("TextButton", pRow)
             sBtn.Size = UDim2.new(0.25, 0, 0.8, 0)
             sBtn.Position = UDim2.new(0.73, 0, 0.1, 0)
@@ -859,13 +823,6 @@ if CoreGui:FindFirstChild("RobloxPromptGui") then
     CoreGui.RobloxPromptGui.promptOverlay.ChildAdded:Connect(function(child) if child.Name == 'ErrorPrompt' then TeleportService:Teleport(game.PlaceId) end end)
 end
 
--- RUN INTRO
 playIntro()
-
--- SHOW MENU
-if player.UserId == 473092660 then
-    menuContainer.Visible = true
-else
-    task.wait(3.0)
-    menuContainer.Visible = true
-end
+task.wait(3.0)
+menuContainer.Visible = true
