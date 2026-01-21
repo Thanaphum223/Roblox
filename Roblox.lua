@@ -783,7 +783,6 @@ table.insert(_G.ProScript_Connections, Mouse.Button1Down:Connect(Features.telepo
 table.insert(_G.ProScript_Connections, speedInput:GetPropertyChangedSignal("Text"):Connect(function()
     CONFIG.Speed = tonumber(speedInput.Text) or 1
 end))
-table.insert(_G.ProScript_Connections, Players.PlayerAdded:Connect(Features.updateESP))
 table.insert(_G.ProScript_Connections, player.Idled:Connect(function()
     VirtualUser:CaptureController()
     VirtualUser:ClickButton2(Vector2.new())
@@ -832,8 +831,43 @@ local function updateList()
     end
     scrollFrame.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 10)
 end
-table.insert(_G.ProScript_Connections, Players.PlayerAdded:Connect(updateList))
+
+---------------------------------------------------------------------------------
+-- 8. AUTO REFRESH LOGIC (ระบบเชื่อมต่อผู้เล่นและ ESP แบบใหม่)
+---------------------------------------------------------------------------------
+
+local function bindPlayerEvents(p)
+    if p == player then return end -- ข้ามตัวเอง
+    
+    -- ดักจับตอนเกิดใหม่ (CharacterAdded)
+    local conn = p.CharacterAdded:Connect(function(char)
+        -- รอให้ตัวโหลดเสร็จสักนิด
+        task.wait(1) 
+        if State.ESP then
+            -- สั่งอัปเดต ESP ใหม่ทันทีที่มีคนเกิด
+            Features.updateESP()
+        end
+    end)
+    -- เก็บ Connection ไว้เพื่อล้างค่าตอนรีสคริปต์
+    table.insert(_G.ProScript_Connections, conn)
+end
+
+-- 1. วนลูปผู้เล่นที่มีอยู่แล้วเพื่อดักจับ
+for _, p in pairs(Players:GetPlayers()) do
+    bindPlayerEvents(p)
+end
+
+-- 2. ดักจับคนเข้ามาใหม่ (PlayerAdded)
+table.insert(_G.ProScript_Connections, Players.PlayerAdded:Connect(function(p)
+    bindPlayerEvents(p)
+    Features.updateESP()
+    updateList() -- อัปเดตรายชื่อในเมนูด้วย
+end))
+
+-- 3. ดักจับคนออก (PlayerRemoving) เพื่ออัปเดตรายชื่อ
 table.insert(_G.ProScript_Connections, Players.PlayerRemoving:Connect(updateList))
+
+-- เรียก updateList ครั้งแรก
 updateList()
 
 -- Intro Animation
