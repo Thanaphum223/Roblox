@@ -1,6 +1,11 @@
--- [[ ส่วนตรวจสอบรหัสแมพ (Place ID Check) ]] --
-if game.PlaceId ~= 8391915840 then
-    warn("Script stopped: This script only supports Place ID 8391915840")
+-- [[ ส่วนตรวจสอบรหัสแมพ (Place ID Check System) ]] --
+local Supported_IDs = {
+    [8391915840] = true, -- Map เก่า
+    [8125861255] = true  -- Map ใหม่ที่เพิ่มเข้ามา
+}
+
+if not Supported_IDs[game.PlaceId] then
+    warn("Script stopped: This script does not support Place ID: " .. tostring(game.PlaceId))
     return
 end
 
@@ -34,17 +39,37 @@ local CoreGui = game:GetService("CoreGui")
 local Camera = workspace.CurrentCamera
 local Mouse = player:GetMouse()
 
+-- [[ MAP CONFIGURATION (ตั้งค่าพิกัดแยกตามแมพ) ]] --
+-- แก้ไขพิกัดของแมพใหม่ตรงนี้ครับ
+local MapSettings = {
+    [8391915840] = { -- แมพเดิม
+        InvisPos = Vector3.new(-25.95, 84, 3537.55),
+        Locations = {
+            Job  = CFrame.new(1146.80627, -245.849579, -561.207458),
+            Fill = CFrame.new(1147.00024, -245.849609, -568.630432),
+            Sell = CFrame.new(1143.9364,  -245.849579, -580.007935)
+        }
+    },
+    [8125861255] = { -- แมพใหม่ (กรุณาแก้พิกัดจริงตรงนี้!)
+        InvisPos = Vector3.new(0, 500, 0), -- จุดหลบภัยล่องหน
+        Locations = {
+            Job  = CFrame.new(0, 5, 0), -- <--- ใส่พิกัดจุดรับงาน
+            Fill = CFrame.new(0, 5, 0), -- <--- ใส่พิกัดจุดเติมของ
+            Sell = CFrame.new(0, 5, 0)  -- <--- ใส่พิกัดจุดขายของ
+        }
+    }
+}
+
+-- Load Config ตามแมพปัจจุบัน
+local CurrentMapData = MapSettings[game.PlaceId]
+
 -- Config & Theme
 local CONFIG = {
     Speed = 2,
     CurrentLang = "EN",
     MenuVisible = false, -- เริ่มต้นซ่อนเมนูไว้ก่อนจนกว่า Intro จบ
-    InvisPos = Vector3.new(-25.95, 84, 3537.55),
-    Locations = {
-        Job  = CFrame.new(1146.80627, -245.849579, -561.207458),
-        Fill = CFrame.new(1147.00024, -245.849609, -568.630432),
-        Sell = CFrame.new(1143.9364,  -245.849579, -580.007935)
-    }
+    InvisPos = CurrentMapData.InvisPos,
+    Locations = CurrentMapData.Locations
 }
 
 local THEME = {
