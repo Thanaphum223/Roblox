@@ -40,7 +40,6 @@ local Camera = workspace.CurrentCamera
 local Mouse = player:GetMouse()
 
 -- [[ MAP CONFIGURATION (ตั้งค่าพิกัดแยกตามแมพ) ]] --
--- แก้ไขพิกัดของแมพใหม่ตรงนี้ครับ
 local MapSettings = {
     [8391915840] = { -- แมพเดิม
         InvisPos = Vector3.new(-25.95, 84, 3537.55),
@@ -51,11 +50,11 @@ local MapSettings = {
         }
     },
     [8125861255] = { -- แมพใหม่ (กรุณาแก้พิกัดจริงตรงนี้!)
-        InvisPos = Vector3.new(0, 500, 0), -- จุดหลบภัยล่องหน
+        InvisPos = Vector3.new(0, 500, 0),
         Locations = {
-            Job  = CFrame.new(0, 5, 0), -- <--- ใส่พิกัดจุดรับงาน
-            Fill = CFrame.new(0, 5, 0), -- <--- ใส่พิกัดจุดเติมของ
-            Sell = CFrame.new(0, 5, 0)  -- <--- ใส่พิกัดจุดขายของ
+            Job  = CFrame.new(0, 5, 0),
+            Fill = CFrame.new(0, 5, 0),
+            Sell = CFrame.new(0, 5, 0)
         }
     }
 }
@@ -67,7 +66,7 @@ local CurrentMapData = MapSettings[game.PlaceId]
 local CONFIG = {
     Speed = 2,
     CurrentLang = "EN",
-    MenuVisible = false, -- เริ่มต้นซ่อนเมนูไว้ก่อนจนกว่า Intro จบ
+    MenuVisible = false,
     InvisPos = CurrentMapData.InvisPos,
     Locations = CurrentMapData.Locations
 }
@@ -128,14 +127,14 @@ local State = {
     ClickTP = false,
     AutoFarm = false,
     Invisible = false,
-    VerticalMode = "None", -- "Sink", "Rise", "None"
+    VerticalMode = "None",
     FarmInfo = {
         Count = 0,
         StartTime = 0,
         CurrentState = "Idle",
         Tween = nil
     },
-    Connections = {} -- สำหรับเก็บ Loop เฉพาะกิจ
+    Connections = {}
 }
 
 ---------------------------------------------------------------------------------
@@ -320,16 +319,16 @@ barLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 barLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 barLayout.Padding = UDim.new(0, 4)
 
--- สร้างปุ่มลงใน MainBar
+-- สร้างปุ่มลงใน MainBar (เอา Reset ออกจากตรงนี้)
 GUI.Buttons = {}
-GUI.Buttons.Fly = GUI.createBtn(GUI.MainBar, "FLY", 0.09)
-GUI.Buttons.ESP = GUI.createBtn(GUI.MainBar, "ESP", 0.09)
-GUI.Buttons.Sink = GUI.createBtn(GUI.MainBar, "SINK_BTN", 0.09)
-GUI.Buttons.Rise = GUI.createBtn(GUI.MainBar, "RISE_BTN", 0.09)
-GUI.Buttons.Invis = GUI.createBtn(GUI.MainBar, "INVIS", 0.10)
-GUI.Buttons.TP = GUI.createBtn(GUI.MainBar, "TP", 0.11)
-GUI.Buttons.Farm = GUI.createBtn(GUI.MainBar, "FARM", 0.11)
-GUI.Buttons.Reset = GUI.createBtn(GUI.MainBar, "RESET", 0.10)
+GUI.Buttons.Fly = GUI.createBtn(GUI.MainBar, "FLY", 0.10) -- ขยายขนาดนิดหน่อยเพราะปุ่มหายไป 1
+GUI.Buttons.ESP = GUI.createBtn(GUI.MainBar, "ESP", 0.10)
+GUI.Buttons.Sink = GUI.createBtn(GUI.MainBar, "SINK_BTN", 0.10)
+GUI.Buttons.Rise = GUI.createBtn(GUI.MainBar, "RISE_BTN", 0.10)
+GUI.Buttons.Invis = GUI.createBtn(GUI.MainBar, "INVIS", 0.11)
+GUI.Buttons.TP = GUI.createBtn(GUI.MainBar, "TP", 0.12)
+GUI.Buttons.Farm = GUI.createBtn(GUI.MainBar, "FARM", 0.12)
+-- Reset ถูกลบออกจากตรงนี้
 
 -- ช่อง Speed Input
 local speedContainer = Instance.new("Frame", GUI.MainBar)
@@ -357,6 +356,7 @@ GUI.SideFrame.BackgroundTransparency = 0.1
 Utils.addCorner(GUI.SideFrame, 12)
 Utils.addStroke(GUI.SideFrame, 0.4)
 Utils.makeDraggable(GUI.SideFrame)
+
 local sideTitle = Instance.new("TextLabel", GUI.SideFrame)
 sideTitle.Size = UDim2.new(1, 0, 0, 40)
 sideTitle.BackgroundTransparency = 1
@@ -364,8 +364,10 @@ sideTitle.Text = TRANSLATIONS.LIST.EN
 sideTitle.TextColor3 = THEME.TextDim
 sideTitle.Font = Enum.Font.GothamBold
 sideTitle.TextSize = 14
+
+-- ScrollFrame (ปรับลดขนาดลงเพื่อให้มีที่ว่างข้างล่างสำหรับปุ่ม Reset)
 local scrollFrame = Instance.new("ScrollingFrame", GUI.SideFrame)
-scrollFrame.Size = UDim2.new(1, -10, 1, -50)
+scrollFrame.Size = UDim2.new(1, -10, 1, -95) -- ปรับความสูงลดลง
 scrollFrame.Position = UDim2.new(0, 5, 0, 45)
 scrollFrame.BackgroundTransparency = 1
 scrollFrame.BorderSizePixel = 0
@@ -374,6 +376,26 @@ scrollFrame.ScrollBarImageColor3 = THEME.ButtonOn_Start
 local listLayout = Instance.new("UIListLayout", scrollFrame)
 listLayout.SortOrder = Enum.SortOrder.Name
 listLayout.Padding = UDim.new(0, 6)
+
+-- >>> เพิ่มปุ่ม Reset Cam ลงใน Side Menu ตรงนี้ <<<
+local resetContainer = Instance.new("Frame", GUI.SideFrame)
+resetContainer.Size = UDim2.new(1, -20, 0, 40)
+resetContainer.Position = UDim2.new(0, 10, 1, -50) -- อยู่ด้านล่างสุด
+resetContainer.BackgroundTransparency = 1
+
+local resetBtn = Instance.new("TextButton", resetContainer)
+resetBtn.Size = UDim2.new(1, 0, 1, 0)
+resetBtn.Text = TRANSLATIONS.RESET[CONFIG.CurrentLang]
+resetBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50) -- สีแดงอ่อนๆ ให้รู้ว่าเป็นปุ่มพิเศษ
+resetBtn.TextColor3 = Color3.new(1, 1, 1)
+resetBtn.Font = Enum.Font.GothamBold
+resetBtn.TextSize = 14
+resetBtn.AutoButtonColor = false
+Utils.addCorner(resetBtn, 8)
+Utils.addStroke(resetBtn, 0.5)
+
+-- เก็บเข้า Table GUI.Buttons เพื่อให้ระบบแปลภาษาทำงานได้ปกติ
+GUI.Buttons.Reset = {Button = resetBtn, Key = "RESET", Gradient = Utils.addGradient(resetBtn)}
 
 -- UI Functions
 function GUI.setStatus(text)
@@ -794,10 +816,13 @@ GUI.Buttons.TP.Button.MouseButton1Click:Connect(function()
     GUI.setStatus(State.ClickTP and TRANSLATIONS.WARP_READY[CONFIG.CurrentLang] or TRANSLATIONS.WARP_OFF[CONFIG.CurrentLang])
 end)
 GUI.Buttons.Farm.Button.MouseButton1Click:Connect(Features.toggleFarm)
+
+-- Reset Button Logic (Still same function, new location)
 GUI.Buttons.Reset.Button.MouseButton1Click:Connect(function()
     local _, _, hum = Utils.getChar()
     if hum then Camera.CameraSubject = hum; GUI.setStatus(TRANSLATIONS.CAM_RESET[CONFIG.CurrentLang]) end
 end)
+
 GUI.Buttons.Lang.Button.MouseButton1Click:Connect(function()
     CONFIG.CurrentLang = (CONFIG.CurrentLang == "EN") and "TH" or "EN"
     GUI.updateTexts()
