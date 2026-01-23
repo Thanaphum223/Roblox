@@ -90,7 +90,7 @@ local TRANSLATIONS = {
     INVIS = {EN = "INVIS (Z)", TH = "ล่องหน (Z)"},
     TP = {EN = "CLICK TP (T)", TH = "วาร์ป (T)"},
     FARM = {EN = "AUTO FARM", TH = "ออโต้ฟาร์ม"},
-    RESET = {EN = "RESET CAM", TH = "รีเซ็ตกล้อง"},
+    RESET = {EN = "RESET CAM (C)", TH = "รีเซ็ตกล้อง (C)"}, -- ปรับข้อความตรงนี้
     LIST = {EN = "ENTITIES LIST", TH = "รายชื่อผู้เล่น"},
     HINT = {EN = "[X] TOGGLE MENU", TH = "[X] เปิด/ปิด เมนู"},
     LANG_BTN = {EN = "LANG: EN", TH = "ภาษา: TH"},
@@ -319,16 +319,15 @@ barLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 barLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 barLayout.Padding = UDim.new(0, 4)
 
--- สร้างปุ่มลงใน MainBar (เอา Reset ออกจากตรงนี้)
+-- สร้างปุ่มลงใน MainBar
 GUI.Buttons = {}
-GUI.Buttons.Fly = GUI.createBtn(GUI.MainBar, "FLY", 0.10) -- ขยายขนาดนิดหน่อยเพราะปุ่มหายไป 1
+GUI.Buttons.Fly = GUI.createBtn(GUI.MainBar, "FLY", 0.10)
 GUI.Buttons.ESP = GUI.createBtn(GUI.MainBar, "ESP", 0.10)
 GUI.Buttons.Sink = GUI.createBtn(GUI.MainBar, "SINK_BTN", 0.10)
 GUI.Buttons.Rise = GUI.createBtn(GUI.MainBar, "RISE_BTN", 0.10)
 GUI.Buttons.Invis = GUI.createBtn(GUI.MainBar, "INVIS", 0.11)
 GUI.Buttons.TP = GUI.createBtn(GUI.MainBar, "TP", 0.12)
 GUI.Buttons.Farm = GUI.createBtn(GUI.MainBar, "FARM", 0.12)
--- Reset ถูกลบออกจากตรงนี้
 
 -- ช่อง Speed Input
 local speedContainer = Instance.new("Frame", GUI.MainBar)
@@ -365,9 +364,9 @@ sideTitle.TextColor3 = THEME.TextDim
 sideTitle.Font = Enum.Font.GothamBold
 sideTitle.TextSize = 14
 
--- ScrollFrame (ปรับลดขนาดลงเพื่อให้มีที่ว่างข้างล่างสำหรับปุ่ม Reset)
+-- ScrollFrame
 local scrollFrame = Instance.new("ScrollingFrame", GUI.SideFrame)
-scrollFrame.Size = UDim2.new(1, -10, 1, -95) -- ปรับความสูงลดลง
+scrollFrame.Size = UDim2.new(1, -10, 1, -95)
 scrollFrame.Position = UDim2.new(0, 5, 0, 45)
 scrollFrame.BackgroundTransparency = 1
 scrollFrame.BorderSizePixel = 0
@@ -377,16 +376,16 @@ local listLayout = Instance.new("UIListLayout", scrollFrame)
 listLayout.SortOrder = Enum.SortOrder.Name
 listLayout.Padding = UDim.new(0, 6)
 
--- >>> เพิ่มปุ่ม Reset Cam ลงใน Side Menu ตรงนี้ <<<
+-- ปุ่ม Reset Cam ใน Side Menu
 local resetContainer = Instance.new("Frame", GUI.SideFrame)
 resetContainer.Size = UDim2.new(1, -20, 0, 40)
-resetContainer.Position = UDim2.new(0, 10, 1, -50) -- อยู่ด้านล่างสุด
+resetContainer.Position = UDim2.new(0, 10, 1, -50)
 resetContainer.BackgroundTransparency = 1
 
 local resetBtn = Instance.new("TextButton", resetContainer)
 resetBtn.Size = UDim2.new(1, 0, 1, 0)
 resetBtn.Text = TRANSLATIONS.RESET[CONFIG.CurrentLang]
-resetBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50) -- สีแดงอ่อนๆ ให้รู้ว่าเป็นปุ่มพิเศษ
+resetBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
 resetBtn.TextColor3 = Color3.new(1, 1, 1)
 resetBtn.Font = Enum.Font.GothamBold
 resetBtn.TextSize = 14
@@ -394,7 +393,6 @@ resetBtn.AutoButtonColor = false
 Utils.addCorner(resetBtn, 8)
 Utils.addStroke(resetBtn, 0.5)
 
--- เก็บเข้า Table GUI.Buttons เพื่อให้ระบบแปลภาษาทำงานได้ปกติ
 GUI.Buttons.Reset = {Button = resetBtn, Key = "RESET", Gradient = Utils.addGradient(resetBtn)}
 
 -- UI Functions
@@ -800,6 +798,10 @@ local inputConn = UserInputService.InputBegan:Connect(function(input, gpe)
     elseif code == Enum.KeyCode.X then
         CONFIG.MenuVisible = not CONFIG.MenuVisible
         GUI.MenuContainer.Visible = CONFIG.MenuVisible
+    -- >>> เพิ่มปุ่ม C ตรงนี้ <<<
+    elseif code == Enum.KeyCode.C then
+        local _, _, hum = Utils.getChar()
+        if hum then Camera.CameraSubject = hum; GUI.setStatus(TRANSLATIONS.CAM_RESET[CONFIG.CurrentLang]) end
     end
 end)
 table.insert(_G.ProScript_Connections, inputConn)
@@ -817,7 +819,7 @@ GUI.Buttons.TP.Button.MouseButton1Click:Connect(function()
 end)
 GUI.Buttons.Farm.Button.MouseButton1Click:Connect(Features.toggleFarm)
 
--- Reset Button Logic (Still same function, new location)
+-- Reset Button Logic
 GUI.Buttons.Reset.Button.MouseButton1Click:Connect(function()
     local _, _, hum = Utils.getChar()
     if hum then Camera.CameraSubject = hum; GUI.setStatus(TRANSLATIONS.CAM_RESET[CONFIG.CurrentLang]) end
