@@ -2,7 +2,7 @@
 local Supported_IDs = {
     [8391915840] = true, -- Map เก่า
     [8125861255] = true,  -- Map ใหม่ที่เพิ่มเข้ามา
-    [8391915840] = true   -- Map ใหม่ที่เพิ่มเข้ามา
+    [99002761413888] = true   -- Map ใหม่ที่เพิ่มเข้ามา
 }
 
 if not Supported_IDs[game.PlaceId] then
