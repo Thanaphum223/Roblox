@@ -1,7 +1,8 @@
 -- [[ ส่วนตรวจสอบรหัสแมพ (Place ID Check System) ]] --
 local Supported_IDs = {
     [8391915840] = true, -- Map เก่า
-    [8125861255] = true  -- Map ใหม่ที่เพิ่มเข้ามา
+    [8125861255] = true,  -- Map ใหม่ที่เพิ่มเข้ามา
+    [8391915840] = true   -- Map ใหม่ที่เพิ่มเข้ามา
 }
 
 if not Supported_IDs[game.PlaceId] then
