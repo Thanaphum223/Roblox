@@ -2,7 +2,7 @@
 local Supported_IDs = {
     [8391915840] = true, -- Map เก่า
     [8125861255] = true,  -- Map ใหม่ที่เพิ่มเข้ามา
-    [99002761413888] = true   -- Map ใหม่ที่เพิ่มเข้ามา
+    [99002761413888] = true, -- Map Unnamed (เพิ่มใหม่ล่าสุด)
 }
 
 if not Supported_IDs[game.PlaceId] then
@@ -50,12 +50,20 @@ local MapSettings = {
             Sell = CFrame.new(1143.9364,  -245.849579, -580.007935)
         }
     },
-    [8125861255] = { -- แมพใหม่ (กรุณาแก้พิกัดจริงตรงนี้!)
+    [8125861255] = { -- แมพรอง (ต้องแก้พิกัดจริง)
         InvisPos = Vector3.new(0, 500, 0),
         Locations = {
             Job  = CFrame.new(0, 5, 0),
             Fill = CFrame.new(0, 5, 0),
             Sell = CFrame.new(0, 5, 0)
+        }
+    },
+    [99002761413888] = { -- แมพใหม่ Unnamed (!!! กรุณาแก้พิกัดจริงตรงนี้ !!!)
+        InvisPos = Vector3.new(0, 500, 0), -- จุดสำหรับซ่อนตัว
+        Locations = {
+            Job  = CFrame.new(0, 5, 0), -- พิกัดจุดรับงาน
+            Fill = CFrame.new(0, 5, 0), -- พิกัดจุดเติมของ
+            Sell = CFrame.new(0, 5, 0)  -- พิกัดจุดขายของ
         }
     }
 }
@@ -91,7 +99,7 @@ local TRANSLATIONS = {
     INVIS = {EN = "INVIS (Z)", TH = "ล่องหน (Z)"},
     TP = {EN = "CLICK TP (T)", TH = "วาร์ป (T)"},
     FARM = {EN = "AUTO FARM", TH = "ออโต้ฟาร์ม"},
-    RESET = {EN = "RESET CAM (C)", TH = "รีเซ็ตกล้อง (C)"}, -- ปรับข้อความตรงนี้
+    RESET = {EN = "RESET CAM (C)", TH = "รีเซ็ตกล้อง (C)"}, 
     LIST = {EN = "ENTITIES LIST", TH = "รายชื่อผู้เล่น"},
     HINT = {EN = "[X] TOGGLE MENU", TH = "[X] เปิด/ปิด เมนู"},
     LANG_BTN = {EN = "LANG: EN", TH = "ภาษา: TH"},
