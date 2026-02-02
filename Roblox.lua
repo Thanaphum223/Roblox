@@ -1,18 +1,14 @@
--- [[ ส่วนตรวจสอบรหัสแมพ (Place ID Check System) ]] --
+-- [[ ส่วนตรวจสอบรหัสแมพ ]] --
 local Supported_IDs = {
     [8391915840] = true, -- Map เก่า
-    [8125861255] = true,  -- Map ใหม่ที่เพิ่มเข้ามา
-    [99002761413888] = true, -- Map Unnamed (เพิ่มใหม่ล่าสุด)
+    [8125861255] = true,  -- Map ใหม่
+    [99002761413888] = true, -- Map Unnamed
 }
 
-if not Supported_IDs[game.PlaceId] then
-    warn("Script stopped: This script does not support Place ID: " .. tostring(game.PlaceId))
-    return
-end
+-- [[ 1. SYSTEM CLEANUP (ล้างระบบเก่าแบบเกลี้ยงเกลา) ]] --
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
 
----------------------------------------------------------------------------------
--- 1. SYSTEM CLEANUP (ล้างระบบเก่า)
----------------------------------------------------------------------------------
 if _G.ProScript_Connections then
     for _, conn in pairs(_G.ProScript_Connections) do
         if conn then conn:Disconnect() end
@@ -20,14 +16,12 @@ if _G.ProScript_Connections then
 end
 _G.ProScript_Connections = {}
 
-local Players = game:GetService("Players")
-local player = Players.LocalPlayer
-if player.PlayerGui:FindFirstChild("ControlGui_Pro_V55") then
-    player.PlayerGui.ControlGui_Pro_V55:Destroy()
+for _, gui in pairs(player.PlayerGui:GetChildren()) do
+    if gui.Name:match("ControlGui_Pro") then gui:Destroy() end
 end
 
 ---------------------------------------------------------------------------------
--- 2. SERVICES & CONSTANTS (บริการและค่าคงที่)
+-- 2. SERVICES & CONSTANTS
 ---------------------------------------------------------------------------------
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -35,14 +29,14 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local VirtualUser = game:GetService("VirtualUser")
 local TweenService = game:GetService("TweenService")
 local TeleportService = game:GetService("TeleportService")
-local CoreGui = game:GetService("CoreGui")
+local ProximityPromptService = game:GetService("ProximityPromptService") -- เพิ่ม Service นี้
 
 local Camera = workspace.CurrentCamera
 local Mouse = player:GetMouse()
 
--- [[ MAP CONFIGURATION (ตั้งค่าพิกัดแยกตามแมพ) ]] --
+-- [[ MAP CONFIGURATION ]] --
 local MapSettings = {
-    [8391915840] = { -- แมพเดิม
+    [8391915840] = {
         InvisPos = Vector3.new(-25.95, 84, 3537.55),
         Locations = {
             Job  = CFrame.new(1146.80627, -245.849579, -561.207458),
@@ -50,34 +44,28 @@ local MapSettings = {
             Sell = CFrame.new(1143.9364,  -245.849579, -580.007935)
         }
     },
-    [8125861255] = { -- แมพรอง (ต้องแก้พิกัดจริง)
+    [8125861255] = {
         InvisPos = Vector3.new(0, 500, 0),
-        Locations = {
-            Job  = CFrame.new(0, 5, 0),
-            Fill = CFrame.new(0, 5, 0),
-            Sell = CFrame.new(0, 5, 0)
-        }
+        Locations = { Job=CFrame.new(0,5,0), Fill=CFrame.new(0,5,0), Sell=CFrame.new(0,5,0) }
     },
-    [99002761413888] = { -- แมพใหม่ Unnamed (!!! กรุณาแก้พิกัดจริงตรงนี้ !!!)
-        InvisPos = Vector3.new(0, 500, 0), -- จุดสำหรับซ่อนตัว
-        Locations = {
-            Job  = CFrame.new(0, 5, 0), -- พิกัดจุดรับงาน
-            Fill = CFrame.new(0, 5, 0), -- พิกัดจุดเติมของ
-            Sell = CFrame.new(0, 5, 0)  -- พิกัดจุดขายของ
-        }
+    [99002761413888] = {
+        InvisPos = Vector3.new(0, 500, 0),
+        Locations = { Job=CFrame.new(0,5,0), Fill=CFrame.new(0,5,0), Sell=CFrame.new(0,5,0) }
     }
 }
+local CurrentMapData = MapSettings[game.PlaceId] or MapSettings[8391915840]
 
--- Load Config ตามแมพปัจจุบัน
-local CurrentMapData = MapSettings[game.PlaceId]
-
--- Config & Theme
+-- [[ CONFIGURATION ]] --
 local CONFIG = {
     Speed = 2,
     CurrentLang = "EN",
     MenuVisible = false,
     InvisPos = CurrentMapData.InvisPos,
-    Locations = CurrentMapData.Locations
+    Locations = CurrentMapData.Locations,
+    ItemNames = {
+        Stage1 = {"Cone", "Empty Cone", "Waffle Cone"},
+        Stage2 = {"Icecream", "Ice Cream", "Chocolate Icecream", "Vanilla Icecream"}
+    }
 }
 
 local THEME = {
@@ -99,6 +87,7 @@ local TRANSLATIONS = {
     INVIS = {EN = "INVIS (Z)", TH = "ล่องหน (Z)"},
     TP = {EN = "CLICK TP (T)", TH = "วาร์ป (T)"},
     FARM = {EN = "AUTO FARM", TH = "ออโต้ฟาร์ม"},
+    REJOIN = {EN = "REJOIN", TH = "เข้าเกมใหม่"},
     RESET = {EN = "RESET CAM (C)", TH = "รีเซ็ตกล้อง (C)"}, 
     LIST = {EN = "ENTITIES LIST", TH = "รายชื่อผู้เล่น"},
     HINT = {EN = "[X] TOGGLE MENU", TH = "[X] เปิด/ปิด เมนู"},
@@ -117,18 +106,19 @@ local TRANSLATIONS = {
     WARPED = {EN = "Warped.", TH = "วาร์ปสำเร็จ!"},
     FLY_ON = {EN = "Flight Enabled", TH = "โหมดการบิน: เปิด"},
     CAM_RESET = {EN = "Cam Reset", TH = "รีเซ็ตกล้องเรียบร้อย"},
+    REJOINING = {EN = "Rejoining Server...", TH = "กำลังเข้าเซิร์ฟเวอร์ใหม่..."},
     FARM_STATE = {
         Init = {EN = "Init", TH = "เริ่มระบบ"},
-        Job = {EN = "Job", TH = "รับงาน"},
-        Fill = {EN = "Fill", TH = "เติมของ"},
-        Sell = {EN = "Sell", TH = "ขายของ"},
+        Job = {EN = "Get Cone", TH = "รับโคน"},
+        Fill = {EN = "Get Icecream", TH = "ตักไอติม"},
+        Sell = {EN = "Selling", TH = "ขายของ"},
         Idle = {EN = "Idle", TH = "ว่าง"}
     },
     FARM_FMT = {EN = "%s | Time: %s | Sold: %d", TH = "สถานะ: %s | เวลา: %s | ขาย: %d"}
 }
 
 ---------------------------------------------------------------------------------
--- 3. STATE MANAGEMENT (จัดการสถานะ)
+-- 3. STATE MANAGEMENT
 ---------------------------------------------------------------------------------
 local State = {
     Flying = false,
@@ -137,17 +127,12 @@ local State = {
     AutoFarm = false,
     Invisible = false,
     VerticalMode = "None",
-    FarmInfo = {
-        Count = 0,
-        StartTime = 0,
-        CurrentState = "Idle",
-        Tween = nil
-    },
+    FarmInfo = { Count = 0, StartTime = 0, CurrentState = "Idle", Tween = nil },
     Connections = {}
 }
 
 ---------------------------------------------------------------------------------
--- 4. UTILITY FUNCTIONS (ฟังก์ชันช่วยเหลือ)
+-- 4. UTILITY FUNCTIONS
 ---------------------------------------------------------------------------------
 local Utils = {}
 
@@ -211,8 +196,9 @@ end
 
 function Utils.noclip(char)
     if not char then return end
+    -- ปรับให้ Noclip ทำงานเบาลงด้วยการเช็คก่อนว่าต้องแก้ไหม
     for _, v in pairs(char:GetChildren()) do
-        if v:IsA("BasePart") and v.CanCollide then
+        if v:IsA("BasePart") and v.CanCollide == true then
             v.CanCollide = false
         end
     end
@@ -224,7 +210,6 @@ function Utils.restorePhysics()
     
     hum.PlatformStand = false
     hum:ChangeState(Enum.HumanoidStateType.GettingUp)
-    
     hrp.Velocity = Vector3.zero
     hrp.AssemblyLinearVelocity = Vector3.zero
     hrp.Anchored = false
@@ -246,16 +231,24 @@ function Utils.formatTime(seconds)
     return string.format("%02d:%02d:%02d", h, m, s)
 end
 
+function Utils.hasItem(possibleNames)
+    local char = player.Character
+    local backpack = player.Backpack
+    for _, name in pairs(possibleNames) do
+        if backpack:FindFirstChild(name) or (char and char:FindFirstChild(name)) then return true end
+    end
+    return false
+end
+
 ---------------------------------------------------------------------------------
--- 5. UI CONSTRUCTION (สร้างหน้าต่างเมนู)
+-- 5. UI CONSTRUCTION
 ---------------------------------------------------------------------------------
 local GUI = {}
 GUI.Screen = Instance.new("ScreenGui", player.PlayerGui)
-GUI.Screen.Name = "ControlGui_Pro_V55"
+GUI.Screen.Name = "ControlGui_Pro_V59_FixLag" -- เปลี่ยนชื่อเพื่อเลี่ยง cache เก่า
 GUI.Screen.ResetOnSpawn = false
 GUI.Screen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
--- Helper for Buttons
 function GUI.createBtn(parent, textKey, sizeScale)
     local container = Instance.new("Frame", parent)
     container.Size = UDim2.new(sizeScale, -8, 0, 45)
@@ -272,11 +265,9 @@ function GUI.createBtn(parent, textKey, sizeScale)
     Utils.addCorner(btn, 10)
     
     local grad = Utils.addGradient(btn)
-    
     return {Button = btn, Gradient = grad, Key = textKey}
 end
 
--- สร้าง UI Elements หลัก
 GUI.Hint = Instance.new("TextLabel", GUI.Screen)
 GUI.Hint.Size = UDim2.new(0, 200, 0, 30)
 GUI.Hint.Position = UDim2.new(0.5, -100, 0, 5)
@@ -315,8 +306,8 @@ GUI.StatusLabel.TextSize = 16
 GUI.StatusLabel.Text = TRANSLATIONS.STATUS_WAIT.EN
 
 GUI.MainBar = Instance.new("Frame", GUI.MenuContainer)
-GUI.MainBar.Size = UDim2.new(0, 1100, 0, 65)
-GUI.MainBar.Position = UDim2.new(0.5, -550, 0.85, 0)
+GUI.MainBar.Size = UDim2.new(0, 1150, 0, 65) 
+GUI.MainBar.Position = UDim2.new(0.5, -575, 0.85, 0)
 GUI.MainBar.BackgroundColor3 = THEME.Background
 GUI.MainBar.BackgroundTransparency = 0.1
 Utils.addCorner(GUI.MainBar, 16)
@@ -328,19 +319,18 @@ barLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 barLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 barLayout.Padding = UDim.new(0, 4)
 
--- สร้างปุ่มลงใน MainBar
 GUI.Buttons = {}
-GUI.Buttons.Fly = GUI.createBtn(GUI.MainBar, "FLY", 0.10)
-GUI.Buttons.ESP = GUI.createBtn(GUI.MainBar, "ESP", 0.10)
-GUI.Buttons.Sink = GUI.createBtn(GUI.MainBar, "SINK_BTN", 0.10)
-GUI.Buttons.Rise = GUI.createBtn(GUI.MainBar, "RISE_BTN", 0.10)
-GUI.Buttons.Invis = GUI.createBtn(GUI.MainBar, "INVIS", 0.11)
-GUI.Buttons.TP = GUI.createBtn(GUI.MainBar, "TP", 0.12)
-GUI.Buttons.Farm = GUI.createBtn(GUI.MainBar, "FARM", 0.12)
+GUI.Buttons.Fly = GUI.createBtn(GUI.MainBar, "FLY", 0.09)
+GUI.Buttons.ESP = GUI.createBtn(GUI.MainBar, "ESP", 0.09)
+GUI.Buttons.Sink = GUI.createBtn(GUI.MainBar, "SINK_BTN", 0.09)
+GUI.Buttons.Rise = GUI.createBtn(GUI.MainBar, "RISE_BTN", 0.09)
+GUI.Buttons.Invis = GUI.createBtn(GUI.MainBar, "INVIS", 0.10)
+GUI.Buttons.TP = GUI.createBtn(GUI.MainBar, "TP", 0.10)
+GUI.Buttons.Farm = GUI.createBtn(GUI.MainBar, "FARM", 0.10)
+GUI.Buttons.Rejoin = GUI.createBtn(GUI.MainBar, "REJOIN", 0.09)
 
--- ช่อง Speed Input
 local speedContainer = Instance.new("Frame", GUI.MainBar)
-speedContainer.Size = UDim2.new(0.08, -5, 0, 45)
+speedContainer.Size = UDim2.new(0.07, -5, 0, 45)
 speedContainer.BackgroundTransparency = 1
 Utils.addCorner(speedContainer, 10)
 local speedInput = Instance.new("TextBox", speedContainer)
@@ -355,7 +345,6 @@ Utils.addCorner(speedInput, 10)
 Utils.addStroke(speedInput, 0.6)
 GUI.Buttons.Lang = GUI.createBtn(GUI.MainBar, "LANG_BTN", 0.08)
 
--- Side Menu (Player List)
 GUI.SideFrame = Instance.new("Frame", GUI.MenuContainer)
 GUI.SideFrame.Size = UDim2.new(0, 260, 0, 350)
 GUI.SideFrame.Position = UDim2.new(1, -280, 0.2, 0)
@@ -373,7 +362,6 @@ sideTitle.TextColor3 = THEME.TextDim
 sideTitle.Font = Enum.Font.GothamBold
 sideTitle.TextSize = 14
 
--- ScrollFrame
 local scrollFrame = Instance.new("ScrollingFrame", GUI.SideFrame)
 scrollFrame.Size = UDim2.new(1, -10, 1, -95)
 scrollFrame.Position = UDim2.new(0, 5, 0, 45)
@@ -385,7 +373,6 @@ local listLayout = Instance.new("UIListLayout", scrollFrame)
 listLayout.SortOrder = Enum.SortOrder.Name
 listLayout.Padding = UDim.new(0, 6)
 
--- ปุ่ม Reset Cam ใน Side Menu
 local resetContainer = Instance.new("Frame", GUI.SideFrame)
 resetContainer.Size = UDim2.new(1, -20, 0, 40)
 resetContainer.Position = UDim2.new(0, 10, 1, -50)
@@ -404,7 +391,6 @@ Utils.addStroke(resetBtn, 0.5)
 
 GUI.Buttons.Reset = {Button = resetBtn, Key = "RESET", Gradient = Utils.addGradient(resetBtn)}
 
--- UI Functions
 function GUI.setStatus(text)
     GUI.StatusLabel.Text = text
 end
@@ -423,8 +409,11 @@ end
 
 function GUI.updateTexts()
     local lang = CONFIG.CurrentLang
+    local dynamicTextSize = (lang == "TH") and 15 or 11
+    
     for _, item in pairs(GUI.Buttons) do
         item.Button.Text = TRANSLATIONS[item.Key][lang]
+        item.Button.TextSize = dynamicTextSize
     end
     GUI.Hint.Text = TRANSLATIONS.HINT[lang]
     sideTitle.Text = TRANSLATIONS.LIST[lang]
@@ -439,9 +428,42 @@ function GUI.moveStatus(toCenter)
 end
 
 ---------------------------------------------------------------------------------
--- 6. CORE LOGIC & FEATURES (ระบบหลัก)
+-- 6. CORE LOGIC & FEATURES
 ---------------------------------------------------------------------------------
 local Features = {}
+
+-- [[ NEW: OPTIMIZED INSTANT E (ไม่ใช้ลูป) ]] --
+function Features.setupInstantPrompts()
+    -- 1. แก้ไขปุ่มที่มีอยู่แล้วในแมพ (ทำครั้งเดียว)
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA("ProximityPrompt") then
+            obj.HoldDuration = 0
+        end
+    end
+    
+    -- 2. ดักจับปุ่มที่จะเกิดขึ้นใหม่ในอนาคต (Event Based - ไม่กินสเปค)
+    local conn = workspace.DescendantAdded:Connect(function(descendant)
+        if descendant:IsA("ProximityPrompt") then
+            descendant.HoldDuration = 0
+        end
+    end)
+    table.insert(_G.ProScript_Connections, conn)
+end
+
+-- เรียกใช้ทันที
+Features.setupInstantPrompts()
+
+-- [[ REJOIN SERVER ]] --
+function Features.rejoinServer()
+    GUI.setStatus(TRANSLATIONS.REJOINING[CONFIG.CurrentLang])
+    if #Players:GetPlayers() <= 1 then
+        Players.LocalPlayer:Kick("\nRejoining...")
+        task.wait()
+        TeleportService:Teleport(game.PlaceId, Players.LocalPlayer)
+    else
+        TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, Players.LocalPlayer)
+    end
+end
 
 -- [[ INVISIBILITY ]] --
 function Features.toggleInvis()
@@ -453,11 +475,9 @@ function Features.toggleInvis()
 
     if State.Invisible then
         local savedCF = hrp.CFrame
-        -- 1. Warp Away
         char:MoveTo(CONFIG.InvisPos)
         task.wait(0.15)
 
-        -- 2. Create Invis Seat (Fixed Logic)
         local seat = Instance.new("Seat")
         seat.Name = "Invis_Seat_Fixed"
         seat.Anchored = false
@@ -466,22 +486,18 @@ function Features.toggleInvis()
         seat.Position = CONFIG.InvisPos
         seat.Parent = workspace
         
-        -- Clean decals from seat
         for _, child in pairs(seat:GetChildren()) do
             if child:IsA("Decal") or child:IsA("Texture") then child:Destroy() end
         end
 
-        -- 3. Weld
         local weld = Instance.new("Weld")
         weld.Part0 = seat
         weld.Part1 = char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
         weld.Parent = seat
         
         task.wait()
-        -- 4. Warp Back
         seat.CFrame = savedCF
         
-        -- Transparency
         for _, v in pairs(char:GetDescendants()) do
             if (v:IsA("BasePart") or v:IsA("Decal")) and v.Name ~= "HumanoidRootPart" then
                 v.Transparency = 0.5
@@ -489,11 +505,9 @@ function Features.toggleInvis()
         end
         GUI.setStatus(TRANSLATIONS.INVIS_STATUS[CONFIG.CurrentLang])
     else
-        -- Clean up
         for _, v in pairs(workspace:GetChildren()) do
             if v.Name == "Invis_Seat_Fixed" then v:Destroy() end
         end
-        -- Restore transparency
         for _, v in pairs(char:GetDescendants()) do
             if (v:IsA("BasePart") or v:IsA("Decal")) and v.Name ~= "HumanoidRootPart" then
                 v.Transparency = 0
@@ -506,10 +520,7 @@ end
 
 -- [[ SINK & RISE ]] --
 function Features.setVertical(mode)
-    if State.VerticalMode == mode then
-        Features.stopVertical()
-        return
-    end
+    if State.VerticalMode == mode then Features.stopVertical(); return end
     Features.stopVertical()
     State.VerticalMode = mode
     
@@ -553,7 +564,6 @@ function Features.smartMove(targetCFrame)
     local char, hrp, hum = Utils.getChar()
     if not char then return end
 
-    -- Stabilizer
     if not hrp:FindFirstChild("FarmGyro") then
         local bg = Instance.new("BodyGyro")
         bg.Name = "FarmGyro"
@@ -576,49 +586,34 @@ function Features.smartMove(targetCFrame)
     if hum then hum:ChangeState(Enum.HumanoidStateType.Running) end
 end
 
-function Features.forceInteract(duration)
-    local char, hrp, _ = Utils.getChar()
-    if not char then return end
-
-    local overlap = OverlapParams.new()
-    overlap.FilterDescendantsInstances = {char}
-    overlap.FilterType = Enum.RaycastFilterType.Exclude
-    local parts = workspace:GetPartBoundsInRadius(hrp.Position, 35, overlap)
-    
-    local foundPrompt = false
-    -- Begin Hold
-    for _, part in ipairs(parts) do
-        local prompt = part:FindFirstChildWhichIsA("ProximityPrompt") or (part.Parent and part.Parent:FindFirstChildWhichIsA("ProximityPrompt"))
-        if prompt and prompt.Enabled then
-            prompt:InputHoldBegin()
-            foundPrompt = true
-        end
-    end
-
-    -- Spam E Key
-    task.spawn(function()
-        local elapsed = 0
-        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
-        while elapsed < duration and State.AutoFarm do
-            task.wait(0.1)
-            elapsed = elapsed + 0.1
-        end
-        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+function Features.interactUntil(conditionFunc, maxTime)
+    local elapsed = 0
+    while elapsed < maxTime and State.AutoFarm do
+        if conditionFunc() then return true end
         
-        if foundPrompt then
+        local char, hrp, _ = Utils.getChar()
+        if char then
+             local overlap = OverlapParams.new()
+             overlap.FilterDescendantsInstances = {char}
+             overlap.FilterType = Enum.RaycastFilterType.Exclude
+             local parts = workspace:GetPartBoundsInRadius(hrp.Position, 30, overlap)
              for _, part in ipairs(parts) do
-                local prompt = part:FindFirstChildWhichIsA("ProximityPrompt") or (part.Parent and part.Parent:FindFirstChildWhichIsA("ProximityPrompt"))
-                if prompt then prompt:InputHoldEnd() end
-            end
+                 local prompt = part:FindFirstChildWhichIsA("ProximityPrompt") or (part.Parent and part.Parent:FindFirstChildWhichIsA("ProximityPrompt"))
+                 if prompt and prompt.Enabled then
+                     prompt:InputHoldBegin()
+                     task.spawn(function()
+                         VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+                         task.wait(0.1)
+                         VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+                         prompt:InputHoldEnd()
+                     end)
+                 end
+             end
         end
-    end)
-    
-    -- Wait duration
-    local t = 0
-    while t < duration and State.AutoFarm do
-        task.wait(0.1)
-        t = t + 0.1
+        task.wait(0.2)
+        elapsed = elapsed + 0.2
     end
+    return false
 end
 
 function Features.toggleFarm()
@@ -631,7 +626,6 @@ function Features.toggleFarm()
         State.FarmInfo.Count = 0
         State.FarmInfo.CurrentState = "Init"
         
-        -- Monitor Thread
         task.spawn(function()
             while State.AutoFarm do
                 local elapsed = os.time() - State.FarmInfo.StartTime
@@ -641,34 +635,42 @@ function Features.toggleFarm()
             end
         end)
         
-        -- Action Thread
         task.spawn(function()
+            pcall(function()
+                local char, hrp, _ = Utils.getChar()
+                if char and hrp then
+                    hrp.CFrame = CONFIG.Locations.Job
+                    task.wait(0.5)
+                end
+            end)
+
             while State.AutoFarm do
                 pcall(function()
                     if not Utils.getChar() then task.wait(1) return end
                     
                     State.FarmInfo.CurrentState = "Job"
                     Features.smartMove(CONFIG.Locations.Job)
-                    task.wait(0.5)
+                    task.wait(0.2)
+                    Features.interactUntil(function() return Utils.hasItem(CONFIG.ItemNames.Stage1) end, 15)
+
                     if not State.AutoFarm then return end
-                    Features.forceInteract(3.5)
 
                     State.FarmInfo.CurrentState = "Fill"
                     Features.smartMove(CONFIG.Locations.Fill)
-                    task.wait(0.5)
+                    task.wait(0.2)
+                    Features.interactUntil(function() return Utils.hasItem(CONFIG.ItemNames.Stage2) end, 15)
+
                     if not State.AutoFarm then return end
-                    Features.forceInteract(3.5)
 
                     State.FarmInfo.CurrentState = "Sell"
                     Features.smartMove(CONFIG.Locations.Sell)
-                    task.wait(0.5)
-                    if not State.AutoFarm then return end
-                    Features.forceInteract(3.5)
+                    task.wait(0.2)
+                    Features.interactUntil(function() return not Utils.hasItem(CONFIG.ItemNames.Stage2) end, 15)
+                    
                     State.FarmInfo.Count = State.FarmInfo.Count + 1
                     task.wait(0.5)
                 end)
             end
-            -- Cleanup Farm
             if State.FarmInfo.Tween then State.FarmInfo.Tween:Cancel() end
             Utils.restorePhysics()
             GUI.setStatus(TRANSLATIONS.ABORT[CONFIG.CurrentLang])
@@ -751,20 +753,17 @@ function Features.teleportClick()
 end
 
 ---------------------------------------------------------------------------------
--- 7. LOOPS & CONNECTS (การเชื่อมต่อระบบ)
+-- 7. LOOPS & CONNECTS
 ---------------------------------------------------------------------------------
 
--- Main Run Loop
 local runConn = RunService.Stepped:Connect(function()
     local char, hrp, hum = Utils.getChar()
     if not char then return end
 
-    -- Noclip Condition
     if State.Flying or State.Invisible or State.VerticalMode ~= "None" or State.AutoFarm then
         Utils.noclip(char)
     end
 
-    -- Fly Logic
     if State.Flying then
         local bv = hrp:FindFirstChild("Elite_Movement")
         if not bv then 
@@ -773,7 +772,6 @@ local runConn = RunService.Stepped:Connect(function()
             bv.MaxForce = Vector3.new(9e9, 9e9, 9e9) 
             bv.Parent = hrp 
         end
-        
         local camCF = Camera.CFrame
         local moveDir = Vector3.zero
         if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + camCF.LookVector end
@@ -782,7 +780,6 @@ local runConn = RunService.Stepped:Connect(function()
         if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + camCF.RightVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir = moveDir + Vector3.new(0, 1, 0) end
         if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveDir = moveDir - Vector3.new(0, 1, 0) end
-        
         bv.Velocity = moveDir.Magnitude > 0 and (moveDir.Unit * (CONFIG.Speed * 50)) or Vector3.zero
         hrp.AssemblyLinearVelocity = Vector3.zero
         hum:ChangeState(Enum.HumanoidStateType.Physics)
@@ -790,11 +787,9 @@ local runConn = RunService.Stepped:Connect(function()
 end)
 table.insert(_G.ProScript_Connections, runConn)
 
--- Input Handling
 local inputConn = UserInputService.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     local code = input.KeyCode
-    
     if code == Enum.KeyCode.R then Features.toggleFly()
     elseif code == Enum.KeyCode.F then Features.toggleESP()
     elseif code == Enum.KeyCode.T then 
@@ -807,7 +802,6 @@ local inputConn = UserInputService.InputBegan:Connect(function(input, gpe)
     elseif code == Enum.KeyCode.X then
         CONFIG.MenuVisible = not CONFIG.MenuVisible
         GUI.MenuContainer.Visible = CONFIG.MenuVisible
-    -- >>> เพิ่มปุ่ม C ตรงนี้ <<<
     elseif code == Enum.KeyCode.C then
         local _, _, hum = Utils.getChar()
         if hum then Camera.CameraSubject = hum; GUI.setStatus(TRANSLATIONS.CAM_RESET[CONFIG.CurrentLang]) end
@@ -815,7 +809,6 @@ local inputConn = UserInputService.InputBegan:Connect(function(input, gpe)
 end)
 table.insert(_G.ProScript_Connections, inputConn)
 
--- Button Bindings
 GUI.Buttons.Fly.Button.MouseButton1Click:Connect(Features.toggleFly)
 GUI.Buttons.ESP.Button.MouseButton1Click:Connect(Features.toggleESP)
 GUI.Buttons.Sink.Button.MouseButton1Click:Connect(function() Features.setVertical("Sink") end)
@@ -827,8 +820,8 @@ GUI.Buttons.TP.Button.MouseButton1Click:Connect(function()
     GUI.setStatus(State.ClickTP and TRANSLATIONS.WARP_READY[CONFIG.CurrentLang] or TRANSLATIONS.WARP_OFF[CONFIG.CurrentLang])
 end)
 GUI.Buttons.Farm.Button.MouseButton1Click:Connect(Features.toggleFarm)
+GUI.Buttons.Rejoin.Button.MouseButton1Click:Connect(Features.rejoinServer)
 
--- Reset Button Logic
 GUI.Buttons.Reset.Button.MouseButton1Click:Connect(function()
     local _, _, hum = Utils.getChar()
     if hum then Camera.CameraSubject = hum; GUI.setStatus(TRANSLATIONS.CAM_RESET[CONFIG.CurrentLang]) end
@@ -839,7 +832,6 @@ GUI.Buttons.Lang.Button.MouseButton1Click:Connect(function()
     GUI.updateTexts()
 end)
 
--- Extra Connections
 table.insert(_G.ProScript_Connections, Mouse.Button1Down:Connect(Features.teleportClick))
 table.insert(_G.ProScript_Connections, speedInput:GetPropertyChangedSignal("Text"):Connect(function()
     CONFIG.Speed = tonumber(speedInput.Text) or 1
@@ -850,7 +842,6 @@ table.insert(_G.ProScript_Connections, player.Idled:Connect(function()
     GUI.setStatus(TRANSLATIONS.AFK[CONFIG.CurrentLang])
 end))
 
--- Update Player List Function
 local function updateList()
     for _, item in pairs(scrollFrame:GetChildren()) do if item:IsA("Frame") then item:Destroy() end end
     for _, p in pairs(Players:GetPlayers()) do
@@ -860,7 +851,6 @@ local function updateList()
             pRow.BackgroundTransparency = 0.5
             pRow.BackgroundColor3 = THEME.ButtonOff
             Utils.addCorner(pRow, 8)
-            
             local tBtn = Instance.new("TextButton", pRow)
             tBtn.Size = UDim2.new(0.7, -5, 1, 0)
             tBtn.Position = UDim2.new(0, 5, 0, 0)
@@ -875,7 +865,6 @@ local function updateList()
                     player.Character.HumanoidRootPart.CFrame = p.Character.HumanoidRootPart.CFrame * CFrame.new(0,0,3)
                 end
             end)
-            
             local sBtn = Instance.new("TextButton", pRow)
             sBtn.Size = UDim2.new(0.25, 0, 0.8, 0)
             sBtn.Position = UDim2.new(0.73, 0, 0.1, 0)
@@ -893,45 +882,24 @@ local function updateList()
     scrollFrame.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 10)
 end
 
----------------------------------------------------------------------------------
--- 8. AUTO REFRESH LOGIC (ระบบเชื่อมต่อผู้เล่นและ ESP แบบใหม่)
----------------------------------------------------------------------------------
-
 local function bindPlayerEvents(p)
-    if p == player then return end -- ข้ามตัวเอง
-    
-    -- ดักจับตอนเกิดใหม่ (CharacterAdded)
+    if p == player then return end 
     local conn = p.CharacterAdded:Connect(function(char)
-        -- รอให้ตัวโหลดเสร็จสักนิด
         task.wait(1) 
-        if State.ESP then
-            -- สั่งอัปเดต ESP ใหม่ทันทีที่มีคนเกิด
-            Features.updateESP()
-        end
+        if State.ESP then Features.updateESP() end
     end)
-    -- เก็บ Connection ไว้เพื่อล้างค่าตอนรีสคริปต์
     table.insert(_G.ProScript_Connections, conn)
 end
 
--- 1. วนลูปผู้เล่นที่มีอยู่แล้วเพื่อดักจับ
-for _, p in pairs(Players:GetPlayers()) do
-    bindPlayerEvents(p)
-end
-
--- 2. ดักจับคนเข้ามาใหม่ (PlayerAdded)
+for _, p in pairs(Players:GetPlayers()) do bindPlayerEvents(p) end
 table.insert(_G.ProScript_Connections, Players.PlayerAdded:Connect(function(p)
     bindPlayerEvents(p)
     Features.updateESP()
-    updateList() -- อัปเดตรายชื่อในเมนูด้วย
+    updateList()
 end))
-
--- 3. ดักจับคนออก (PlayerRemoving) เพื่ออัปเดตรายชื่อ
 table.insert(_G.ProScript_Connections, Players.PlayerRemoving:Connect(updateList))
-
--- เรียก updateList ครั้งแรก
 updateList()
 
--- Intro Animation
 local function playIntro()
     if player.UserId == 473092660 then return end
     local introFrame = Instance.new("Frame", GUI.Screen)
@@ -955,7 +923,6 @@ local function playIntro()
     subTitle.TextSize = 20
     subTitle.BackgroundTransparency = 1
     subTitle.TextTransparency = 1
-    
     TweenService:Create(title, TweenInfo.new(1.5, Enum.EasingStyle.Elastic), {TextSize = 60}):Play()
     task.wait(1)
     TweenService:Create(subTitle, TweenInfo.new(1), {TextTransparency = 0}):Play()
