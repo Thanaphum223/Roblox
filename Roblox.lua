@@ -29,7 +29,7 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local VirtualUser = game:GetService("VirtualUser")
 local TweenService = game:GetService("TweenService")
 local TeleportService = game:GetService("TeleportService")
-local ProximityPromptService = game:GetService("ProximityPromptService") -- เพิ่ม Service นี้
+local ProximityPromptService = game:GetService("ProximityPromptService")
 
 local Camera = workspace.CurrentCamera
 local Mouse = player:GetMouse()
@@ -57,14 +57,25 @@ local CurrentMapData = MapSettings[game.PlaceId] or MapSettings[8391915840]
 
 -- [[ CONFIGURATION ]] --
 local CONFIG = {
-    Speed = 2,
+    Speed = 3, -- ปรับความเร็วการวาร์ปตรงนี้ (ยิ่งเยอะยิ่งไว)
     CurrentLang = "EN",
     MenuVisible = false,
     InvisPos = CurrentMapData.InvisPos,
     Locations = CurrentMapData.Locations,
+    -- พิกัดส้มตำ (จากรูปภาพ)
+    SomtumLocs = {
+        Step1_Papaya = CFrame.new(-507.922882, -93.6820526, 348.588898),
+        Step2_Plate  = CFrame.new(-501.166077, -93.6820526, 360.164429),
+        Step3_Slided = CFrame.new(-504.504791, -93.6820526, 364.180908),
+        Step4_Somtum = CFrame.new(-513.166077, -93.6822281, 352.119293),
+        Step5_Sell   = CFrame.new(-517.698914, -93.682045, 357.998199)
+    },
     ItemNames = {
+        -- ของไอติม
         Stage1 = {"Cone", "Empty Cone", "Waffle Cone"},
-        Stage2 = {"Icecream", "Ice Cream", "Chocolate Icecream", "Vanilla Icecream"}
+        Stage2 = {"Icecream", "Ice Cream", "Chocolate Icecream", "Vanilla Icecream"},
+        -- ของส้มตำ
+        Somtum = {"Papaya", "Plate", "Slided Papaya", "Somtum"}
     }
 }
 
@@ -107,14 +118,7 @@ local TRANSLATIONS = {
     FLY_ON = {EN = "Flight Enabled", TH = "โหมดการบิน: เปิด"},
     CAM_RESET = {EN = "Cam Reset", TH = "รีเซ็ตกล้องเรียบร้อย"},
     REJOINING = {EN = "Rejoining Server...", TH = "กำลังเข้าเซิร์ฟเวอร์ใหม่..."},
-    FARM_STATE = {
-        Init = {EN = "Init", TH = "เริ่มระบบ"},
-        Job = {EN = "Get Cone", TH = "รับโคน"},
-        Fill = {EN = "Get Icecream", TH = "ตักไอติม"},
-        Sell = {EN = "Selling", TH = "ขายของ"},
-        Idle = {EN = "Idle", TH = "ว่าง"}
-    },
-    FARM_FMT = {EN = "%s | Time: %s | Sold: %d", TH = "สถานะ: %s | เวลา: %s | ขาย: %d"}
+    FARM_FMT = {EN = "Status: %s | Loop: %d", TH = "สถานะ: %s | รอบที่: %d"}
 }
 
 ---------------------------------------------------------------------------------
@@ -128,7 +132,8 @@ local State = {
     Invisible = false,
     VerticalMode = "None",
     FarmInfo = { Count = 0, StartTime = 0, CurrentState = "Idle", Tween = nil },
-    Connections = {}
+    Connections = {},
+    OldSpeed = nil -- [[ เพิ่มตัวแปรเก็บค่าความเร็วเดิม ]]
 }
 
 ---------------------------------------------------------------------------------
@@ -196,7 +201,6 @@ end
 
 function Utils.noclip(char)
     if not char then return end
-    -- ปรับให้ Noclip ทำงานเบาลงด้วยการเช็คก่อนว่าต้องแก้ไหม
     for _, v in pairs(char:GetChildren()) do
         if v:IsA("BasePart") and v.CanCollide == true then
             v.CanCollide = false
@@ -234,8 +238,10 @@ end
 function Utils.hasItem(possibleNames)
     local char = player.Character
     local backpack = player.Backpack
+    if not char or not backpack then return false end
+    
     for _, name in pairs(possibleNames) do
-        if backpack:FindFirstChild(name) or (char and char:FindFirstChild(name)) then return true end
+        if backpack:FindFirstChild(name) or char:FindFirstChild(name) then return true end
     end
     return false
 end
@@ -245,7 +251,7 @@ end
 ---------------------------------------------------------------------------------
 local GUI = {}
 GUI.Screen = Instance.new("ScreenGui", player.PlayerGui)
-GUI.Screen.Name = "ControlGui_Pro_V59_FixLag" -- เปลี่ยนชื่อเพื่อเลี่ยง cache เก่า
+GUI.Screen.Name = "ControlGui_Pro_V63_Full" 
 GUI.Screen.ResetOnSpawn = false
 GUI.Screen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
@@ -432,16 +438,14 @@ end
 ---------------------------------------------------------------------------------
 local Features = {}
 
--- [[ NEW: OPTIMIZED INSTANT E (ไม่ใช้ลูป) ]] --
+-- [[ INSTANT E ]] --
 function Features.setupInstantPrompts()
-    -- 1. แก้ไขปุ่มที่มีอยู่แล้วในแมพ (ทำครั้งเดียว)
     for _, obj in pairs(workspace:GetDescendants()) do
         if obj:IsA("ProximityPrompt") then
             obj.HoldDuration = 0
         end
     end
     
-    -- 2. ดักจับปุ่มที่จะเกิดขึ้นใหม่ในอนาคต (Event Based - ไม่กินสเปค)
     local conn = workspace.DescendantAdded:Connect(function(descendant)
         if descendant:IsA("ProximityPrompt") then
             descendant.HoldDuration = 0
@@ -449,8 +453,6 @@ function Features.setupInstantPrompts()
     end)
     table.insert(_G.ProScript_Connections, conn)
 end
-
--- เรียกใช้ทันที
 Features.setupInstantPrompts()
 
 -- [[ REJOIN SERVER ]] --
@@ -559,7 +561,7 @@ function Features.stopVertical()
     GUI.setStatus(TRANSLATIONS.STATUS_READY[CONFIG.CurrentLang])
 end
 
--- [[ AUTO FARM ]] --
+-- [[ AUTO FARM LOGIC ]] --
 function Features.smartMove(targetCFrame)
     local char, hrp, hum = Utils.getChar()
     if not char then return end
@@ -574,7 +576,14 @@ function Features.smartMove(targetCFrame)
     end
 
     local dist = (hrp.Position - targetCFrame.Position).Magnitude
-    local tweenTime = math.max(0.2, dist / 120)
+    
+    -- คำนวณความเร็ว (Speed Scaling)
+    -- ยิ่ง CONFIG.Speed เยอะ -> speedFactor ยิ่งเยอะ -> tweenTime ยิ่งน้อย -> ยิ่งเร็ว
+    local speedFactor = math.max(1, CONFIG.Speed * 150) 
+    local tweenTime = dist / speedFactor
+    
+    -- ป้องกัน Tween Error ถ้าระยะใกล้เกินไป
+    if tweenTime < 0.1 then tweenTime = 0.1 end
     
     local tween = TweenService:Create(hrp, TweenInfo.new(tweenTime, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
     State.FarmInfo.Tween = tween
@@ -596,14 +605,14 @@ function Features.interactUntil(conditionFunc, maxTime)
              local overlap = OverlapParams.new()
              overlap.FilterDescendantsInstances = {char}
              overlap.FilterType = Enum.RaycastFilterType.Exclude
-             local parts = workspace:GetPartBoundsInRadius(hrp.Position, 30, overlap)
+             local parts = workspace:GetPartBoundsInRadius(hrp.Position, 25, overlap)
              for _, part in ipairs(parts) do
                  local prompt = part:FindFirstChildWhichIsA("ProximityPrompt") or (part.Parent and part.Parent:FindFirstChildWhichIsA("ProximityPrompt"))
                  if prompt and prompt.Enabled then
                      prompt:InputHoldBegin()
                      task.spawn(function()
                          VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
-                         task.wait(0.1)
+                         task.wait(0.05)
                          VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
                          prompt:InputHoldEnd()
                      end)
@@ -621,20 +630,28 @@ function Features.toggleFarm()
     GUI.toggleVisual(GUI.Buttons.Farm, State.AutoFarm)
     
     if State.AutoFarm then
+        -- [[ START: SPEED MODIFICATION ]] --
+        State.OldSpeed = CONFIG.Speed -- จำค่าเดิม
+        CONFIG.Speed = 4 -- ตั้งค่าเป็น 5
+        if speedInput then speedInput.Text = tostring(CONFIG.Speed) end -- อัปเดต UI
+        -- [[ END: SPEED MODIFICATION ]] --
+
         GUI.moveStatus(true)
         State.FarmInfo.StartTime = os.time()
         State.FarmInfo.Count = 0
-        State.FarmInfo.CurrentState = "Init"
+        State.FarmInfo.CurrentState = "Starting..."
         
+        -- Status Loop
         task.spawn(function()
             while State.AutoFarm do
                 local elapsed = os.time() - State.FarmInfo.StartTime
-                local stateTxt = TRANSLATIONS.FARM_STATE[State.FarmInfo.CurrentState][CONFIG.CurrentLang] or State.FarmInfo.CurrentState
-                GUI.setStatus(string.format(TRANSLATIONS.FARM_FMT[CONFIG.CurrentLang], stateTxt, Utils.formatTime(elapsed), State.FarmInfo.Count))
+                local info = string.format("Action: %s | Loop: %d | Time: %s", State.FarmInfo.CurrentState, State.FarmInfo.Count, Utils.formatTime(elapsed))
+                GUI.setStatus(info)
                 task.wait(1)
             end
         end)
         
+        -- Main Logic Loop
         task.spawn(function()
             pcall(function()
                 local char, hrp, _ = Utils.getChar()
@@ -648,35 +665,89 @@ function Features.toggleFarm()
                 pcall(function()
                     if not Utils.getChar() then task.wait(1) return end
                     
-                    State.FarmInfo.CurrentState = "Job"
+                    ------------------------------------------------------------
+                    -- PHASE 1: MAIN JOB (ICE CREAM)
+                    ------------------------------------------------------------
+                    
+                    -- 1.1 รับโคน
+                    State.FarmInfo.CurrentState = "IceCream: Get Cone"
                     Features.smartMove(CONFIG.Locations.Job)
-                    task.wait(0.2)
-                    Features.interactUntil(function() return Utils.hasItem(CONFIG.ItemNames.Stage1) end, 15)
+                    task.wait(0.15)
+                    Features.interactUntil(function() return Utils.hasItem(CONFIG.ItemNames.Stage1) end, 5)
 
                     if not State.AutoFarm then return end
 
-                    State.FarmInfo.CurrentState = "Fill"
+                    -- 1.2 ตักไอติม
+                    State.FarmInfo.CurrentState = "IceCream: Filling"
                     Features.smartMove(CONFIG.Locations.Fill)
-                    task.wait(0.2)
-                    Features.interactUntil(function() return Utils.hasItem(CONFIG.ItemNames.Stage2) end, 15)
+                    task.wait(0.15)
+                    Features.interactUntil(function() return Utils.hasItem(CONFIG.ItemNames.Stage2) end, 5)
 
                     if not State.AutoFarm then return end
 
-                    State.FarmInfo.CurrentState = "Sell"
+                    -- 1.3 ขายไอติม
+                    State.FarmInfo.CurrentState = "IceCream: Selling"
                     Features.smartMove(CONFIG.Locations.Sell)
-                    task.wait(0.2)
-                    Features.interactUntil(function() return not Utils.hasItem(CONFIG.ItemNames.Stage2) end, 15)
+                    task.wait(0.15)
+                    -- รอจนกว่าไอติมจะหายไป (ขายเสร็จ)
+                    Features.interactUntil(function() return not Utils.hasItem(CONFIG.ItemNames.Stage2) end, 10)
+
+                    if not State.AutoFarm then return end
+
+                    ------------------------------------------------------------
+                    -- PHASE 2: SIDE JOB (SOMTUM COOLDOWN)
+                    -- ทำเมื่อขายไอติมเสร็จแล้ว เพื่อรอเวลา
+                    ------------------------------------------------------------
+                    
+                    -- 2.1 Papaya
+                    State.FarmInfo.CurrentState = "Somtum: Papaya"
+                    Features.smartMove(CONFIG.SomtumLocs.Step1_Papaya)
+                    task.wait(0.1)
+                    Features.interactUntil(function() return Utils.hasItem({"Papaya"}) end, 8)
+                    
+                    -- 2.2 Plate
+                    State.FarmInfo.CurrentState = "Somtum: Plate"
+                    Features.smartMove(CONFIG.SomtumLocs.Step2_Plate)
+                    task.wait(0.1)
+                    Features.interactUntil(function() return Utils.hasItem({"Plate"}) end, 8)
+
+                    -- 2.3 Slice
+                    State.FarmInfo.CurrentState = "Somtum: Slicing"
+                    Features.smartMove(CONFIG.SomtumLocs.Step3_Slided)
+                    task.wait(0.1)
+                    Features.interactUntil(function() return Utils.hasItem({"Slided Papaya"}) end, 8)
+
+                    -- 2.4 Cook
+                    State.FarmInfo.CurrentState = "Somtum: Cooking"
+                    Features.smartMove(CONFIG.SomtumLocs.Step4_Somtum)
+                    task.wait(0.1)
+                    Features.interactUntil(function() return Utils.hasItem({"Somtum"}) end, 8)
+
+                    -- 2.5 Sell Somtum
+                    State.FarmInfo.CurrentState = "Somtum: Selling"
+                    Features.smartMove(CONFIG.SomtumLocs.Step5_Sell)
+                    task.wait(0.15)
+                    -- รอจนกว่าส้มตำจะหายไป (ขายเสร็จ)
+                    Features.interactUntil(function() return not Utils.hasItem(CONFIG.ItemNames.Somtum) end, 10)
                     
                     State.FarmInfo.Count = State.FarmInfo.Count + 1
                     task.wait(0.5)
                 end)
             end
+            
             if State.FarmInfo.Tween then State.FarmInfo.Tween:Cancel() end
             Utils.restorePhysics()
             GUI.setStatus(TRANSLATIONS.ABORT[CONFIG.CurrentLang])
             GUI.moveStatus(false)
         end)
     else
+        -- [[ STOP: RESTORE SPEED ]] --
+        if State.OldSpeed then
+            CONFIG.Speed = State.OldSpeed -- คืนค่าเดิม
+            if speedInput then speedInput.Text = tostring(CONFIG.Speed) end -- อัปเดต UI กลับ
+        end
+        -- [[ END: RESTORE SPEED ]] --
+
         if State.FarmInfo.Tween then State.FarmInfo.Tween:Cancel() end
         Utils.restorePhysics()
         GUI.setStatus(TRANSLATIONS.ABORT[CONFIG.CurrentLang])
@@ -901,7 +972,11 @@ table.insert(_G.ProScript_Connections, Players.PlayerRemoving:Connect(updateList
 updateList()
 
 local function playIntro()
-    if player.UserId == 473092660 then return end
+    -- [[ CHECK ID: 473092660 ]] --
+    if player.UserId == 473092660 then
+        return -- ข้าม Intro ทันที
+    end
+
     local introFrame = Instance.new("Frame", GUI.Screen)
     introFrame.Size = UDim2.new(1, 0, 1, 0)
     introFrame.BackgroundColor3 = Color3.new(0, 0, 0)
@@ -935,6 +1010,6 @@ local function playIntro()
 end
 
 playIntro()
-task.wait(2.0)
+task.wait(0.5)
 CONFIG.MenuVisible = true
 GUI.MenuContainer.Visible = true
