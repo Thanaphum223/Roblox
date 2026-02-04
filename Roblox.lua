@@ -100,7 +100,7 @@ local TRANSLATIONS = {
     FARM = {EN = "AUTO FARM", TH = "ออโต้ฟาร์ม"},
     REJOIN = {EN = "REJOIN", TH = "เข้าเกมใหม่"},
     RESET = {EN = "RESET CAM (C)", TH = "รีเซ็ตกล้อง (C)"}, 
-    LIST = {EN = "ENTITIES LIST", TH = "รายชื่อผู้เล่น"},
+    LIST = {EN = "Player LIST", TH = "รายชื่อผู้เล่น"},
     HINT = {EN = "[X] TOGGLE MENU", TH = "[X] เปิด/ปิด เมนู"},
     LANG_BTN = {EN = "LANG: EN", TH = "ภาษา: TH"},
     STATUS_WAIT = {EN = "Vacuum: Waiting...", TH = "Vacuum: รอคำสั่ง..."},
