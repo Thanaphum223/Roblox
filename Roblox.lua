@@ -412,8 +412,14 @@ GUI.WarpTitleLabel = nil
 if game.PlaceId == 8391915840 then
     GUI.WarpFrame = Instance.new("Frame", GUI.MenuContainer)
     GUI.WarpFrame.AutomaticSize = Enum.AutomaticSize.Y
-    GUI.WarpFrame.Size = UDim2.new(0, 220, 0, 0) 
-    GUI.WarpFrame.Position = UDim2.new(0, 20, 0.60, 0)
+    
+    -- [MODIFIED] ปรับขนาดกว้าง 260 ให้เท่ากับ Player List ด้านบน
+    GUI.WarpFrame.Size = UDim2.new(0, 260, 0, 0) 
+    
+    -- [MODIFIED] ย้ายตำแหน่งมาด้านขวา (1, -280) และเลื่อนลงมาต่อจาก Player List (0.2 + 360px offset)
+    -- Player List สูง 350, เว้น 10 เป็น 360
+    GUI.WarpFrame.Position = UDim2.new(1, -280, 0.2, 360)
+    
     GUI.WarpFrame.BackgroundColor3 = THEME.Background
     GUI.WarpFrame.BackgroundTransparency = 0.1
     Utils.addCorner(GUI.WarpFrame, 12)
@@ -421,7 +427,7 @@ if game.PlaceId == 8391915840 then
     Utils.makeDraggable(GUI.WarpFrame)
 
     local padding = Instance.new("UIPadding", GUI.WarpFrame)
-    padding.PaddingTop = UDim.new(0, 10)     
+    padding.PaddingTop = UDim.new(0, 10)      
     padding.PaddingBottom = UDim.new(0, 15)   
     padding.PaddingLeft = UDim.new(0, 10)
     padding.PaddingRight = UDim.new(0, 10)
