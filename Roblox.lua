@@ -1,11 +1,11 @@
 -- [[ ส่วนตรวจสอบรหัสแมพ ]] --
 local Supported_IDs = {
-    [8391915840] = true, -- Map เก่า
+    [8391915840] = true, -- Map เก่า (มี Warp)
     [8125861255] = true,  -- Map ใหม่
     [99002761413888] = true, -- Map Unnamed
 }
 
--- [[ 1. SYSTEM CLEANUP (ล้างระบบเก่าแบบเกลี้ยงเกลา) ]] --
+-- [[ 1. SYSTEM CLEANUP ]] --
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 
@@ -29,7 +29,6 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local VirtualUser = game:GetService("VirtualUser")
 local TweenService = game:GetService("TweenService")
 local TeleportService = game:GetService("TeleportService")
-local ProximityPromptService = game:GetService("ProximityPromptService")
 
 local Camera = workspace.CurrentCamera
 local Mouse = player:GetMouse()
@@ -57,12 +56,11 @@ local CurrentMapData = MapSettings[game.PlaceId] or MapSettings[8391915840]
 
 -- [[ CONFIGURATION ]] --
 local CONFIG = {
-    Speed = 3, -- ปรับความเร็วการวาร์ปตรงนี้ (ยิ่งเยอะยิ่งไว)
+    Speed = 3,
     CurrentLang = "EN",
     MenuVisible = false,
     InvisPos = CurrentMapData.InvisPos,
     Locations = CurrentMapData.Locations,
-    -- พิกัดส้มตำ (จากรูปภาพ)
     SomtumLocs = {
         Step1_Papaya = CFrame.new(-507.922882, -93.6820526, 348.588898),
         Step2_Plate  = CFrame.new(-501.166077, -93.6820526, 360.164429),
@@ -71,11 +69,15 @@ local CONFIG = {
         Step5_Sell   = CFrame.new(-517.698914, -93.682045, 357.998199)
     },
     ItemNames = {
-        -- ของไอติม
         Stage1 = {"Cone", "Empty Cone", "Waffle Cone"},
         Stage2 = {"Icecream", "Ice Cream", "Chocolate Icecream", "Vanilla Icecream"},
-        -- ของส้มตำ
         Somtum = {"Papaya", "Plate", "Slided Papaya", "Somtum"}
+    },
+    -- [[ พิกัดวาร์ปพิเศษ (รองรับ 2 ภาษา) ]] --
+    SpecialWarps = {
+        {Name = {EN = "Color Point", TH = "จุดชื่อสี"},     Pos = CFrame.new(14.6551895, -53.0000038, 16.1253815)},
+        {Name = {EN = "Und. Shop",   TH = "ร้านใต้ดิน"},   Pos = CFrame.new(1183.3916, -226.482635, -537.569092)},
+        {Name = {EN = "Pavilion",    TH = "ศาลาน้ำ"},      Pos = CFrame.new(-546.928711, -93.0000076, 381.976349)}
     }
 }
 
@@ -118,7 +120,8 @@ local TRANSLATIONS = {
     FLY_ON = {EN = "Flight Enabled", TH = "โหมดการบิน: เปิด"},
     CAM_RESET = {EN = "Cam Reset", TH = "รีเซ็ตกล้องเรียบร้อย"},
     REJOINING = {EN = "Rejoining Server...", TH = "กำลังเข้าเซิร์ฟเวอร์ใหม่..."},
-    FARM_FMT = {EN = "Status: %s | Loop: %d", TH = "สถานะ: %s | รอบที่: %d"}
+    FARM_FMT = {EN = "Status: %s | Loop: %d", TH = "สถานะ: %s | รอบที่: %d"},
+    WARP_TITLE = {EN = "FAST WARP", TH = "จุดวาร์ปด่วน"}
 }
 
 ---------------------------------------------------------------------------------
@@ -133,7 +136,7 @@ local State = {
     VerticalMode = "None",
     FarmInfo = { Count = 0, StartTime = 0, CurrentState = "Idle", Tween = nil },
     Connections = {},
-    OldSpeed = nil -- [[ เพิ่มตัวแปรเก็บค่าความเร็วเดิม ]]
+    OldSpeed = nil
 }
 
 ---------------------------------------------------------------------------------
@@ -255,6 +258,7 @@ GUI.Screen.Name = "ControlGui_Pro_V63_Full"
 GUI.Screen.ResetOnSpawn = false
 GUI.Screen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
+-- Helper for standard buttons
 function GUI.createBtn(parent, textKey, sizeScale)
     local container = Instance.new("Frame", parent)
     container.Size = UDim2.new(sizeScale, -8, 0, 45)
@@ -289,6 +293,7 @@ GUI.MenuContainer.Size = UDim2.new(1, 0, 1, 0)
 GUI.MenuContainer.BackgroundTransparency = 1
 GUI.MenuContainer.Visible = false
 
+-- [[ STATUS FRAME ]] --
 GUI.StatusFrame = Instance.new("Frame", GUI.Screen)
 GUI.StatusFrame.AutomaticSize = Enum.AutomaticSize.X
 GUI.StatusFrame.Size = UDim2.new(0, 0, 0, 40)
@@ -311,6 +316,7 @@ GUI.StatusLabel.Font = Enum.Font.GothamMedium
 GUI.StatusLabel.TextSize = 16
 GUI.StatusLabel.Text = TRANSLATIONS.STATUS_WAIT.EN
 
+-- [[ MAIN BAR (Bottom Center) ]] --
 GUI.MainBar = Instance.new("Frame", GUI.MenuContainer)
 GUI.MainBar.Size = UDim2.new(0, 1150, 0, 65) 
 GUI.MainBar.Position = UDim2.new(0.5, -575, 0.85, 0)
@@ -351,6 +357,7 @@ Utils.addCorner(speedInput, 10)
 Utils.addStroke(speedInput, 0.6)
 GUI.Buttons.Lang = GUI.createBtn(GUI.MainBar, "LANG_BTN", 0.08)
 
+-- [[ SIDE FRAME (Right) ]] --
 GUI.SideFrame = Instance.new("Frame", GUI.MenuContainer)
 GUI.SideFrame.Size = UDim2.new(0, 260, 0, 350)
 GUI.SideFrame.Position = UDim2.new(1, -280, 0.2, 0)
@@ -397,6 +404,84 @@ Utils.addStroke(resetBtn, 0.5)
 
 GUI.Buttons.Reset = {Button = resetBtn, Key = "RESET", Gradient = Utils.addGradient(resetBtn)}
 
+-- [[ WARP FRAME (Fixed & Automatic Size) ]] --
+GUI.WarpButtons = {} 
+GUI.WarpTitleLabel = nil
+
+if game.PlaceId == 8391915840 then
+    GUI.WarpFrame = Instance.new("Frame", GUI.MenuContainer)
+    GUI.WarpFrame.AutomaticSize = Enum.AutomaticSize.Y -- ยืดหดอัตโนมัติ
+    GUI.WarpFrame.Size = UDim2.new(0, 220, 0, 0) 
+    GUI.WarpFrame.Position = UDim2.new(0, 20, 0.60, 0)
+    GUI.WarpFrame.BackgroundColor3 = THEME.Background
+    GUI.WarpFrame.BackgroundTransparency = 0.1
+    Utils.addCorner(GUI.WarpFrame, 12)
+    Utils.addStroke(GUI.WarpFrame, 0.4)
+    Utils.makeDraggable(GUI.WarpFrame)
+
+    local padding = Instance.new("UIPadding", GUI.WarpFrame)
+    padding.PaddingTop = UDim.new(0, 10)     
+    padding.PaddingBottom = UDim.new(0, 15)   
+    padding.PaddingLeft = UDim.new(0, 10)
+    padding.PaddingRight = UDim.new(0, 10)
+
+    local warpLayout = Instance.new("UIListLayout", GUI.WarpFrame)
+    warpLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    warpLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    warpLayout.Padding = UDim.new(0, 8)
+
+    GUI.WarpTitleLabel = Instance.new("TextLabel", GUI.WarpFrame)
+    GUI.WarpTitleLabel.Size = UDim2.new(1, 0, 0, 30)
+    GUI.WarpTitleLabel.BackgroundTransparency = 1
+    GUI.WarpTitleLabel.Text = TRANSLATIONS.WARP_TITLE[CONFIG.CurrentLang]
+    GUI.WarpTitleLabel.TextColor3 = THEME.TextDim
+    GUI.WarpTitleLabel.Font = Enum.Font.GothamBold
+    GUI.WarpTitleLabel.TextSize = 16 
+    GUI.WarpTitleLabel.LayoutOrder = -1 
+
+    local function createWarpBtn(nameData, cframe)
+        local btnContainer = Instance.new("Frame", GUI.WarpFrame)
+        btnContainer.Size = UDim2.new(1, 0, 0, 40) 
+        btnContainer.BackgroundTransparency = 1
+        
+        local btn = Instance.new("TextButton", btnContainer)
+        btn.Size = UDim2.new(1, 0, 1, 0)
+        btn.Text = nameData[CONFIG.CurrentLang]
+        btn.BackgroundColor3 = THEME.ButtonOff
+        btn.TextColor3 = THEME.Text
+        btn.Font = Enum.Font.GothamBold
+        btn.TextSize = 14
+        btn.AutoButtonColor = false
+        Utils.addCorner(btn, 10)
+        Utils.addStroke(btn, 0.5)
+        
+        btn.MouseButton1Click:Connect(function()
+            local _, hrp, _ = Utils.getChar()
+            if hrp then
+                hrp.CFrame = cframe
+                GUI.setStatus("Warped: " .. nameData[CONFIG.CurrentLang])
+            end
+        end)
+        
+        btn.MouseEnter:Connect(function()
+            TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = THEME.ButtonOn_Start}):Play()
+        end)
+        btn.MouseLeave:Connect(function()
+            TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = THEME.ButtonOff}):Play()
+        end)
+        
+        table.insert(GUI.WarpButtons, {Button = btn, NameData = nameData})
+    end
+
+    for _, warp in ipairs(CONFIG.SpecialWarps) do
+        createWarpBtn(warp.Name, warp.Pos)
+    end
+end
+
+---------------------------------------------------------------------------------
+-- 6. FUNCTIONS & LOGIC
+---------------------------------------------------------------------------------
+
 function GUI.setStatus(text)
     GUI.StatusLabel.Text = text
 end
@@ -423,6 +508,14 @@ function GUI.updateTexts()
     end
     GUI.Hint.Text = TRANSLATIONS.HINT[lang]
     sideTitle.Text = TRANSLATIONS.LIST[lang]
+    
+    -- [[ อัปเดตภาษาปุ่มวาร์ป ]] --
+    if GUI.WarpTitleLabel then
+        GUI.WarpTitleLabel.Text = TRANSLATIONS.WARP_TITLE[lang]
+    end
+    for _, wb in ipairs(GUI.WarpButtons) do
+        wb.Button.Text = wb.NameData[lang]
+    end
 end
 
 function GUI.moveStatus(toCenter)
@@ -433,9 +526,7 @@ function GUI.moveStatus(toCenter)
     TweenService:Create(GUI.StatusFrame, tweenInfo, {Position = targetPos}):Play()
 end
 
----------------------------------------------------------------------------------
--- 6. CORE LOGIC & FEATURES
----------------------------------------------------------------------------------
+-- [[ CORE LOGIC ]] --
 local Features = {}
 
 -- [[ INSTANT E ]] --
@@ -577,12 +668,9 @@ function Features.smartMove(targetCFrame)
 
     local dist = (hrp.Position - targetCFrame.Position).Magnitude
     
-    -- คำนวณความเร็ว (Speed Scaling)
-    -- ยิ่ง CONFIG.Speed เยอะ -> speedFactor ยิ่งเยอะ -> tweenTime ยิ่งน้อย -> ยิ่งเร็ว
     local speedFactor = math.max(1, CONFIG.Speed * 150) 
     local tweenTime = dist / speedFactor
     
-    -- ป้องกัน Tween Error ถ้าระยะใกล้เกินไป
     if tweenTime < 0.1 then tweenTime = 0.1 end
     
     local tween = TweenService:Create(hrp, TweenInfo.new(tweenTime, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
@@ -631,17 +719,15 @@ function Features.toggleFarm()
     
     if State.AutoFarm then
         -- [[ START: SPEED MODIFICATION ]] --
-        State.OldSpeed = CONFIG.Speed -- จำค่าเดิม
-        CONFIG.Speed = 4 -- ตั้งค่าเป็น 5
-        if speedInput then speedInput.Text = tostring(CONFIG.Speed) end -- อัปเดต UI
-        -- [[ END: SPEED MODIFICATION ]] --
+        State.OldSpeed = CONFIG.Speed 
+        CONFIG.Speed = 4 
+        if speedInput then speedInput.Text = tostring(CONFIG.Speed) end
 
         GUI.moveStatus(true)
         State.FarmInfo.StartTime = os.time()
         State.FarmInfo.Count = 0
         State.FarmInfo.CurrentState = "Starting..."
         
-        -- Status Loop
         task.spawn(function()
             while State.AutoFarm do
                 local elapsed = os.time() - State.FarmInfo.StartTime
@@ -651,7 +737,6 @@ function Features.toggleFarm()
             end
         end)
         
-        -- Main Logic Loop
         task.spawn(function()
             pcall(function()
                 local char, hrp, _ = Utils.getChar()
@@ -665,11 +750,7 @@ function Features.toggleFarm()
                 pcall(function()
                     if not Utils.getChar() then task.wait(1) return end
                     
-                    ------------------------------------------------------------
-                    -- PHASE 1: MAIN JOB (ICE CREAM)
-                    ------------------------------------------------------------
-                    
-                    -- 1.1 รับโคน
+                    -- PHASE 1: ICE CREAM
                     State.FarmInfo.CurrentState = "IceCream: Get Cone"
                     Features.smartMove(CONFIG.Locations.Job)
                     task.wait(0.15)
@@ -677,7 +758,6 @@ function Features.toggleFarm()
 
                     if not State.AutoFarm then return end
 
-                    -- 1.2 ตักไอติม
                     State.FarmInfo.CurrentState = "IceCream: Filling"
                     Features.smartMove(CONFIG.Locations.Fill)
                     task.wait(0.15)
@@ -685,49 +765,37 @@ function Features.toggleFarm()
 
                     if not State.AutoFarm then return end
 
-                    -- 1.3 ขายไอติม
                     State.FarmInfo.CurrentState = "IceCream: Selling"
                     Features.smartMove(CONFIG.Locations.Sell)
                     task.wait(0.15)
-                    -- รอจนกว่าไอติมจะหายไป (ขายเสร็จ)
                     Features.interactUntil(function() return not Utils.hasItem(CONFIG.ItemNames.Stage2) end, 10)
 
                     if not State.AutoFarm then return end
 
-                    ------------------------------------------------------------
-                    -- PHASE 2: SIDE JOB (SOMTUM COOLDOWN)
-                    -- ทำเมื่อขายไอติมเสร็จแล้ว เพื่อรอเวลา
-                    ------------------------------------------------------------
-                    
-                    -- 2.1 Papaya
+                    -- PHASE 2: SOMTUM
                     State.FarmInfo.CurrentState = "Somtum: Papaya"
                     Features.smartMove(CONFIG.SomtumLocs.Step1_Papaya)
                     task.wait(0.1)
                     Features.interactUntil(function() return Utils.hasItem({"Papaya"}) end, 8)
                     
-                    -- 2.2 Plate
                     State.FarmInfo.CurrentState = "Somtum: Plate"
                     Features.smartMove(CONFIG.SomtumLocs.Step2_Plate)
                     task.wait(0.1)
                     Features.interactUntil(function() return Utils.hasItem({"Plate"}) end, 8)
 
-                    -- 2.3 Slice
                     State.FarmInfo.CurrentState = "Somtum: Slicing"
                     Features.smartMove(CONFIG.SomtumLocs.Step3_Slided)
                     task.wait(0.1)
                     Features.interactUntil(function() return Utils.hasItem({"Slided Papaya"}) end, 8)
 
-                    -- 2.4 Cook
                     State.FarmInfo.CurrentState = "Somtum: Cooking"
                     Features.smartMove(CONFIG.SomtumLocs.Step4_Somtum)
                     task.wait(0.1)
                     Features.interactUntil(function() return Utils.hasItem({"Somtum"}) end, 8)
 
-                    -- 2.5 Sell Somtum
                     State.FarmInfo.CurrentState = "Somtum: Selling"
                     Features.smartMove(CONFIG.SomtumLocs.Step5_Sell)
                     task.wait(0.15)
-                    -- รอจนกว่าส้มตำจะหายไป (ขายเสร็จ)
                     Features.interactUntil(function() return not Utils.hasItem(CONFIG.ItemNames.Somtum) end, 10)
                     
                     State.FarmInfo.Count = State.FarmInfo.Count + 1
@@ -741,12 +809,10 @@ function Features.toggleFarm()
             GUI.moveStatus(false)
         end)
     else
-        -- [[ STOP: RESTORE SPEED ]] --
         if State.OldSpeed then
-            CONFIG.Speed = State.OldSpeed -- คืนค่าเดิม
-            if speedInput then speedInput.Text = tostring(CONFIG.Speed) end -- อัปเดต UI กลับ
+            CONFIG.Speed = State.OldSpeed
+            if speedInput then speedInput.Text = tostring(CONFIG.Speed) end
         end
-        -- [[ END: RESTORE SPEED ]] --
 
         if State.FarmInfo.Tween then State.FarmInfo.Tween:Cancel() end
         Utils.restorePhysics()
@@ -873,6 +939,7 @@ local inputConn = UserInputService.InputBegan:Connect(function(input, gpe)
     elseif code == Enum.KeyCode.X then
         CONFIG.MenuVisible = not CONFIG.MenuVisible
         GUI.MenuContainer.Visible = CONFIG.MenuVisible
+        if GUI.WarpFrame then GUI.WarpFrame.Visible = CONFIG.MenuVisible end
     elseif code == Enum.KeyCode.C then
         local _, _, hum = Utils.getChar()
         if hum then Camera.CameraSubject = hum; GUI.setStatus(TRANSLATIONS.CAM_RESET[CONFIG.CurrentLang]) end
@@ -972,9 +1039,8 @@ table.insert(_G.ProScript_Connections, Players.PlayerRemoving:Connect(updateList
 updateList()
 
 local function playIntro()
-    -- [[ CHECK ID: 473092660 ]] --
     if player.UserId == 473092660 then
-        return -- ข้าม Intro ทันที
+        return 
     end
 
     local introFrame = Instance.new("Frame", GUI.Screen)
@@ -1013,3 +1079,4 @@ playIntro()
 task.wait(0.5)
 CONFIG.MenuVisible = true
 GUI.MenuContainer.Visible = true
+if GUI.WarpFrame then GUI.WarpFrame.Visible = true end
