@@ -73,8 +73,9 @@ local CONFIG = {
         Stage2 = {"Icecream", "Ice Cream", "Chocolate Icecream", "Vanilla Icecream"},
         Somtum = {"Papaya", "Plate", "Slided Papaya", "Somtum"}
     },
-    -- [[ พิกัดวาร์ปพิเศษ (รองรับ 2 ภาษา) ]] --
+    -- [[ พิกัดวาร์ปพิเศษ (เพิ่มจุดเกิดแล้ว) ]] --
     SpecialWarps = {
+        {Name = {EN = "Spawn",       TH = "จุดเกิด"},      Pos = CFrame.new(7.92047453, 2.40828323, 100.69519)},
         {Name = {EN = "Color Point", TH = "จุดชื่อสี"},     Pos = CFrame.new(14.6551895, -53.0000038, 16.1253815)},
         {Name = {EN = "Und. Shop",   TH = "ร้านใต้ดิน"},   Pos = CFrame.new(1183.3916, -226.482635, -537.569092)},
         {Name = {EN = "Pavilion",    TH = "ศาลาน้ำ"},      Pos = CFrame.new(-546.928711, -93.0000076, 381.976349)}
