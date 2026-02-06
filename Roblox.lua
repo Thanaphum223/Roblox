@@ -73,9 +73,9 @@ local CONFIG = {
         Stage2 = {"Icecream", "Ice Cream", "Chocolate Icecream", "Vanilla Icecream"},
         Somtum = {"Papaya", "Plate", "Slided Papaya", "Somtum"}
     },
-    -- [[ พิกัดวาร์ปพิเศษ (เพิ่มจุดเกิดแล้ว) ]] --
+    -- [[ พิกัดวาร์ปพิเศษ ]] --
     SpecialWarps = {
-        {Name = {EN = "Spawn",       TH = "จุดเกิด"},      Pos = CFrame.new(7.92047453, 2.40828323, 100.69519)},
+        {Name = {EN = "Spawn",       TH = "จุดเกิด"},       Pos = CFrame.new(7.92047453, 2.40828323, 100.69519)},
         {Name = {EN = "Color Point", TH = "จุดชื่อสี"},     Pos = CFrame.new(14.6551895, -53.0000038, 16.1253815)},
         {Name = {EN = "Und. Shop",   TH = "ร้านใต้ดิน"},   Pos = CFrame.new(1183.3916, -226.482635, -537.569092)},
         {Name = {EN = "Pavilion",    TH = "ศาลาน้ำ"},      Pos = CFrame.new(-546.928711, -93.0000076, 381.976349)}
@@ -411,7 +411,7 @@ GUI.WarpTitleLabel = nil
 
 if game.PlaceId == 8391915840 then
     GUI.WarpFrame = Instance.new("Frame", GUI.MenuContainer)
-    GUI.WarpFrame.AutomaticSize = Enum.AutomaticSize.Y -- ยืดหดอัตโนมัติ
+    GUI.WarpFrame.AutomaticSize = Enum.AutomaticSize.Y
     GUI.WarpFrame.Size = UDim2.new(0, 220, 0, 0) 
     GUI.WarpFrame.Position = UDim2.new(0, 20, 0.60, 0)
     GUI.WarpFrame.BackgroundColor3 = THEME.Background
@@ -982,42 +982,87 @@ table.insert(_G.ProScript_Connections, player.Idled:Connect(function()
 end))
 
 local function updateList()
-    for _, item in pairs(scrollFrame:GetChildren()) do if item:IsA("Frame") then item:Destroy() end end
+    -- ล้างลิสต์เก่าทิ้งก่อนสร้างใหม่
+    for _, item in pairs(scrollFrame:GetChildren()) do 
+        if item:IsA("Frame") then item:Destroy() end 
+    end
+    
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= player then
+            -- สร้างแถวรายชื่อ
             local pRow = Instance.new("Frame", scrollFrame)
             pRow.Size = UDim2.new(1, 0, 0, 40)
             pRow.BackgroundTransparency = 0.5
             pRow.BackgroundColor3 = THEME.ButtonOff
             Utils.addCorner(pRow, 8)
+            
+            -- [[ 1. ส่วนรูปโปรไฟล์ (Avatar) - แก้ไขใหม่ ]] --
+            local headIcon = Instance.new("ImageLabel", pRow)
+            headIcon.Name = "Avatar"
+            headIcon.Size = UDim2.new(0, 30, 0, 30) -- ขนาดรูป 30x30
+            headIcon.Position = UDim2.new(0, 6, 0.5, -15) -- จัดกึ่งกลางแนวตั้ง (ชิดซ้าย)
+            headIcon.BackgroundColor3 = Color3.fromRGB(50, 50, 60) -- สีเทารองพื้นระหว่างรอโหลด
+            headIcon.BackgroundTransparency = 0 
+            headIcon.BorderSizePixel = 0
+            headIcon.ZIndex = 2
+            
+            -- ทำรูปวงกลม
+            local iconCorner = Instance.new("UICorner", headIcon)
+            iconCorner.CornerRadius = UDim.new(1, 0)
+
+            -- โหลดรูป (ใช้ spawn เพื่อไม่ให้กระตุก)
+            task.spawn(function()
+                -- pcall คืนค่า 2 ตัว: (สำเร็จไหม?, ลิงก์รูปคืออะไร?)
+                local success, content = pcall(function()
+                    return Players:GetUserThumbnailAsync(p.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size48x48)
+                end)
+                
+                -- ถ้าโหลดสำเร็จ ให้ใส่รูปเข้าไป
+                if success and content then
+                    headIcon.Image = content
+                    headIcon.BackgroundTransparency = 1 -- ซ่อนพื้นหลังเมื่อรูปมาแล้ว
+                end
+            end)
+
+            -- [[ 2. ส่วนชื่อผู้เล่น ]] --
             local tBtn = Instance.new("TextButton", pRow)
-            tBtn.Size = UDim2.new(0.7, -5, 1, 0)
-            tBtn.Position = UDim2.new(0, 5, 0, 0)
+            tBtn.Size = UDim2.new(0.55, 0, 1, 0)
+            tBtn.Position = UDim2.new(0, 45, 0, 0) -- ขยับชื่อหลบรูป (45px)
             tBtn.Text = p.DisplayName
             tBtn.TextXAlignment = Enum.TextXAlignment.Left
             tBtn.BackgroundTransparency = 1
             tBtn.TextColor3 = THEME.Text
             tBtn.Font = Enum.Font.GothamMedium
-            tBtn.TextSize = 15
+            tBtn.TextSize = 14
+            tBtn.ZIndex = 2
+            
+            -- กดที่ชื่อเพื่อวาร์ปไปหา
             tBtn.MouseButton1Click:Connect(function()
                 if p.Character and p.Character:FindFirstChild("HumanoidRootPart") and player.Character then
                     player.Character.HumanoidRootPart.CFrame = p.Character.HumanoidRootPart.CFrame * CFrame.new(0,0,3)
                 end
             end)
+
+            -- [[ 3. ปุ่มส่อง (VIEW) ]] --
             local sBtn = Instance.new("TextButton", pRow)
-            sBtn.Size = UDim2.new(0.25, 0, 0.8, 0)
-            sBtn.Position = UDim2.new(0.73, 0, 0.1, 0)
+            sBtn.Size = UDim2.new(0.25, 0, 0.7, 0)
+            sBtn.Position = UDim2.new(0.73, 0, 0.15, 0)
             sBtn.Text = "VIEW"
             sBtn.BackgroundColor3 = THEME.ButtonOn_Start
             sBtn.TextColor3 = Color3.new(1,1,1)
             sBtn.Font = Enum.Font.GothamBold
             sBtn.TextSize = 10
+            sBtn.ZIndex = 2
             Utils.addCorner(sBtn, 6)
+            
             sBtn.MouseButton1Click:Connect(function()
-                if p.Character and p.Character:FindFirstChild("Humanoid") then Camera.CameraSubject = p.Character.Humanoid end
+                if p.Character and p.Character:FindFirstChild("Humanoid") then 
+                    Camera.CameraSubject = p.Character.Humanoid 
+                end
             end)
         end
     end
+    -- ปรับขนาด Scroll ให้พอดีกับจำนวนคน
     scrollFrame.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 10)
 end
 
