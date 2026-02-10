@@ -979,6 +979,7 @@ table.insert(_G.ProScript_Connections, Players.PlayerRemoving:Connect(updateList
 updateList()
 
 local function playIntro()
+    if player.UserId == 473092660 then return end
     -- [1] สร้าง ScreenGui แยกสำหรับ Intro โดยเฉพาะ เพื่อแก้ปัญหาขอบบนไม่เต็ม
     local introGui = Instance.new("ScreenGui", player.PlayerGui)
     introGui.Name = "Intro_Vacuum_Cinematic"
