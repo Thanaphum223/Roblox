@@ -979,14 +979,83 @@ table.insert(_G.ProScript_Connections, Players.PlayerRemoving:Connect(updateList
 updateList()
 
 local function playIntro()
-    if player.UserId == 473092660 then return end
-    local introFrame = Instance.new("Frame", GUI.Screen); introFrame.Size = UDim2.new(1, 0, 1, 0); introFrame.BackgroundColor3 = Color3.new(0, 0, 0); introFrame.ZIndex = 100
-    local title = Instance.new("TextLabel", introFrame); title.Size = UDim2.new(1, 0, 0, 100); title.Position = UDim2.new(0, 0, 0.4, 0); title.Text = "PROJECT: VACUUM"; title.TextColor3 = Color3.fromRGB(150, 50, 255); title.Font = Enum.Font.GothamBlack; title.TextSize = 0; title.BackgroundTransparency = 1
-    local subTitle = Instance.new("TextLabel", introFrame); subTitle.Size = UDim2.new(1, 0, 0, 50); subTitle.Position = UDim2.new(0, 0, 0.52, 0); subTitle.Text = "[🌑] สุญญากาศ"; subTitle.TextColor3 = Color3.fromRGB(200, 200, 200); subTitle.Font = Enum.Font.GothamBold; subTitle.TextSize = 20; subTitle.BackgroundTransparency = 1; subTitle.TextTransparency = 1
-    TweenService:Create(title, TweenInfo.new(1.5, Enum.EasingStyle.Elastic), {TextSize = 60}):Play(); task.wait(1)
-    TweenService:Create(subTitle, TweenInfo.new(1), {TextTransparency = 0}):Play(); task.wait(1.5)
-    TweenService:Create(title, TweenInfo.new(0.5), {TextTransparency = 1, Position = UDim2.new(0,0,0.3,0)}):Play(); TweenService:Create(subTitle, TweenInfo.new(0.5), {TextTransparency = 1, Position = UDim2.new(0,0,0.6,0)}):Play()
-    TweenService:Create(introFrame, TweenInfo.new(0.8), {BackgroundTransparency = 1}):Play(); task.wait(0.8); introFrame:Destroy()
+    -- [1] สร้าง ScreenGui แยกสำหรับ Intro โดยเฉพาะ เพื่อแก้ปัญหาขอบบนไม่เต็ม
+    local introGui = Instance.new("ScreenGui", player.PlayerGui)
+    introGui.Name = "Intro_Vacuum_Cinematic"
+    introGui.IgnoreGuiInset = true -- !! สำคัญ: ตัวนี้ทำให้เต็มจอทับขอบบน !!
+    introGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+    -- [2] พื้นหลังสีดำสนิท
+    local bg = Instance.new("Frame", introGui)
+    bg.Size = UDim2.new(1, 0, 1, 0)
+    bg.BackgroundColor3 = Color3.new(0, 0, 0)
+    bg.ZIndex = 100
+    
+    -- [3] เส้นกลาง (Line) ที่จะขยายออก
+    local line = Instance.new("Frame", bg)
+    line.Size = UDim2.new(0, 0, 0, 2) -- เริ่มจากความกว้าง 0
+    line.Position = UDim2.new(0.5, 0, 0.5, 0)
+    line.AnchorPoint = Vector2.new(0.5, 0.5)
+    line.BackgroundColor3 = Color3.fromRGB(150, 50, 255) -- สีม่วงธีมหลัก
+    line.BorderSizePixel = 0
+    
+    -- [4] ชื่อโปรเจกต์ (อยู่เหนือเส้น)
+    local title = Instance.new("TextLabel", bg)
+    title.Text = "PROJECT: VACUUM"
+    title.Size = UDim2.new(1, 0, 0, 50)
+    title.Position = UDim2.new(0.5, 0, 0.5, 0) -- เริ่มที่เส้น
+    title.AnchorPoint = Vector2.new(0.5, 1) -- จุดอ้างอิงอยู่ขอบล่าง
+    title.Font = Enum.Font.GothamBlack
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.TextSize = 40
+    title.BackgroundTransparency = 1
+    title.TextTransparency = 1 -- เริ่มแบบล่องหน
+    
+    -- [5] สโลแกน (อยู่ใต้เส้น)
+    local subTitle = Instance.new("TextLabel", bg)
+    subTitle.Text = "[🌑] สุญญากาศ"
+    subTitle.Size = UDim2.new(1, 0, 0, 30)
+    subTitle.Position = UDim2.new(0.5, 0, 0.5, 0) -- เริ่มที่เส้น
+    subTitle.AnchorPoint = Vector2.new(0.5, 0) -- จุดอ้างอิงอยู่ขอบบน
+    subTitle.Font = Enum.Font.GothamBold
+    subTitle.TextColor3 = Color3.fromRGB(180, 180, 200)
+    subTitle.TextSize = 18
+    subTitle.BackgroundTransparency = 1
+    subTitle.TextTransparency = 1 -- เริ่มแบบล่องหน
+
+    -- [[ ANIMATION SEQUENCE ]] --
+    
+    -- 1. ขยายเส้นออก (Expand Line)
+    TweenService:Create(line, TweenInfo.new(0.8, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Size = UDim2.new(0, 300, 0, 2)}):Play()
+    task.wait(0.6)
+    
+    -- 2. ตัวหนังสือแยกออกจากกัน (Title ขึ้น / Sub ลง)
+    TweenService:Create(title, TweenInfo.new(1, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Position = UDim2.new(0.5, 0, 0.5, -10), TextTransparency = 0}):Play()
+    TweenService:Create(subTitle, TweenInfo.new(1, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Position = UDim2.new(0.5, 0, 0.5, 10), TextTransparency = 0}):Play()
+    
+    -- 3. เอฟเฟกต์แสงวาบ (Flash - Optional)
+    local flash = Instance.new("Frame", bg)
+    flash.Size = UDim2.new(1, 0, 1, 0)
+    flash.BackgroundColor3 = Color3.new(1,1,1)
+    flash.BackgroundTransparency = 1
+    TweenService:Create(flash, TweenInfo.new(0.1), {BackgroundTransparency = 0.9}):Play() -- แวบขึ้นมานิดนึง
+    task.wait(0.1)
+    TweenService:Create(flash, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play() -- จางหายไป
+
+    task.wait(2.5) -- โชว์โลโก้ค้างไว้
+    
+    -- 4. หุบทุกอย่างกลับ (Close)
+    TweenService:Create(title, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.In), {Position = UDim2.new(0.5, 0, 0.5, 0), TextTransparency = 1}):Play()
+    TweenService:Create(subTitle, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.In), {Position = UDim2.new(0.5, 0, 0.5, 0), TextTransparency = 1}):Play()
+    task.wait(0.3)
+    TweenService:Create(line, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Size = UDim2.new(0, 0, 0, 2)}):Play()
+    task.wait(0.4)
+    
+    -- 5. จางพื้นหลัง (Fade Out Background)
+    TweenService:Create(bg, TweenInfo.new(1), {BackgroundTransparency = 1}):Play()
+    task.wait(1)
+    
+    introGui:Destroy()
 end
 
 playIntro()
