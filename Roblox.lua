@@ -1,4 +1,4 @@
--- [[ PROJECT: VACUUM - ULTIMATE EDITION (Custom Warps + Animation) ]] --
+-- [[ PROJECT: VACUUM - ULTIMATE EDITION (Auto Open Fixed) ]] --
 
 -- [[ ส่วนตรวจสอบรหัสแมพ ]] --
 local Supported_IDs = {
@@ -60,7 +60,7 @@ local CurrentMapData = MapSettings[game.PlaceId] or MapSettings[8391915840]
 local CONFIG = {
     Speed = 3,
     CurrentLang = "EN",
-    MenuVisible = true, -- Start visible for intro
+    MenuVisible = false, -- [FIXED] ตั้งเป็น False ก่อน เพื่อให้คำสั่ง Toggle สุดท้ายเปิดมันขึ้นมา
     InvisPos = CurrentMapData.InvisPos,
     Locations = CurrentMapData.Locations,
     SomtumLocs = {
