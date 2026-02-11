@@ -1,4 +1,4 @@
--- [[ PROJECT: VACUUM - ULTIMATE EDITION (Auto Open Fixed) ]] --
+-- [[ PROJECT: VACUUM - ULTIMATE EDITION (Ghost Mode Force-Move Fixed) ]] --
 
 -- [[ ส่วนตรวจสอบรหัสแมพ ]] --
 local Supported_IDs = {
@@ -60,7 +60,7 @@ local CurrentMapData = MapSettings[game.PlaceId] or MapSettings[8391915840]
 local CONFIG = {
     Speed = 3,
     CurrentLang = "EN",
-    MenuVisible = false, -- [FIXED] ตั้งเป็น False ก่อน เพื่อให้คำสั่ง Toggle สุดท้ายเปิดมันขึ้นมา
+    MenuVisible = false,
     InvisPos = CurrentMapData.InvisPos,
     Locations = CurrentMapData.Locations,
     SomtumLocs = {
@@ -76,10 +76,10 @@ local CONFIG = {
         Somtum = {"Papaya", "Plate", "Slided Papaya", "Somtum"}
     },
     SpecialWarps = {
-        {Name = {EN = "Spawn",       TH = "จุดเกิด"},       Pos = CFrame.new(7.92047453, 2.40828323, 100.69519)},
-        {Name = {EN = "Color Point", TH = "จุดชื่อสี"},     Pos = CFrame.new(14.6551895, -53.0000038, 16.1253815)},
-        {Name = {EN = "Und. Shop",   TH = "ร้านใต้ดิน"},   Pos = CFrame.new(1183.3916, -226.482635, -537.569092)},
-        {Name = {EN = "Pavilion",    TH = "ศาลาน้ำ"},      Pos = CFrame.new(-546.928711, -93.0000076, 381.976349)}
+        {Name = {EN = "Spawn",       TH = "จุดเกิด"},        Pos = CFrame.new(7.92047453, 2.40828323, 100.69519)},
+        {Name = {EN = "Color Point", TH = "จุดชื่อสี"},      Pos = CFrame.new(14.6551895, -53.0000038, 16.1253815)},
+        {Name = {EN = "Und. Shop",   TH = "ร้านใต้ดิน"},    Pos = CFrame.new(1183.3916, -226.482635, -537.569092)},
+        {Name = {EN = "Pavilion",    TH = "ศาลาน้ำ"},       Pos = CFrame.new(-546.928711, -93.0000076, 381.976349)}
     }
 }
 
@@ -104,6 +104,7 @@ local TRANSLATIONS = {
     SINK_BTN = {EN = "SINK (J)", TH = "จมดิน (J)"},
     RISE_BTN = {EN = "RISE (K)", TH = "ลอยฟ้า (K)"},
     INVIS = {EN = "INVIS (Z)", TH = "ล่องหน (Z)"},
+    GHOST = {EN = "GHOST (G)", TH = "ถอดจิต (G)"},
     TP = {EN = "CLICK TP (T)", TH = "วาร์ป (T)"},
     FARM = {EN = "AUTO FARM", TH = "ออโต้ฟาร์ม"},
     REJOIN = {EN = "REJOIN", TH = "เข้าเกมใหม่"},
@@ -117,6 +118,7 @@ local TRANSLATIONS = {
     SINK_STATUS = {EN = "Action: Sinking...", TH = "สถานะ: กำลังจมดิน..."},
     RISE_STATUS = {EN = "Action: Rising...", TH = "สถานะ: กำลังลอยขึ้น..."},
     INVIS_STATUS = {EN = "Invis: ACTIVE", TH = "สถานะ: กำลังล่องหน (ซ่อนตัว)"},
+    GHOST_STATUS = {EN = "Ghost: ACTIVE", TH = "สถานะ: กำลังถอดจิต (W,A,S,D)"},
     ABORT = {EN = "Aborted.", TH = "ยกเลิกคำสั่งแล้ว"},
     VISUAL_ON = {EN = "Visuals: ON", TH = "การมองเห็น: เปิด"},
     VISUAL_OFF = {EN = "Visuals: OFF", TH = "การมองเห็น: ปิด"},
@@ -139,6 +141,9 @@ local State = {
     ClickTP = false,
     AutoFarm = false,
     Invisible = false,
+    GhostMode = false,
+    GhostClone = nil,
+    RealCharacter = nil, 
     VerticalMode = "None",
     FarmInfo = { Count = 0, StartTime = 0, CurrentState = "Idle", Tween = nil },
     Connections = {},
@@ -297,7 +302,7 @@ GUI.Hint.Text = TRANSLATIONS.HINT.EN
 GUI.MenuContainer = Instance.new("Frame", GUI.Screen)
 GUI.MenuContainer.Size = UDim2.new(1, 0, 1, 0)
 GUI.MenuContainer.BackgroundTransparency = 1
-GUI.MenuContainer.Visible = true -- Must be true for animation logic
+GUI.MenuContainer.Visible = true
 
 -- [[ STATUS FRAME ]] --
 GUI.StatusFrame = Instance.new("Frame", GUI.Screen)
@@ -324,8 +329,8 @@ GUI.StatusLabel.Text = TRANSLATIONS.STATUS_WAIT.EN
 
 -- [[ MAIN BAR (Bottom Center) ]] --
 GUI.MainBar = Instance.new("Frame", GUI.MenuContainer)
-GUI.MainBar.Size = UDim2.new(0, 1150, 0, 65) 
-GUI.MainBar.Position = UDim2.new(0.5, -575, 1.5, 0) -- Hidden initially (Below screen)
+GUI.MainBar.Size = UDim2.new(0, 1250, 0, 65) 
+GUI.MainBar.Position = UDim2.new(0.5, -625, 1.5, 0) 
 GUI.MainBar.BackgroundColor3 = THEME.Background
 GUI.MainBar.BackgroundTransparency = 0.1
 Utils.addCorner(GUI.MainBar, 16)
@@ -338,17 +343,18 @@ barLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 barLayout.Padding = UDim.new(0, 4)
 
 GUI.Buttons = {}
-GUI.Buttons.Fly = GUI.createBtn(GUI.MainBar, "FLY", 0.09)
-GUI.Buttons.ESP = GUI.createBtn(GUI.MainBar, "ESP", 0.09)
-GUI.Buttons.Sink = GUI.createBtn(GUI.MainBar, "SINK_BTN", 0.09)
-GUI.Buttons.Rise = GUI.createBtn(GUI.MainBar, "RISE_BTN", 0.09)
-GUI.Buttons.Invis = GUI.createBtn(GUI.MainBar, "INVIS", 0.10)
-GUI.Buttons.TP = GUI.createBtn(GUI.MainBar, "TP", 0.10)
-GUI.Buttons.Farm = GUI.createBtn(GUI.MainBar, "FARM", 0.10)
-GUI.Buttons.Rejoin = GUI.createBtn(GUI.MainBar, "REJOIN", 0.09)
+GUI.Buttons.Fly = GUI.createBtn(GUI.MainBar, "FLY", 0.08)
+GUI.Buttons.ESP = GUI.createBtn(GUI.MainBar, "ESP", 0.08)
+GUI.Buttons.Sink = GUI.createBtn(GUI.MainBar, "SINK_BTN", 0.08)
+GUI.Buttons.Rise = GUI.createBtn(GUI.MainBar, "RISE_BTN", 0.08)
+GUI.Buttons.Invis = GUI.createBtn(GUI.MainBar, "INVIS", 0.09)
+GUI.Buttons.Ghost = GUI.createBtn(GUI.MainBar, "GHOST", 0.09) 
+GUI.Buttons.TP = GUI.createBtn(GUI.MainBar, "TP", 0.09)
+GUI.Buttons.Farm = GUI.createBtn(GUI.MainBar, "FARM", 0.09)
+GUI.Buttons.Rejoin = GUI.createBtn(GUI.MainBar, "REJOIN", 0.08)
 
 local speedContainer = Instance.new("Frame", GUI.MainBar)
-speedContainer.Size = UDim2.new(0.07, -5, 0, 45)
+speedContainer.Size = UDim2.new(0.06, -5, 0, 45)
 speedContainer.BackgroundTransparency = 1
 Utils.addCorner(speedContainer, 10)
 local speedInput = Instance.new("TextBox", speedContainer)
@@ -361,12 +367,12 @@ speedInput.TextSize = 16
 speedInput.PlaceholderText = "SPD"
 Utils.addCorner(speedInput, 10)
 Utils.addStroke(speedInput, 0.6)
-GUI.Buttons.Lang = GUI.createBtn(GUI.MainBar, "LANG_BTN", 0.08)
+GUI.Buttons.Lang = GUI.createBtn(GUI.MainBar, "LANG_BTN", 0.07)
 
 -- [[ SIDE PANEL (Right Side) ]] --
 GUI.SideFrame = Instance.new("Frame", GUI.MenuContainer)
 GUI.SideFrame.Size = UDim2.new(0, 280, 0, 450)
-GUI.SideFrame.Position = UDim2.new(1.5, 0, 0.2, 0) -- Hidden initially (Right of screen)
+GUI.SideFrame.Position = UDim2.new(1.5, 0, 0.2, 0) 
 GUI.SideFrame.BackgroundColor3 = THEME.Background
 GUI.SideFrame.BackgroundTransparency = 0.1
 Utils.addCorner(GUI.SideFrame, 12)
@@ -406,7 +412,6 @@ local function createTabBtn(text, isActive, widthScale)
     return btn, line
 end
 
--- 3 Tabs now: Players (0.33), Warps (0.33), Custom (0.33)
 local TabBtn_Players, TabLine_Players = createTabBtn("👥 Players", true, 0.33)
 local TabBtn_Warps, TabLine_Warps = createTabBtn("⚡ Warps", false, 0.33)
 local TabBtn_Custom, TabLine_Custom = createTabBtn("📍 Custom", false, 0.33)
@@ -453,7 +458,6 @@ customContainer.Position = UDim2.new(1, 0, 0, 0)
 customContainer.Visible = false
 customContainer.BackgroundTransparency = 1
 
--- Input Area
 local inputArea = Instance.new("Frame", customContainer)
 inputArea.Size = UDim2.new(1, 0, 0, 35)
 inputArea.BackgroundTransparency = 1
@@ -479,7 +483,6 @@ saveBtn.Font = Enum.Font.GothamBold
 saveBtn.TextSize = 12
 Utils.addCorner(saveBtn, 8)
 
--- Custom List
 local customScroll = Instance.new("ScrollingFrame", customContainer)
 customScroll.Size = UDim2.new(1, 0, 1, -45)
 customScroll.Position = UDim2.new(0, 0, 0, 45)
@@ -492,7 +495,6 @@ customLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 customLayout.SortOrder = Enum.SortOrder.LayoutOrder
 customLayout.Padding = UDim.new(0, 8)
 
--- [[ FOOTER ]] --
 local resetContainer = Instance.new("Frame", GUI.SideFrame)
 resetContainer.Size = UDim2.new(1, -20, 0, 40)
 resetContainer.Position = UDim2.new(0, 10, 1, -50)
@@ -550,7 +552,6 @@ local function refreshCustomList()
         btnContainer.Size = UDim2.new(0.95, 0, 0, 40)
         btnContainer.BackgroundTransparency = 1
         
-        -- Warp Button
         local btn = Instance.new("TextButton", btnContainer)
         btn.Size = UDim2.new(0.8, -5, 1, 0)
         btn.Text = warp.Name
@@ -570,7 +571,6 @@ local function refreshCustomList()
             end
         end)
         
-        -- Delete Button
         local delBtn = Instance.new("TextButton", btnContainer)
         delBtn.Size = UDim2.new(0.2, 0, 1, 0)
         delBtn.Position = UDim2.new(0.8, 5, 0, 0)
@@ -604,7 +604,6 @@ saveBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- [[ POPULATE PRE-SET WARPS ]] --
 GUI.WarpButtons = {} 
 local function createWarpBtn(nameData, cframe)
     local btnContainer = Instance.new("Frame", warpScrollFrame)
@@ -653,11 +652,10 @@ end
 -- 6. FUNCTIONS & LOGIC
 ---------------------------------------------------------------------------------
 
--- [[ ANIMATION LOGIC (OPEN/CLOSE) ]] --
 function GUI.toggleMenu()
     CONFIG.MenuVisible = not CONFIG.MenuVisible
     
-    local targetBarPos = CONFIG.MenuVisible and UDim2.new(0.5, -575, 0.85, 0) or UDim2.new(0.5, -575, 1.5, 0)
+    local targetBarPos = CONFIG.MenuVisible and UDim2.new(0.5, -625, 0.85, 0) or UDim2.new(0.5, -625, 1.5, 0)
     local targetSidePos = CONFIG.MenuVisible and UDim2.new(1, -300, 0.2, 0) or UDim2.new(1.5, 0, 0.2, 0)
     
     local animInfo = TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
@@ -757,6 +755,81 @@ function Features.toggleInvis()
         for _, v in pairs(workspace:GetChildren()) do if v.Name == "Invis_Seat_Fixed" then v:Destroy() end end
         for _, v in pairs(char:GetDescendants()) do if (v:IsA("BasePart") or v:IsA("Decal")) and v.Name ~= "HumanoidRootPart" then v.Transparency = 0 end end
         Utils.restorePhysics()
+        GUI.setStatus(TRANSLATIONS.STATUS_READY[CONFIG.CurrentLang])
+    end
+end
+
+-- [[ FIXED GHOST MODE (Physics-Bypass) ]] --
+function Features.toggleGhost(teleportToGhost)
+    if not State.GhostMode then
+        -- 1. START
+        local char = player.Character
+        if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+
+        State.GhostMode = true
+        State.RealCharacter = char
+        
+        char.HumanoidRootPart.Anchored = true 
+
+        char.Archivable = true
+        local ghost = char:Clone()
+        ghost.Name = player.Name .. " (Ghost)"
+        
+        for _, v in pairs(ghost:GetDescendants()) do
+            if v:IsA("LocalScript") or v:IsA("Script") then v:Destroy() end
+        end
+        
+        for _, v in pairs(ghost:GetDescendants()) do
+            if v:IsA("BasePart") or v:IsA("Decal") then
+                v.Transparency = 0.6
+                if v:IsA("BasePart") then v.CanCollide = false; v.Anchored = true end -- Anchored เพื่อไม่ให้ตกพื้น
+            end
+        end
+
+        ghost.Parent = workspace
+        State.GhostClone = ghost
+        
+        Camera.CameraSubject = ghost:FindFirstChild("Humanoid")
+        
+        for _, v in pairs(char:GetDescendants()) do
+            if (v:IsA("BasePart") or v:IsA("Decal")) and v.Name ~= "HumanoidRootPart" then
+                v.LocalTransparencyModifier = 1 
+            end
+        end
+        
+        GUI.toggleVisual(GUI.Buttons.Ghost, true)
+        GUI.setStatus(TRANSLATIONS.GHOST_STATUS[CONFIG.CurrentLang])
+
+    else
+        -- 2. STOP
+        local ghostHRP = State.GhostClone and State.GhostClone:FindFirstChild("HumanoidRootPart")
+        local targetPos = ghostHRP and ghostHRP.CFrame or nil
+        
+        if State.RealCharacter then
+            Camera.CameraSubject = State.RealCharacter:FindFirstChild("Humanoid")
+            if State.RealCharacter:FindFirstChild("HumanoidRootPart") then
+                State.RealCharacter.HumanoidRootPart.Anchored = false
+                
+                for _, v in pairs(State.RealCharacter:GetDescendants()) do
+                    if (v:IsA("BasePart") or v:IsA("Decal")) then
+                        v.LocalTransparencyModifier = 0
+                    end
+                end
+                
+                if teleportToGhost and targetPos then
+                    State.RealCharacter.HumanoidRootPart.CFrame = targetPos
+                end
+            end
+        end
+
+        if State.GhostClone then State.GhostClone:Destroy() end
+        State.GhostClone = nil
+        State.GhostMode = false
+        
+        if State.Flying then Features.toggleFly() end
+        Utils.restorePhysics()
+        
+        GUI.toggleVisual(GUI.Buttons.Ghost, false)
         GUI.setStatus(TRANSLATIONS.STATUS_READY[CONFIG.CurrentLang])
     end
 end
@@ -902,10 +975,36 @@ end
 ---------------------------------------------------------------------------------
 
 local runConn = RunService.Stepped:Connect(function()
+    -- [[ 1. GHOST MOVE LOGIC (Direct CFrame Manipulation) ]] --
+    if State.GhostMode and State.GhostClone then
+        local ghostHRP = State.GhostClone:FindFirstChild("HumanoidRootPart")
+        if ghostHRP then
+            local camCF = Camera.CFrame
+            local moveVector = Vector3.zero
+            
+            if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveVector = moveVector + camCF.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveVector = moveVector - camCF.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveVector = moveVector - camCF.RightVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveVector = moveVector + camCF.RightVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveVector = moveVector + Vector3.new(0, 1, 0) end
+            if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveVector = moveVector - Vector3.new(0, 1, 0) end
+            
+            if moveVector.Magnitude > 0 then
+                moveVector = moveVector.Unit * (CONFIG.Speed * 2) -- ความเร็วการขยับ
+                ghostHRP.CFrame = ghostHRP.CFrame + moveVector
+            end
+            -- หันหน้าตามกล้อง
+            ghostHRP.CFrame = CFrame.new(ghostHRP.Position, ghostHRP.Position + camCF.LookVector)
+        end
+    end
+
+    -- 2. NORMAL FLY
     local char, hrp, hum = Utils.getChar()
     if not char then return end
+    
     if State.Flying or State.Invisible or State.VerticalMode ~= "None" or State.AutoFarm then Utils.noclip(char) end
-    if State.Flying then
+    
+    if State.Flying and not State.GhostMode then
         local bv = hrp:FindFirstChild("Elite_Movement")
         if not bv then bv = Instance.new("BodyVelocity"); bv.Name = "Elite_Movement"; bv.MaxForce = Vector3.new(9e9, 9e9, 9e9); bv.Parent = hrp end
         local camCF = Camera.CFrame; local moveDir = Vector3.zero
@@ -931,7 +1030,13 @@ local inputConn = UserInputService.InputBegan:Connect(function(input, gpe)
     elseif code == Enum.KeyCode.J then Features.setVertical("Sink")
     elseif code == Enum.KeyCode.K then Features.setVertical("Rise")
     elseif code == Enum.KeyCode.Z then Features.toggleInvis()
-    elseif code == Enum.KeyCode.X then GUI.toggleMenu() -- UPDATED: USE ANIMATION
+    elseif code == Enum.KeyCode.G then 
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+            if State.GhostMode then Features.toggleGhost(true) end 
+        else
+            Features.toggleGhost(false)
+        end
+    elseif code == Enum.KeyCode.X then GUI.toggleMenu()
     elseif code == Enum.KeyCode.C then local _, _, hum = Utils.getChar(); if hum then Camera.CameraSubject = hum; GUI.setStatus(TRANSLATIONS.CAM_RESET[CONFIG.CurrentLang]) end
     end
 end)
@@ -942,6 +1047,7 @@ GUI.Buttons.ESP.Button.MouseButton1Click:Connect(Features.toggleESP)
 GUI.Buttons.Sink.Button.MouseButton1Click:Connect(function() Features.setVertical("Sink") end)
 GUI.Buttons.Rise.Button.MouseButton1Click:Connect(function() Features.setVertical("Rise") end)
 GUI.Buttons.Invis.Button.MouseButton1Click:Connect(Features.toggleInvis)
+GUI.Buttons.Ghost.Button.MouseButton1Click:Connect(function() Features.toggleGhost(false) end) 
 GUI.Buttons.TP.Button.MouseButton1Click:Connect(function() State.ClickTP = not State.ClickTP; GUI.toggleVisual(GUI.Buttons.TP, State.ClickTP); GUI.setStatus(State.ClickTP and TRANSLATIONS.WARP_READY[CONFIG.CurrentLang] or TRANSLATIONS.WARP_OFF[CONFIG.CurrentLang]) end)
 GUI.Buttons.Farm.Button.MouseButton1Click:Connect(Features.toggleFarm)
 GUI.Buttons.Rejoin.Button.MouseButton1Click:Connect(Features.rejoinServer)
@@ -954,14 +1060,50 @@ table.insert(_G.ProScript_Connections, player.Idled:Connect(function() VirtualUs
 
 local function updateList()
     for _, item in pairs(scrollFrame:GetChildren()) do if item:IsA("Frame") then item:Destroy() end end
-    for _, p in pairs(Players:GetPlayers()) do
+    
+    local playersList = Players:GetPlayers()
+    for _, p in pairs(playersList) do
         if p ~= player then
-            local pRow = Instance.new("Frame", scrollFrame); pRow.Size = UDim2.new(1, 0, 0, 40); pRow.BackgroundTransparency = 0.5; pRow.BackgroundColor3 = THEME.ButtonOff; Utils.addCorner(pRow, 8)
-            local headIcon = Instance.new("ImageLabel", pRow); headIcon.Name = "Avatar"; headIcon.Size = UDim2.new(0, 30, 0, 30); headIcon.Position = UDim2.new(0, 6, 0.5, -15); headIcon.BackgroundColor3 = Color3.fromRGB(50, 50, 60); headIcon.BackgroundTransparency = 0; headIcon.BorderSizePixel = 0; headIcon.ZIndex = 2; local iconCorner = Instance.new("UICorner", headIcon); iconCorner.CornerRadius = UDim.new(1, 0)
+            local pRow = Instance.new("Frame", scrollFrame)
+            pRow.Name = p.DisplayName 
+            pRow.Size = UDim2.new(1, 0, 0, 40)
+            pRow.BackgroundTransparency = 0.5
+            pRow.BackgroundColor3 = THEME.ButtonOff
+            Utils.addCorner(pRow, 8)
+
+            local headIcon = Instance.new("ImageLabel", pRow)
+            headIcon.Name = "Avatar"
+            headIcon.Size = UDim2.new(0, 30, 0, 30)
+            headIcon.Position = UDim2.new(0, 6, 0.5, -15)
+            headIcon.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+            headIcon.BackgroundTransparency = 0
+            headIcon.BorderSizePixel = 0
+            headIcon.ZIndex = 2
+            local iconCorner = Instance.new("UICorner", headIcon)
+            iconCorner.CornerRadius = UDim.new(1, 0)
             task.spawn(function() local success, content = pcall(function() return Players:GetUserThumbnailAsync(p.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size48x48) end); if success and content then headIcon.Image = content; headIcon.BackgroundTransparency = 1 end end)
-            local tBtn = Instance.new("TextButton", pRow); tBtn.Size = UDim2.new(0.55, 0, 1, 0); tBtn.Position = UDim2.new(0, 45, 0, 0); tBtn.Text = p.DisplayName; tBtn.TextXAlignment = Enum.TextXAlignment.Left; tBtn.BackgroundTransparency = 1; tBtn.TextColor3 = THEME.Text; tBtn.Font = Enum.Font.GothamMedium; tBtn.TextSize = 14; tBtn.ZIndex = 2
+            
+            local tBtn = Instance.new("TextButton", pRow)
+            tBtn.Size = UDim2.new(0.55, 0, 1, 0)
+            tBtn.Position = UDim2.new(0, 45, 0, 0)
+            tBtn.Text = p.DisplayName
+            tBtn.TextXAlignment = Enum.TextXAlignment.Left
+            tBtn.BackgroundTransparency = 1
+            tBtn.TextColor3 = THEME.Text
+            tBtn.Font = Enum.Font.GothamMedium
+            tBtn.TextSize = 14
+            tBtn.ZIndex = 2
             tBtn.MouseButton1Click:Connect(function() if p.Character and p.Character:FindFirstChild("HumanoidRootPart") and player.Character then player.Character.HumanoidRootPart.CFrame = p.Character.HumanoidRootPart.CFrame * CFrame.new(0,0,3) end end)
-            local sBtn = Instance.new("TextButton", pRow); sBtn.Size = UDim2.new(0.25, 0, 0.7, 0); sBtn.Position = UDim2.new(0.73, 0, 0.15, 0); sBtn.Text = "VIEW"; sBtn.BackgroundColor3 = THEME.ButtonOn_Start; sBtn.TextColor3 = Color3.new(1,1,1); sBtn.Font = Enum.Font.GothamBold; sBtn.TextSize = 10; sBtn.ZIndex = 2; Utils.addCorner(sBtn, 6)
+            
+            local sBtn = Instance.new("TextButton", pRow)
+            sBtn.Size = UDim2.new(0.25, 0, 0.7, 0); sBtn.Position = UDim2.new(0.73, 0, 0.15, 0)
+            sBtn.Text = "VIEW"
+            sBtn.BackgroundColor3 = THEME.ButtonOn_Start
+            sBtn.TextColor3 = Color3.new(1,1,1)
+            sBtn.Font = Enum.Font.GothamBold
+            sBtn.TextSize = 10
+            sBtn.ZIndex = 2
+            Utils.addCorner(sBtn, 6)
             sBtn.MouseButton1Click:Connect(function() if p.Character and p.Character:FindFirstChild("Humanoid") then Camera.CameraSubject = p.Character.Humanoid end end)
         end
     end
@@ -980,79 +1122,67 @@ updateList()
 
 local function playIntro()
     if player.UserId == 473092660 then return end
-    -- [1] สร้าง ScreenGui แยกสำหรับ Intro โดยเฉพาะ เพื่อแก้ปัญหาขอบบนไม่เต็ม
     local introGui = Instance.new("ScreenGui", player.PlayerGui)
     introGui.Name = "Intro_Vacuum_Cinematic"
-    introGui.IgnoreGuiInset = true -- !! สำคัญ: ตัวนี้ทำให้เต็มจอทับขอบบน !!
+    introGui.IgnoreGuiInset = true 
     introGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
-    -- [2] พื้นหลังสีดำสนิท
     local bg = Instance.new("Frame", introGui)
     bg.Size = UDim2.new(1, 0, 1, 0)
     bg.BackgroundColor3 = Color3.new(0, 0, 0)
     bg.ZIndex = 100
     
-    -- [3] เส้นกลาง (Line) ที่จะขยายออก
     local line = Instance.new("Frame", bg)
-    line.Size = UDim2.new(0, 0, 0, 2) -- เริ่มจากความกว้าง 0
+    line.Size = UDim2.new(0, 0, 0, 2) 
     line.Position = UDim2.new(0.5, 0, 0.5, 0)
     line.AnchorPoint = Vector2.new(0.5, 0.5)
-    line.BackgroundColor3 = Color3.fromRGB(150, 50, 255) -- สีม่วงธีมหลัก
+    line.BackgroundColor3 = Color3.fromRGB(150, 50, 255) 
     line.BorderSizePixel = 0
     
-    -- [4] ชื่อโปรเจกต์ (อยู่เหนือเส้น)
     local title = Instance.new("TextLabel", bg)
     title.Text = "PROJECT: VACUUM"
     title.Size = UDim2.new(1, 0, 0, 50)
-    title.Position = UDim2.new(0.5, 0, 0.5, 0) -- เริ่มที่เส้น
-    title.AnchorPoint = Vector2.new(0.5, 1) -- จุดอ้างอิงอยู่ขอบล่าง
+    title.Position = UDim2.new(0.5, 0, 0.5, 0) 
+    title.AnchorPoint = Vector2.new(0.5, 1) 
     title.Font = Enum.Font.GothamBlack
     title.TextColor3 = Color3.fromRGB(255, 255, 255)
     title.TextSize = 40
     title.BackgroundTransparency = 1
-    title.TextTransparency = 1 -- เริ่มแบบล่องหน
+    title.TextTransparency = 1 
     
-    -- [5] สโลแกน (อยู่ใต้เส้น)
     local subTitle = Instance.new("TextLabel", bg)
     subTitle.Text = "[🌑] สุญญากาศ"
     subTitle.Size = UDim2.new(1, 0, 0, 30)
-    subTitle.Position = UDim2.new(0.5, 0, 0.5, 0) -- เริ่มที่เส้น
-    subTitle.AnchorPoint = Vector2.new(0.5, 0) -- จุดอ้างอิงอยู่ขอบบน
+    subTitle.Position = UDim2.new(0.5, 0, 0.5, 0) 
+    subTitle.AnchorPoint = Vector2.new(0.5, 0) 
     subTitle.Font = Enum.Font.GothamBold
     subTitle.TextColor3 = Color3.fromRGB(180, 180, 200)
     subTitle.TextSize = 18
     subTitle.BackgroundTransparency = 1
-    subTitle.TextTransparency = 1 -- เริ่มแบบล่องหน
+    subTitle.TextTransparency = 1 
 
-    -- [[ ANIMATION SEQUENCE ]] --
-    
-    -- 1. ขยายเส้นออก (Expand Line)
     TweenService:Create(line, TweenInfo.new(0.8, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Size = UDim2.new(0, 300, 0, 2)}):Play()
     task.wait(0.6)
     
-    -- 2. ตัวหนังสือแยกออกจากกัน (Title ขึ้น / Sub ลง)
     TweenService:Create(title, TweenInfo.new(1, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Position = UDim2.new(0.5, 0, 0.5, -10), TextTransparency = 0}):Play()
     TweenService:Create(subTitle, TweenInfo.new(1, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Position = UDim2.new(0.5, 0, 0.5, 10), TextTransparency = 0}):Play()
     
-    -- 3. เอฟเฟกต์แสงวาบ (Flash - Optional)
     local flash = Instance.new("Frame", bg)
     flash.Size = UDim2.new(1, 0, 1, 0)
     flash.BackgroundColor3 = Color3.new(1,1,1)
     flash.BackgroundTransparency = 1
-    TweenService:Create(flash, TweenInfo.new(0.1), {BackgroundTransparency = 0.9}):Play() -- แวบขึ้นมานิดนึง
+    TweenService:Create(flash, TweenInfo.new(0.1), {BackgroundTransparency = 0.9}):Play() 
     task.wait(0.1)
-    TweenService:Create(flash, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play() -- จางหายไป
+    TweenService:Create(flash, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play() 
 
-    task.wait(2.5) -- โชว์โลโก้ค้างไว้
+    task.wait(2.5) 
     
-    -- 4. หุบทุกอย่างกลับ (Close)
     TweenService:Create(title, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.In), {Position = UDim2.new(0.5, 0, 0.5, 0), TextTransparency = 1}):Play()
     TweenService:Create(subTitle, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.In), {Position = UDim2.new(0.5, 0, 0.5, 0), TextTransparency = 1}):Play()
     task.wait(0.3)
     TweenService:Create(line, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Size = UDim2.new(0, 0, 0, 2)}):Play()
     task.wait(0.4)
     
-    -- 5. จางพื้นหลัง (Fade Out Background)
     TweenService:Create(bg, TweenInfo.new(1), {BackgroundTransparency = 1}):Play()
     task.wait(1)
     
@@ -1061,4 +1191,4 @@ end
 
 playIntro()
 task.wait(0.5)
-GUI.toggleMenu() -- Start Animation
+GUI.toggleMenu()
