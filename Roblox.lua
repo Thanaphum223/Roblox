@@ -1,4 +1,4 @@
--- [[ PROJECT: VACUUM - ULTIMATE EDITION (Ghost Mode Force-Move Fixed) ]] --
+-- [[ PROJECT: VACUUM - ULTIMATE EDITION (v5: Clean UI, Track Toggle) ]] --
 
 -- [[ ส่วนตรวจสอบรหัสแมพ ]] --
 local Supported_IDs = {
@@ -92,6 +92,9 @@ local THEME = {
     ButtonOn_Start = Color3.fromRGB(120, 0, 255),
     ButtonOn_End = Color3.fromRGB(50, 0, 150),
     ESP_Color = Color3.fromRGB(180, 100, 255),
+    Tracer_Color = Color3.fromRGB(255, 50, 50),
+    Track_Color = Color3.fromRGB(255, 140, 0), -- สีส้มสำหรับปุ่ม Track
+    Track_Active = Color3.fromRGB(50, 200, 50), -- สีเขียวเมื่อเปิด Track
     Text = Color3.fromRGB(240, 240, 255),
     TextDim = Color3.fromRGB(100, 100, 120),
     Stroke = Color3.fromRGB(60, 30, 90),
@@ -107,7 +110,7 @@ local TRANSLATIONS = {
     GHOST = {EN = "GHOST (G)", TH = "ถอดจิต (G)"},
     TP = {EN = "CLICK TP (T)", TH = "วาร์ป (T)"},
     FARM = {EN = "AUTO FARM", TH = "ออโต้ฟาร์ม"},
-    REJOIN = {EN = "REJOIN", TH = "เข้าเกมใหม่"},
+    REJOIN = {EN = "REJOIN", TH = "เข้าใหม่"},
     RESET = {EN = "RESET CAM (C)", TH = "รีเซ็ตกล้อง (C)"}, 
     LIST = {EN = "Player LIST", TH = "รายชื่อผู้เล่น"},
     HINT = {EN = "[X] TOGGLE MENU", TH = "[X] เปิด/ปิด เมนู"},
@@ -138,6 +141,7 @@ local TRANSLATIONS = {
 local State = {
     Flying = false,
     ESP = false,
+    TracerTarget = nil, -- เก็บคนที่เราเลือก (nil = ไม่ติดตามใคร)
     ClickTP = false,
     AutoFarm = false,
     Invisible = false,
@@ -329,8 +333,8 @@ GUI.StatusLabel.Text = TRANSLATIONS.STATUS_WAIT.EN
 
 -- [[ MAIN BAR (Bottom Center) ]] --
 GUI.MainBar = Instance.new("Frame", GUI.MenuContainer)
-GUI.MainBar.Size = UDim2.new(0, 1250, 0, 65) 
-GUI.MainBar.Position = UDim2.new(0.5, -625, 1.5, 0) 
+GUI.MainBar.Size = UDim2.new(0, 1150, 0, 65) -- ปรับขนาดกลับมาปกติ เพราะลบ Hop/Tracer ออก
+GUI.MainBar.Position = UDim2.new(0.5, -575, 1.5, 0) 
 GUI.MainBar.BackgroundColor3 = THEME.Background
 GUI.MainBar.BackgroundTransparency = 0.1
 Utils.addCorner(GUI.MainBar, 16)
@@ -371,7 +375,7 @@ GUI.Buttons.Lang = GUI.createBtn(GUI.MainBar, "LANG_BTN", 0.07)
 
 -- [[ SIDE PANEL (Right Side) ]] --
 GUI.SideFrame = Instance.new("Frame", GUI.MenuContainer)
-GUI.SideFrame.Size = UDim2.new(0, 280, 0, 450)
+GUI.SideFrame.Size = UDim2.new(0, 300, 0, 450)
 GUI.SideFrame.Position = UDim2.new(1.5, 0, 0.2, 0) 
 GUI.SideFrame.BackgroundColor3 = THEME.Background
 GUI.SideFrame.BackgroundTransparency = 0.1
@@ -655,7 +659,7 @@ end
 function GUI.toggleMenu()
     CONFIG.MenuVisible = not CONFIG.MenuVisible
     
-    local targetBarPos = CONFIG.MenuVisible and UDim2.new(0.5, -625, 0.85, 0) or UDim2.new(0.5, -625, 1.5, 0)
+    local targetBarPos = CONFIG.MenuVisible and UDim2.new(0.5, -575, 0.85, 0) or UDim2.new(0.5, -575, 1.5, 0)
     local targetSidePos = CONFIG.MenuVisible and UDim2.new(1, -300, 0.2, 0) or UDim2.new(1.5, 0, 0.2, 0)
     
     local animInfo = TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
@@ -759,16 +763,13 @@ function Features.toggleInvis()
     end
 end
 
--- [[ FIXED GHOST MODE (Physics-Bypass) ]] --
 function Features.toggleGhost(teleportToGhost)
     if not State.GhostMode then
-        -- 1. START
         local char = player.Character
         if not char or not char:FindFirstChild("HumanoidRootPart") then return end
 
         State.GhostMode = true
         State.RealCharacter = char
-        
         char.HumanoidRootPart.Anchored = true 
 
         char.Archivable = true
@@ -782,13 +783,12 @@ function Features.toggleGhost(teleportToGhost)
         for _, v in pairs(ghost:GetDescendants()) do
             if v:IsA("BasePart") or v:IsA("Decal") then
                 v.Transparency = 0.6
-                if v:IsA("BasePart") then v.CanCollide = false; v.Anchored = true end -- Anchored เพื่อไม่ให้ตกพื้น
+                if v:IsA("BasePart") then v.CanCollide = false; v.Anchored = true end 
             end
         end
 
         ghost.Parent = workspace
         State.GhostClone = ghost
-        
         Camera.CameraSubject = ghost:FindFirstChild("Humanoid")
         
         for _, v in pairs(char:GetDescendants()) do
@@ -799,9 +799,7 @@ function Features.toggleGhost(teleportToGhost)
         
         GUI.toggleVisual(GUI.Buttons.Ghost, true)
         GUI.setStatus(TRANSLATIONS.GHOST_STATUS[CONFIG.CurrentLang])
-
     else
-        -- 2. STOP
         local ghostHRP = State.GhostClone and State.GhostClone:FindFirstChild("HumanoidRootPart")
         local targetPos = ghostHRP and ghostHRP.CFrame or nil
         
@@ -828,7 +826,6 @@ function Features.toggleGhost(teleportToGhost)
         
         if State.Flying then Features.toggleFly() end
         Utils.restorePhysics()
-        
         GUI.toggleVisual(GUI.Buttons.Ghost, false)
         GUI.setStatus(TRANSLATIONS.STATUS_READY[CONFIG.CurrentLang])
     end
@@ -932,10 +929,13 @@ function Features.toggleFarm()
     end
 end
 
+-- [[ UPDATED: ESP & TRACER LOGIC ]] --
 function Features.updateESP()
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
             local char = p.Character
+            
+            -- [ESP BOX]
             if State.ESP then
                 if not char:FindFirstChild("Elite_Highlight") then
                     local hi = Instance.new("Highlight", char); hi.Name = "Elite_Highlight"; hi.FillTransparency = 0.5; hi.FillColor = THEME.ESP_Color; hi.OutlineColor = THEME.ESP_Color
@@ -946,12 +946,40 @@ function Features.updateESP()
                 if char:FindFirstChild("Elite_Highlight") then char.Elite_Highlight:Destroy() end
                 if char:FindFirstChild("Elite_Tag") then char.Elite_Tag:Destroy() end
             end
+
+            -- [TRACER BEAM LOGIC: ONLY IF TARGET MATCHES]
+            local shouldDrawBeam = (State.TracerTarget == p) -- Check if target is this player
+
+            if shouldDrawBeam then
+                local myChar = player.Character
+                if myChar and myChar:FindFirstChild("HumanoidRootPart") then
+                    local myAtt = myChar.HumanoidRootPart:FindFirstChild("MyTracerAtt")
+                    if not myAtt then myAtt = Instance.new("Attachment", myChar.HumanoidRootPart); myAtt.Name = "MyTracerAtt" end
+                    
+                    local targetAtt = char.HumanoidRootPart:FindFirstChild("TargetTracerAtt")
+                    if not targetAtt then targetAtt = Instance.new("Attachment", char.HumanoidRootPart); targetAtt.Name = "TargetTracerAtt" end
+                    
+                    if not char:FindFirstChild("Elite_Beam") then
+                        local beam = Instance.new("Beam", char)
+                        beam.Name = "Elite_Beam"
+                        beam.Attachment0 = myAtt
+                        beam.Attachment1 = targetAtt
+                        beam.FaceCamera = true
+                        beam.Width0 = 0.1; beam.Width1 = 0.1
+                        beam.Color = ColorSequence.new(THEME.Tracer_Color)
+                    else
+                        char.Elite_Beam.Attachment0 = myAtt
+                    end
+                end
+            else
+                if char:FindFirstChild("Elite_Beam") then char.Elite_Beam:Destroy() end
+            end
         end
     end
 end
 
 function Features.toggleESP()
-    State.ESP = not State.ESP; GUI.toggleVisual(GUI.Buttons.ESP, State.ESP); Features.updateESP(); GUI.setStatus(State.ESP and TRANSLATIONS.VISUAL_ON[CONFIG.CurrentLang] or TRANSLATIONS.VISUAL_OFF[CONFIG.CurrentLang])
+    State.ESP = not State.ESP; GUI.toggleVisual(GUI.Buttons.ESP, State.ESP); Features.updateESP()
 end
 
 function Features.toggleFly()
@@ -975,7 +1003,6 @@ end
 ---------------------------------------------------------------------------------
 
 local runConn = RunService.Stepped:Connect(function()
-    -- [[ 1. GHOST MOVE LOGIC (Direct CFrame Manipulation) ]] --
     if State.GhostMode and State.GhostClone then
         local ghostHRP = State.GhostClone:FindFirstChild("HumanoidRootPart")
         if ghostHRP then
@@ -990,15 +1017,13 @@ local runConn = RunService.Stepped:Connect(function()
             if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveVector = moveVector - Vector3.new(0, 1, 0) end
             
             if moveVector.Magnitude > 0 then
-                moveVector = moveVector.Unit * (CONFIG.Speed * 2) -- ความเร็วการขยับ
+                moveVector = moveVector.Unit * (CONFIG.Speed * 2) 
                 ghostHRP.CFrame = ghostHRP.CFrame + moveVector
             end
-            -- หันหน้าตามกล้อง
             ghostHRP.CFrame = CFrame.new(ghostHRP.Position, ghostHRP.Position + camCF.LookVector)
         end
     end
 
-    -- 2. NORMAL FLY
     local char, hrp, hum = Utils.getChar()
     if not char then return end
     
@@ -1058,6 +1083,7 @@ table.insert(_G.ProScript_Connections, Mouse.Button1Down:Connect(Features.telepo
 table.insert(_G.ProScript_Connections, speedInput:GetPropertyChangedSignal("Text"):Connect(function() CONFIG.Speed = tonumber(speedInput.Text) or 1 end))
 table.insert(_G.ProScript_Connections, player.Idled:Connect(function() VirtualUser:CaptureController(); VirtualUser:ClickButton2(Vector2.new()); GUI.setStatus(TRANSLATIONS.AFK[CONFIG.CurrentLang]) end))
 
+-- [[ UPDATED PLAYER LIST (Toggle Track) ]] --
 local function updateList()
     for _, item in pairs(scrollFrame:GetChildren()) do if item:IsA("Frame") then item:Destroy() end end
     
@@ -1084,7 +1110,7 @@ local function updateList()
             task.spawn(function() local success, content = pcall(function() return Players:GetUserThumbnailAsync(p.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size48x48) end); if success and content then headIcon.Image = content; headIcon.BackgroundTransparency = 1 end end)
             
             local tBtn = Instance.new("TextButton", pRow)
-            tBtn.Size = UDim2.new(0.55, 0, 1, 0)
+            tBtn.Size = UDim2.new(0.45, 0, 1, 0) 
             tBtn.Position = UDim2.new(0, 45, 0, 0)
             tBtn.Text = p.DisplayName
             tBtn.TextXAlignment = Enum.TextXAlignment.Left
@@ -1096,7 +1122,8 @@ local function updateList()
             tBtn.MouseButton1Click:Connect(function() if p.Character and p.Character:FindFirstChild("HumanoidRootPart") and player.Character then player.Character.HumanoidRootPart.CFrame = p.Character.HumanoidRootPart.CFrame * CFrame.new(0,0,3) end end)
             
             local sBtn = Instance.new("TextButton", pRow)
-            sBtn.Size = UDim2.new(0.25, 0, 0.7, 0); sBtn.Position = UDim2.new(0.73, 0, 0.15, 0)
+            sBtn.Size = UDim2.new(0.2, 0, 0.7, 0); 
+            sBtn.Position = UDim2.new(0.55, 0, 0.15, 0)
             sBtn.Text = "VIEW"
             sBtn.BackgroundColor3 = THEME.ButtonOn_Start
             sBtn.TextColor3 = Color3.new(1,1,1)
@@ -1105,6 +1132,41 @@ local function updateList()
             sBtn.ZIndex = 2
             Utils.addCorner(sBtn, 6)
             sBtn.MouseButton1Click:Connect(function() if p.Character and p.Character:FindFirstChild("Humanoid") then Camera.CameraSubject = p.Character.Humanoid end end)
+
+            -- [[ ปุ่ม TRACK (กดเปิด/ปิด) ]] --
+            local trackBtn = Instance.new("TextButton", pRow)
+            trackBtn.Size = UDim2.new(0.2, 0, 0.7, 0); 
+            trackBtn.Position = UDim2.new(0.78, 0, 0.15, 0)
+            trackBtn.Text = "TRACK"
+            trackBtn.Font = Enum.Font.GothamBold
+            trackBtn.TextSize = 9
+            trackBtn.ZIndex = 2
+            Utils.addCorner(trackBtn, 6)
+            
+            -- เช็คสถานะปัจจุบันเพื่อเปลี่ยนสีปุ่ม
+            if State.TracerTarget == p then
+                trackBtn.BackgroundColor3 = THEME.Track_Active -- สีเขียว
+                trackBtn.TextColor3 = Color3.new(1,1,1)
+            else
+                trackBtn.BackgroundColor3 = THEME.Track_Color -- สีส้ม
+                trackBtn.TextColor3 = Color3.new(1,1,1)
+            end
+            
+            trackBtn.MouseButton1Click:Connect(function()
+                if State.TracerTarget == p then
+                    -- ปิด (กดซ้ำ)
+                    State.TracerTarget = nil 
+                    GUI.setStatus("Tracker: OFF")
+                    trackBtn.BackgroundColor3 = THEME.Track_Color
+                else
+                    -- เปิด (เปลี่ยนเป้าหมาย)
+                    State.TracerTarget = p 
+                    GUI.setStatus("Tracking: " .. p.DisplayName)
+                    trackBtn.BackgroundColor3 = THEME.Track_Active
+                end
+                Features.updateESP()
+                updateList() -- รีโหลด List เพื่ออัพเดทสีปุ่ม
+            end)
         end
     end
     scrollFrame.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 10)
@@ -1112,7 +1174,7 @@ end
 
 local function bindPlayerEvents(p)
     if p == player then return end 
-    local conn = p.CharacterAdded:Connect(function(char) task.wait(1); if State.ESP then Features.updateESP() end end)
+    local conn = p.CharacterAdded:Connect(function(char) task.wait(1); if State.TracerTarget == p then Features.updateESP() end end)
     table.insert(_G.ProScript_Connections, conn)
 end
 for _, p in pairs(Players:GetPlayers()) do bindPlayerEvents(p) end
