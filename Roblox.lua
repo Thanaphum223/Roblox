@@ -1,4 +1,4 @@
--- [[ PROJECT: VACUUM - ULTIMATE EDITION (v5: Clean UI, Track Toggle) ]] --
+-- [[ PROJECT: VACUUM - ULTIMATE EDITION (v5.1: Fixed ESP/Reset) ]] --
 
 -- [[ ส่วนตรวจสอบรหัสแมพ ]] --
 local Supported_IDs = {
@@ -19,7 +19,7 @@ end
 _G.ProScript_Connections = {}
 
 for _, gui in pairs(player.PlayerGui:GetChildren()) do
-    if gui.Name:match("ControlGui_Pro") then gui:Destroy() end
+    if gui.Name:match("ControlGui_Pro") or gui.Name == "Intro_Vacuum_Cinematic" then gui:Destroy() end
 end
 
 ---------------------------------------------------------------------------------
@@ -333,7 +333,7 @@ GUI.StatusLabel.Text = TRANSLATIONS.STATUS_WAIT.EN
 
 -- [[ MAIN BAR (Bottom Center) ]] --
 GUI.MainBar = Instance.new("Frame", GUI.MenuContainer)
-GUI.MainBar.Size = UDim2.new(0, 1150, 0, 65) -- ปรับขนาดกลับมาปกติ เพราะลบ Hop/Tracer ออก
+GUI.MainBar.Size = UDim2.new(0, 1150, 0, 65)
 GUI.MainBar.Position = UDim2.new(0.5, -575, 1.5, 0) 
 GUI.MainBar.BackgroundColor3 = THEME.Background
 GUI.MainBar.BackgroundTransparency = 0.1
@@ -947,8 +947,8 @@ function Features.updateESP()
                 if char:FindFirstChild("Elite_Tag") then char.Elite_Tag:Destroy() end
             end
 
-            -- [TRACER BEAM LOGIC: ONLY IF TARGET MATCHES]
-            local shouldDrawBeam = (State.TracerTarget == p) -- Check if target is this player
+            -- [TRACER BEAM LOGIC]
+            local shouldDrawBeam = (State.TracerTarget == p) 
 
             if shouldDrawBeam then
                 local myChar = player.Character
@@ -1133,7 +1133,7 @@ local function updateList()
             Utils.addCorner(sBtn, 6)
             sBtn.MouseButton1Click:Connect(function() if p.Character and p.Character:FindFirstChild("Humanoid") then Camera.CameraSubject = p.Character.Humanoid end end)
 
-            -- [[ ปุ่ม TRACK (กดเปิด/ปิด) ]] --
+            -- [[ ปุ่ม TRACK ]] --
             local trackBtn = Instance.new("TextButton", pRow)
             trackBtn.Size = UDim2.new(0.2, 0, 0.7, 0); 
             trackBtn.Position = UDim2.new(0.78, 0, 0.15, 0)
@@ -1143,47 +1143,69 @@ local function updateList()
             trackBtn.ZIndex = 2
             Utils.addCorner(trackBtn, 6)
             
-            -- เช็คสถานะปัจจุบันเพื่อเปลี่ยนสีปุ่ม
             if State.TracerTarget == p then
-                trackBtn.BackgroundColor3 = THEME.Track_Active -- สีเขียว
+                trackBtn.BackgroundColor3 = THEME.Track_Active
                 trackBtn.TextColor3 = Color3.new(1,1,1)
             else
-                trackBtn.BackgroundColor3 = THEME.Track_Color -- สีส้ม
+                trackBtn.BackgroundColor3 = THEME.Track_Color
                 trackBtn.TextColor3 = Color3.new(1,1,1)
             end
             
             trackBtn.MouseButton1Click:Connect(function()
                 if State.TracerTarget == p then
-                    -- ปิด (กดซ้ำ)
                     State.TracerTarget = nil 
                     GUI.setStatus("Tracker: OFF")
                     trackBtn.BackgroundColor3 = THEME.Track_Color
                 else
-                    -- เปิด (เปลี่ยนเป้าหมาย)
                     State.TracerTarget = p 
                     GUI.setStatus("Tracking: " .. p.DisplayName)
                     trackBtn.BackgroundColor3 = THEME.Track_Active
                 end
                 Features.updateESP()
-                updateList() -- รีโหลด List เพื่ออัพเดทสีปุ่ม
+                updateList()
             end)
         end
     end
     scrollFrame.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 10)
 end
 
+-- [[ UPDATED: EVENT BINDINGS (แก้บั๊ก ESP ไม่ขึ้นตอนตาย) ]] --
 local function bindPlayerEvents(p)
     if p == player then return end 
-    local conn = p.CharacterAdded:Connect(function(char) task.wait(1); if State.TracerTarget == p then Features.updateESP() end end)
+    
+    local conn = p.CharacterAdded:Connect(function(char)
+        -- รอให้ตัวละครโหลดเสร็จจริงๆ
+        local waited = 0
+        while waited < 3 and not char:FindFirstChild("HumanoidRootPart") do
+            waited = waited + task.wait(0.1)
+        end
+        
+        -- ถ้าเปิด ESP ค้างไว้ หรือ กำลัง Track คนนี้อยู่ ให้อัปเดตทันที
+        if State.ESP or State.TracerTarget == p then
+            Features.updateESP()
+        end
+    end)
     table.insert(_G.ProScript_Connections, conn)
 end
-for _, p in pairs(Players:GetPlayers()) do bindPlayerEvents(p) end
-table.insert(_G.ProScript_Connections, Players.PlayerAdded:Connect(function(p) bindPlayerEvents(p); Features.updateESP(); updateList() end))
+
+-- Bind event ให้คนที่อยู่ในเซิร์ฟอยู่แล้ว
+for _, p in pairs(Players:GetPlayers()) do 
+    bindPlayerEvents(p) 
+    if p.Character and State.ESP then Features.updateESP() end
+end
+
+-- Bind event ให้คนที่เพิ่งเข้าใหม่
+table.insert(_G.ProScript_Connections, Players.PlayerAdded:Connect(function(p) 
+    bindPlayerEvents(p)
+    updateList() 
+end))
+
 table.insert(_G.ProScript_Connections, Players.PlayerRemoving:Connect(updateList))
 updateList()
 
+-- [[ INTRO SEQUENCE ]] --
 local function playIntro()
-    if player.UserId == 473092660 then return end
+    if player.UserId == 473092660 then return end -- Skip intro for dev/specific user
     local introGui = Instance.new("ScreenGui", player.PlayerGui)
     introGui.Name = "Intro_Vacuum_Cinematic"
     introGui.IgnoreGuiInset = true 
