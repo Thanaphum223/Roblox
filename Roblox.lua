@@ -1,13 +1,29 @@
--- [[ PROJECT: VACUUM - ULTIMATE EDITION (v5.1: Fixed ESP/Reset) ]] --
+-- [[ PROJECT: VACUUM - ULTIMATE EDITION (v5.2: LOCKED MAP) ]] --
 
--- [[ ส่วนตรวจสอบรหัสแมพ ]] --
+---------------------------------------------------------------------------------
+-- [[ 0. SECURITY & MAP LOCK ]] --
+---------------------------------------------------------------------------------
+local PlaceID = game.PlaceId
 local Supported_IDs = {
     [8391915840] = true, -- Map เก่า
-    [8125861255] = true,  -- Map ใหม่
+    [8125861255] = true, -- Map ใหม่
     [99002761413888] = true, -- Map Unnamed
 }
 
+if not Supported_IDs[PlaceID] then
+    local StarterGui = game:GetService("StarterGui")
+    StarterGui:SetCore("SendNotification", {
+        Title = "🚫 WRONG MAP",
+        Text = "Script stopped. This map ID (".. tostring(PlaceID) ..") is not supported.",
+        Duration = 10
+    })
+    warn("[VACUUM]: Script Stopped - Invalid Map ID")
+    return -- <<< หยุดการทำงานทันทีถ้าแมพไม่ตรง
+end
+
+---------------------------------------------------------------------------------
 -- [[ 1. SYSTEM CLEANUP ]] --
+---------------------------------------------------------------------------------
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 
@@ -54,7 +70,7 @@ local MapSettings = {
         Locations = { Job=CFrame.new(0,5,0), Fill=CFrame.new(0,5,0), Sell=CFrame.new(0,5,0) }
     }
 }
-local CurrentMapData = MapSettings[game.PlaceId] or MapSettings[8391915840]
+local CurrentMapData = MapSettings[PlaceID] or MapSettings[8391915840]
 
 -- [[ CONFIGURATION ]] --
 local CONFIG = {
@@ -78,7 +94,7 @@ local CONFIG = {
     SpecialWarps = {
         {Name = {EN = "Spawn",       TH = "จุดเกิด"},        Pos = CFrame.new(7.92047453, 2.40828323, 100.69519)},
         {Name = {EN = "Color Point", TH = "จุดชื่อสี"},      Pos = CFrame.new(14.6551895, -53.0000038, 16.1253815)},
-        {Name = {EN = "Und. Shop",   TH = "ร้านใต้ดิน"},    Pos = CFrame.new(1183.3916, -226.482635, -537.569092)},
+        {Name = {EN = "Und. Shop",   TH = "ร้านใต้ดิน"},     Pos = CFrame.new(1183.3916, -226.482635, -537.569092)},
         {Name = {EN = "Pavilion",    TH = "ศาลาน้ำ"},       Pos = CFrame.new(-546.928711, -93.0000076, 381.976349)}
     }
 }
