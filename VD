@@ -1,5 +1,5 @@
--- [[ PROJECT: VIOLENCE DISTRICT - ULTIMATE V4 ]] --
--- [[ UPDATE: NEW MATH (104-114 Offset) & BETTER KILLER ESP ]] --
+-- [[ PROJECT: VIOLENCE DISTRICT - HYBRID PERFECT ]] --
+-- [[ MIX: CLASSIC ESP + NEW MATH (104-114) ]] --
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -24,27 +24,21 @@ local SETTINGS = {
     Noclip_Enabled = false,
     AutoSkill_Enabled = true,
 
-    -- ESP Colors
+    -- ESP Colors (แบบดั้งเดิม)
     SurvivorColor = Color3.fromRGB(0, 255, 100),   
     KillerColor = Color3.fromRGB(255, 0, 0),       
     SuspectColor = Color3.fromRGB(255, 170, 0),    
     GenColor = Color3.fromRGB(0, 255, 255),
     
-    -- Config Skill Check (ใช้ชื่อ UI ที่ถูกต้อง)
+    -- Config UI Skill Check
     GUI_NAME = "SkillCheckPromptGui",
     FRAME_NAME = "Check",
     NEEDLE_NAME = "Line",
     GOAL_NAME = "Goal",
 }
 
--- รายชื่ออาวุธฆาตกร (ถ้าถือสิ่งเหล่านี้ = Killer)
-local KILLER_ITEMS = {
-    "knife", "bat", "axe", "machete", "saw", "gun", "hammer", "sword", "katana", "pipe", "cleaver", "weapon"
-}
--- รายชื่อของ Survivor
-local SURVIVOR_ITEMS = {
-    "medkit", "firstaid", "bandage", "flashlight", "phone", "key", "card", "soda", "drink"
-}
+local KILLER_ITEMS = {"knife", "bat", "axe", "machete", "saw", "gun", "hammer", "sword", "katana", "pipe"}
+local SURVIVOR_ITEMS = {"medkit", "firstaid", "bandage", "flashlight", "phone", "key", "card", "soda"}
 
 ---------------------------------------------------------------------------------
 -- 1. CLEANUP
@@ -64,46 +58,36 @@ end
 CleanVisuals() 
 
 ---------------------------------------------------------------------------------
--- 2. BETTER ROLE DETECTION (แก้ Killer เป็นคนปกติ)
+-- 2. CLASSIC ESP LOGIC (แบบเดิมที่เคยใช้)
 ---------------------------------------------------------------------------------
 local function GetPlayerRole(plr)
     if not plr or not plr.Character then return "Unknown" end
     
-    -- 1. เช็คจากชื่อทีมก่อน (ถ้ามี)
+    -- เช็คทีม
     if plr.Team then
         local tName = plr.Team.Name:lower()
-        if tName:match("kill") or tName:match("murder") or tName:match("hunter") then return "Killer" end
+        if tName:match("kill") or tName:match("murder") then return "Killer" end
         if tName:match("surviv") or tName:match("innocent") then return "Survivor" end
     end
 
-    -- 2. สแกนหาอาวุธในตัว (Character) และในกระเป๋า (Backpack)
-    -- วิธีนี้ช่วยให้รู้ว่าเป็น Killer แม้จะเก็บอาวุธเข้ากระเป๋า
-    local items = {}
-    for _, item in pairs(plr.Character:GetChildren()) do if item:IsA("Tool") then table.insert(items, item.Name:lower()) end end
-    if plr:FindFirstChild("Backpack") then
-        for _, item in pairs(plr.Backpack:GetChildren()) do if item:IsA("Tool") then table.insert(items, item.Name:lower()) end end
+    -- เช็คของในมือ (Character) และ Backpack แบบธรรมดา
+    local function CheckItems(container)
+        for _, item in pairs(container:GetChildren()) do
+            if item:IsA("Tool") then
+                local name = item.Name:lower()
+                for _, k in ipairs(KILLER_ITEMS) do if name:match(k) then return "Killer" end end
+                for _, s in ipairs(SURVIVOR_ITEMS) do if name:match(s) then return "Survivor" end end
+            end
+        end
+        return nil
     end
 
-    for _, itemName in ipairs(items) do
-        for _, kItem in ipairs(KILLER_ITEMS) do 
-            if itemName:match(kItem) then return "Killer" end 
-        end
-    end
+    local role = CheckItems(plr.Character)
+    if not role and plr:FindFirstChild("Backpack") then role = CheckItems(plr.Backpack) end
     
-    -- ถ้าไม่เจออาวุธ Killer ลองเช็คของ Survivor
-    for _, itemName in ipairs(items) do
-        for _, sItem in ipairs(SURVIVOR_ITEMS) do 
-            if itemName:match(sItem) then return "Survivor" end 
-        end
-    end
-
-    -- ถ้าไม่รู้อะไรเลย ให้เดาว่าเป็น Suspect (ผู้ต้องสงสัย)
-    return "Suspect" 
+    return role or "Suspect"
 end
 
----------------------------------------------------------------------------------
--- 3. ESP SYSTEM
----------------------------------------------------------------------------------
 local function CreatePlayerESP(target, text, color)
     if not target then return end
     local char = target.Parent
@@ -144,6 +128,8 @@ local function UpdatePlayerESP()
         if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
             local role = GetPlayerRole(p)
             local dist = (LocalPlayer.Character.HumanoidRootPart.Position - p.Character.HumanoidRootPart.Position).Magnitude
+            
+            -- รูปแบบข้อความแบบเดิม
             local text = "[☺] " .. p.DisplayName .. string.format(" [%d m]", math.floor(dist))
             local color = SETTINGS.SurvivorColor
             
@@ -183,16 +169,15 @@ local function UpdateGenESP()
 end
 
 ---------------------------------------------------------------------------------
--- 4. NEW AUTO SKILL CHECK (Offset Math Logic)
+-- 3. NEW MATH AUTO SKILL CHECK (104-114 Offset)
 ---------------------------------------------------------------------------------
--- ฟังก์ชันนี้ก๊อปปี้ตรรกะมาจากสคริปต์ที่คุณให้มาเลยครับ
 local function LineInGoal(Line, Goal)
     local lr = Line.Rotation % 360
     local gr = Goal.Rotation % 360
     
-    -- [[ สูตรเด็ด: บวกเพิ่ม 104 ถึง 114 องศา ]] --
-    local gs = (gr + 104) % 360 -- จุดเริ่มกด
-    local ge = (gr + 114) % 360 -- จุดหยุดกด
+    -- สูตรที่เป๊ะที่สุดตอนนี้
+    local gs = (gr + 104) % 360
+    local ge = (gr + 114) % 360
 
     if gs > ge then
         return lr >= gs or lr <= ge
@@ -214,14 +199,11 @@ local function AutoSkillCheck()
             local goal = checkFrame:FindFirstChild(SETTINGS.GOAL_NAME)
 
             if needle and goal then
-                -- เช็คด้วยสูตรใหม่
                 if LineInGoal(needle, goal) then
                     VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-                    task.wait(0.01) -- กดไวๆ
+                    task.wait(0.01)
                     VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
-                    
-                    -- หน่วงเวลานิดนึงกันกดซ้ำในรอบเดิม
-                    task.wait(0.1) 
+                    task.wait(0.1) -- กันเบิ้ล
                 end
             end
         end
@@ -229,9 +211,8 @@ local function AutoSkillCheck()
 end
 
 ---------------------------------------------------------------------------------
--- 5. RUN LOOPS
+-- 4. RUN LOOPS
 ---------------------------------------------------------------------------------
--- Loop เร็ว (Skill Check + Noclip)
 RunService.RenderStepped:Connect(function()
     AutoSkillCheck()
 end)
@@ -244,11 +225,10 @@ RunService.Stepped:Connect(function()
     end
 end)
 
--- Loop ช้า (ESP)
 task.spawn(function()
     while true do
         if SETTINGS.ESP_Enabled then UpdatePlayerESP() else CleanVisuals() end
-        task.wait(0.5) -- เช็คทุกครึ่งวินาที
+        task.wait(0.5)
     end
 end)
 
@@ -259,7 +239,6 @@ task.spawn(function()
     end
 end)
 
--- Inputs
 if UserInputService then
     UserInputService.InputBegan:Connect(function(input, gpe)
         if gpe then return end
@@ -286,7 +265,7 @@ if UserInputService then
 end
 
 StarterGui:SetCore("SendNotification", {
-    Title = "ULTIMATE V4";
-    Text = "New Math + Better Killer ESP Loaded!";
+    Title = "HYBRID LOADED";
+    Text = "Classic ESP + Perfect Math (104)";
     Duration = 5;
-}) 
+})
