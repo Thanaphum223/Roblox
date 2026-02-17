@@ -1,5 +1,5 @@
--- [[ PROJECT: VIOLENCE DISTRICT - HYBRID PERFECT ]] --
--- [[ MIX: CLASSIC ESP + NEW MATH (104-114) ]] --
+-- [[ PROJECT: VIOLENCE DISTRICT - INSTANT V5 ]] --
+-- [[ FIX: INSTANT TOGGLE RESPONSE (NO DELAY) ]] --
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -11,37 +11,35 @@ local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
 ---------------------------------------------------------------------------------
--- [SETTINGS] ตั้งค่า
+-- [SETTINGS]
 ---------------------------------------------------------------------------------
 local SETTINGS = {
-    -- Keybinds
     Key_ESP = Enum.KeyCode.E,
     Key_Noclip = Enum.KeyCode.R,
     Key_AutoSkill = Enum.KeyCode.G, 
 
-    -- Toggles
     ESP_Enabled = true,            
     Noclip_Enabled = false,
     AutoSkill_Enabled = true,
 
-    -- ESP Colors (แบบดั้งเดิม)
+    -- Colors
     SurvivorColor = Color3.fromRGB(0, 255, 100),   
     KillerColor = Color3.fromRGB(255, 0, 0),       
     SuspectColor = Color3.fromRGB(255, 170, 0),    
     GenColor = Color3.fromRGB(0, 255, 255),
     
-    -- Config UI Skill Check
+    -- Config UI
     GUI_NAME = "SkillCheckPromptGui",
     FRAME_NAME = "Check",
     NEEDLE_NAME = "Line",
     GOAL_NAME = "Goal",
 }
 
-local KILLER_ITEMS = {"knife", "bat", "axe", "machete", "saw", "gun", "hammer", "sword", "katana", "pipe"}
+local KILLER_ITEMS = {"knife", "bat", "axe", "machete", "saw", "gun", "hammer", "sword", "katana", "pipe", "weapon"}
 local SURVIVOR_ITEMS = {"medkit", "firstaid", "bandage", "flashlight", "phone", "key", "card", "soda"}
 
 ---------------------------------------------------------------------------------
--- 1. CLEANUP
+-- 1. CLEANUP & UTILS
 ---------------------------------------------------------------------------------
 if _G.ProScript_Connections then
     for _, conn in pairs(_G.ProScript_Connections) do
@@ -55,22 +53,19 @@ local function CleanVisuals()
         if v.Name:match("ESP") and (v:IsA("Highlight") or v:IsA("BillboardGui")) then v:Destroy() end
     end
 end
+-- ล้างค่าเก่าทิ้งก่อนเริ่ม
 CleanVisuals() 
 
 ---------------------------------------------------------------------------------
--- 2. CLASSIC ESP LOGIC (แบบเดิมที่เคยใช้)
+-- 2. CORE LOGIC
 ---------------------------------------------------------------------------------
 local function GetPlayerRole(plr)
     if not plr or not plr.Character then return "Unknown" end
-    
-    -- เช็คทีม
-    if plr.Team then
-        local tName = plr.Team.Name:lower()
-        if tName:match("kill") or tName:match("murder") then return "Killer" end
-        if tName:match("surviv") or tName:match("innocent") then return "Survivor" end
+    local success, teamName = pcall(function() return plr.Team.Name:lower() end)
+    if success and teamName then
+        if teamName:match("kill") or teamName:match("murder") then return "Killer" end
+        if teamName:match("surviv") or teamName:match("innocent") then return "Survivor" end
     end
-
-    -- เช็คของในมือ (Character) และ Backpack แบบธรรมดา
     local function CheckItems(container)
         for _, item in pairs(container:GetChildren()) do
             if item:IsA("Tool") then
@@ -81,19 +76,16 @@ local function GetPlayerRole(plr)
         end
         return nil
     end
-
     local role = CheckItems(plr.Character)
     if not role and plr:FindFirstChild("Backpack") then role = CheckItems(plr.Backpack) end
-    
     return role or "Suspect"
 end
 
 local function CreatePlayerESP(target, text, color)
-    if not target then return end
+    if not target or not target.Parent then return end
     local char = target.Parent
     local hi = char:FindFirstChild("RoleESP_Highlight")
     local bg = target:FindFirstChild("RoleESP_Tag")
-
     if not hi then
         hi = Instance.new("Highlight", char)
         hi.Name = "RoleESP_Highlight"
@@ -102,7 +94,6 @@ local function CreatePlayerESP(target, text, color)
     end
     hi.FillColor = color
     hi.OutlineColor = color
-    
     if not bg then
         bg = Instance.new("BillboardGui", target)
         bg.Name = "RoleESP_Tag"
@@ -124,23 +115,23 @@ local function CreatePlayerESP(target, text, color)
 end
 
 local function UpdatePlayerESP()
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-            local role = GetPlayerRole(p)
-            local dist = (LocalPlayer.Character.HumanoidRootPart.Position - p.Character.HumanoidRootPart.Position).Magnitude
-            
-            -- รูปแบบข้อความแบบเดิม
-            local text = "[☺] " .. p.DisplayName .. string.format(" [%d m]", math.floor(dist))
-            local color = SETTINGS.SurvivorColor
-            
-            if role == "Killer" then 
-                color = SETTINGS.KillerColor
-                text = "[💀 KILLER] " .. p.DisplayName .. string.format(" [%d m]", math.floor(dist))
-            elseif role == "Suspect" then 
-                color = SETTINGS.SuspectColor
-                text = "[?] " .. p.DisplayName .. string.format(" [%d m]", math.floor(dist))
-            end
-            CreatePlayerESP(p.Character.HumanoidRootPart, text, color)
+            pcall(function()
+                local role = GetPlayerRole(p)
+                local dist = (LocalPlayer.Character.HumanoidRootPart.Position - p.Character.HumanoidRootPart.Position).Magnitude
+                local text = "[☺] " .. p.DisplayName .. string.format(" [%d m]", math.floor(dist))
+                local color = SETTINGS.SurvivorColor
+                if role == "Killer" then 
+                    color = SETTINGS.KillerColor
+                    text = "[💀 KILLER] " .. p.DisplayName .. string.format(" [%d m]", math.floor(dist))
+                elseif role == "Suspect" then 
+                    color = SETTINGS.SuspectColor
+                    text = "[?] " .. p.DisplayName .. string.format(" [%d m]", math.floor(dist))
+                end
+                CreatePlayerESP(p.Character.HumanoidRootPart, text, color)
+            end)
         end
     end
 end
@@ -168,42 +159,30 @@ local function UpdateGenESP()
     end
 end
 
----------------------------------------------------------------------------------
--- 3. NEW MATH AUTO SKILL CHECK (104-114 Offset)
----------------------------------------------------------------------------------
+-- Math Fix (104 Degree)
 local function LineInGoal(Line, Goal)
     local lr = Line.Rotation % 360
     local gr = Goal.Rotation % 360
-    
-    -- สูตรที่เป๊ะที่สุดตอนนี้
     local gs = (gr + 104) % 360
     local ge = (gr + 114) % 360
-
-    if gs > ge then
-        return lr >= gs or lr <= ge
-    else
-        return lr >= gs and lr <= ge
-    end
+    if gs > ge then return lr >= gs or lr <= ge else return lr >= gs and lr <= ge end
 end
 
 local function AutoSkillCheck()
     if not SETTINGS.AutoSkill_Enabled then return end
-    
     pcall(function()
         local mainGui = PlayerGui:FindFirstChild(SETTINGS.GUI_NAME)
         if not mainGui then return end
-        
         local checkFrame = mainGui:FindFirstChild(SETTINGS.FRAME_NAME, true)
         if checkFrame and checkFrame.Visible then
             local needle = checkFrame:FindFirstChild(SETTINGS.NEEDLE_NAME)
             local goal = checkFrame:FindFirstChild(SETTINGS.GOAL_NAME)
-
             if needle and goal then
                 if LineInGoal(needle, goal) then
                     VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
                     task.wait(0.01)
                     VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
-                    task.wait(0.1) -- กันเบิ้ล
+                    task.wait(0.1)
                 end
             end
         end
@@ -211,11 +190,9 @@ local function AutoSkillCheck()
 end
 
 ---------------------------------------------------------------------------------
--- 4. RUN LOOPS
+-- 3. LOOPS
 ---------------------------------------------------------------------------------
-RunService.RenderStepped:Connect(function()
-    AutoSkillCheck()
-end)
+RunService.RenderStepped:Connect(AutoSkillCheck)
 
 RunService.Stepped:Connect(function()
     if SETTINGS.Noclip_Enabled and LocalPlayer.Character then
@@ -225,47 +202,71 @@ RunService.Stepped:Connect(function()
     end
 end)
 
+-- Main Loop (Passive Update)
 task.spawn(function()
     while true do
-        if SETTINGS.ESP_Enabled then UpdatePlayerESP() else CleanVisuals() end
+        if SETTINGS.ESP_Enabled then 
+            local success, _ = pcall(UpdatePlayerESP)
+            if not success then task.wait(1) end
+        end
         task.wait(0.5)
     end
 end)
-
 task.spawn(function()
     while true do
-        if SETTINGS.ESP_Enabled then UpdateGenESP() end
+        if SETTINGS.ESP_Enabled then pcall(UpdateGenESP) end
         task.wait(5)
     end
 end)
 
+---------------------------------------------------------------------------------
+-- 4. INPUTS (INSTANT RESPONSE FIX)
+---------------------------------------------------------------------------------
 if UserInputService then
     UserInputService.InputBegan:Connect(function(input, gpe)
         if gpe then return end
+        
+        -- [ESP] : Instant Toggle
         if input.KeyCode == SETTINGS.Key_ESP then
             SETTINGS.ESP_Enabled = not SETTINGS.ESP_Enabled
-            StarterGui:SetCore("SendNotification", { Title = "ESP"; Text = SETTINGS.ESP_Enabled and "ON" or "OFF"; Duration = 1; })
+            
+            if SETTINGS.ESP_Enabled then
+                -- สั่งให้ทำงานทันที ไม่ต้องรอ Loop
+                task.spawn(UpdatePlayerESP)
+                task.spawn(UpdateGenESP)
+                StarterGui:SetCore("SendNotification", { Title = "ESP"; Text = "ON"; Duration = 0.5; })
+            else
+                -- สั่งลบทันที ไม่ต้องรอ Loop
+                CleanVisuals()
+                StarterGui:SetCore("SendNotification", { Title = "ESP"; Text = "OFF"; Duration = 0.5; })
+            end
         end
+        
+        -- [Noclip] : Instant Toggle
         if input.KeyCode == SETTINGS.Key_Noclip then
             SETTINGS.Noclip_Enabled = not SETTINGS.Noclip_Enabled
-            StarterGui:SetCore("SendNotification", { Title = "Noclip"; Text = SETTINGS.Noclip_Enabled and "ON" or "OFF"; Duration = 1; })
+            
             if not SETTINGS.Noclip_Enabled and LocalPlayer.Character then
+                -- คืนค่า Hitbox ทันที
                 for _, v in pairs(LocalPlayer.Character:GetChildren()) do if v:IsA("BasePart") then v.CanCollide = true end end
                 for _, v in pairs(LocalPlayer.Character:GetDescendants()) do
                     local n = v.Name:lower()
                     if v:IsA("BasePart") and (n:match("leg") or n:match("arm") or n:match("hand") or n:match("foot")) then v.CanCollide = false end
                 end
             end
+            StarterGui:SetCore("SendNotification", { Title = "Noclip"; Text = SETTINGS.Noclip_Enabled and "ON" or "OFF"; Duration = 0.5; })
         end
+        
+        -- [Auto Skill]
         if input.KeyCode == SETTINGS.Key_AutoSkill then
             SETTINGS.AutoSkill_Enabled = not SETTINGS.AutoSkill_Enabled
-            StarterGui:SetCore("SendNotification", { Title = "Auto Skill"; Text = SETTINGS.AutoSkill_Enabled and "ON" or "OFF"; Duration = 1; })
+            StarterGui:SetCore("SendNotification", { Title = "Auto Skill"; Text = SETTINGS.AutoSkill_Enabled and "ON" or "OFF"; Duration = 0.5; })
         end
     end)
 end
 
 StarterGui:SetCore("SendNotification", {
-    Title = "HYBRID LOADED";
-    Text = "Classic ESP + Perfect Math (104)";
-    Duration = 5;
+    Title = "INSTANT LOADED";
+    Text = "Toggle delay removed!";
+    Duration = 3;
 })
