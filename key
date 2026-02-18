@@ -1,0 +1,35 @@
+local HttpService = game:GetService("HttpService")
+local RbxAnalytics = game:GetService("RbxAnalyticsService")
+local MyHWID = RbxAnalytics:GetClientId()
+
+-- [ ใส่ลิงก์ Web App URL จากขั้นตอนที่ 1 ]
+local SCRIPT_URL = "ใส่ URL ที่ได้จาก Google Apps Script ตรงนี้"
+
+local function CheckAndLock(inputKey)
+    local payload = HttpService:JSONEncode({
+        key = inputKey,
+        hwid = MyHWID
+    })
+    
+    local success, response = pcall(function()
+        return HttpService:PostAsync(SCRIPT_URL, payload)
+    end)
+    
+    if success then
+        if response == "Locked" then
+            return true, "Key ล็อกกับเครื่องนี้เรียบร้อยแล้ว!"
+        elseif response == "Matched" then
+            return true, "ยินดีต้อนรับกลับ!"
+        elseif response == "Used" then
+            return false, "Key นี้ถูกใช้ไปแล้วกับเครื่องอื่น!"
+        elseif response == "Invalid" then
+            return false, "ไม่พบ Key นี้ในระบบ!"
+        end
+    else
+        return false, "เกิดข้อผิดพลาดในการเชื่อมต่อฐานข้อมูล"
+    end
+end
+
+-- ตัวอย่างตอนกดปุ่ม Verify
+-- local ok, msg = CheckAndLock(TextBox.Text)
+-- if ok then StartMainScript() else warn(msg) end
