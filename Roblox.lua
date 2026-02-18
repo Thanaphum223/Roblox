@@ -1,4 +1,4 @@
--- [[ PROJECT: VACUUM - ULTIMATE EDITION (v8.0: AUTO-LOGIN + HYBRID KEY) ]] --
+-- [[ PROJECT: VACUUM - ULTIMATE EDITION (v9.0: FAST LOGIN + OPTIMIZED) ]] --
 
 ---------------------------------------------------------------------------------
 -- [[ 0. SECURITY & MAP LOCK ]] --
@@ -20,7 +20,7 @@ if not Supported_IDs[PlaceID] then
 end
 
 ---------------------------------------------------------------------------------
--- [[ 1. KEY SYSTEM CONFIGURATION (HYBRID & AUTO-LOGIN) ]] --
+-- [[ 1. KEY SYSTEM (FAST CHECK LOGIC) ]] --
 ---------------------------------------------------------------------------------
 local HttpService = game:GetService("HttpService")
 local RbxAnalytics = game:GetService("RbxAnalyticsService")
@@ -29,53 +29,64 @@ local LocalPlayer = Players.LocalPlayer
 local MyHWID = RbxAnalytics:GetClientId()
 local StarterGui = game:GetService("StarterGui")
 
--- [ ลิงก์ Web App (สำหรับเขียนข้อมูล) ]
+-- [ URLs ]
 local SCRIPT_URL = "https://script.google.com/macros/s/AKfycby-eC0AM7hphYMKPiEmMTsidJY0d8_eTUS6e9KtXkJboPi85Y8bWXdH_3ujpkYy4WoYSQ/exec"
--- [ ลิงก์ CSV (สำหรับอ่านข้อมูล - แม่นยำที่สุด) ]
 local CSV_URL = "https://docs.google.com/spreadsheets/d/1plKekYjuDDNCXDh4GVT386F-E5IYT5dJzwJfhNkrlRY/export?format=csv"
-
 local KEY_FILE_NAME = "Vacuum_Key.txt"
 
+-- ฟังก์ชันเช็ค Key แบบใหม่ (อ่านก่อนเขียน = ไว)
 local function CheckAndLock(inputKey)
-    -- 1. ยิงข้อมูลไปเขียนลง Sheet (Fire & Forget เพื่อแก้ปัญหา Error 405)
-    local body = HttpService:JSONEncode({ key = inputKey, hwid = MyHWID })
-    local httpRequest = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
-
-    if httpRequest then
-        pcall(function()
-            httpRequest({
-                Url = SCRIPT_URL,
-                Method = "POST",
-                Headers = {["Content-Type"] = "application/json"},
-                Body = body
-            })
-        end)
-    end
-    
-    -- 2. รอ Google update ข้อมูลสักครู่
-    task.wait(1.5)
-
-    -- 3. อ่านไฟล์ CSV มาเช็ค (ชัวร์ที่สุด)
+    -- 1. โหลดข้อมูลจาก CSV (ใส่ nocache เพื่อให้ได้ข้อมูลล่าสุด)
     local success, result = pcall(function()
         return game:HttpGet(CSV_URL .. "&nocache=" .. tostring(os.time()))
     end)
 
-    if success then
-        for line in result:gmatch("[^\r\n]+") do
-            local key, hwid = line:match("([^,]+),([^,]*)")
-            if key == inputKey then
-                if hwid == MyHWID then
-                    return true, "Verified"
-                elseif hwid == "" or hwid == nil then
-                    return false, "กำลังบันทึกข้อมูล... กรุณากดอีกครั้ง"
-                else
-                    return false, "Key นี้ติดเครื่องอื่นไปแล้ว!"
-                end
-            end
+    if not success then return false, "เช็คเน็ตไม่ได้ (CSV Error)" end
+
+    local foundKey = false
+    local storedHWID = nil
+
+    -- 2. วนลูปหา Key
+    for line in result:gmatch("[^\r\n]+") do
+        local key, hwid = line:match("([^,]+),([^,]*)")
+        if key == inputKey then
+            foundKey = true
+            storedHWID = hwid
+            -- ลบช่องว่างที่อาจติดมา
+            if storedHWID then storedHWID = storedHWID:gsub("%s+", "") end
+            break
         end
-        return false, "ไม่พบ Key นี้ในระบบ!"
+    end
+
+    if not foundKey then return false, "ไม่พบ Key นี้ในระบบ!" end
+
+    -- 3. ตรวจสอบเงื่อนไข (Logic แบบไว)
+    if storedHWID == MyHWID then
+        -- [กรณี 1] Key ผูกกับเครื่องนี้อยู่แล้ว -> ผ่านทันที (ไวที่สุด)
+        return true, "Verified"
+        
+    elseif storedHWID == "" or storedHWID == nil then
+        -- [กรณี 2] Key ว่าง (เพิ่งได้มา) -> ส่งข้อมูลไปผูก (Background)
+        task.spawn(function()
+            local body = HttpService:JSONEncode({ key = inputKey, hwid = MyHWID })
+            local httpRequest = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
+            if httpRequest then
+                pcall(function()
+                    httpRequest({
+                        Url = SCRIPT_URL,
+                        Method = "POST",
+                        Headers = {["Content-Type"] = "application/json"},
+                        Body = body
+                    })
+                end)
+            end
+        end)
+        -- ให้ User กดอีกทีเพื่อยืนยัน (ปลอดภัยกว่า)
+        return false, "กำลังบันทึกเครื่อง... กรุณากดปุ่มเดิมอีกครั้ง"
+        
     else
-        return false, "เช็คเน็ตไม่ได้ (CSV Error)"
+        -- [กรณี 3] Key ติดเครื่องอื่น
+        return false, "Key นี้ติดเครื่องอื่นไปแล้ว!"
     end
 end
 
@@ -97,7 +108,7 @@ local function CreateKeyUI(onSuccess)
     local Title = Instance.new("TextLabel", Main)
     Title.Size = UDim2.new(1, 0, 0, 50)
     Title.BackgroundTransparency = 1
-    Title.Text = "VACUUM SECURITY"
+    Title.Text = "VACUUM SECURITY (FAST)"
     Title.TextColor3 = Color3.new(1,1,1)
     Title.Font = Enum.Font.GothamBold
     Title.TextSize = 18
@@ -139,12 +150,12 @@ local function CreateKeyUI(onSuccess)
             Status.Text = "Access Granted!"
             Btn.Text = "DONE"
             
-            -- [[ บันทึก Key ลงเครื่อง ]] --
+            -- บันทึก Key ลงเครื่อง
             if writefile then
                 writefile(KEY_FILE_NAME, key)
             end
             
-            task.wait(1)
+            task.wait(0.5)
             ScreenGui:Destroy()
             onSuccess()
         else
@@ -1427,33 +1438,36 @@ local function StartMainScript()
 end
 
 ---------------------------------------------------------------------------------
--- [[ 3. AUTO LOGIN INITIALIZATION ]] --
+-- [[ 3. AUTO LOGIN INITIALIZATION (FASTEST) ]] --
 ---------------------------------------------------------------------------------
 local function Initialize()
-    -- เช็คว่ามีไฟล์ Key ที่เคยบันทึกไว้ไหม
+    -- เช็คไฟล์ Key ในเครื่อง
     if isfile and isfile(KEY_FILE_NAME) then
         local savedKey = readfile(KEY_FILE_NAME)
         if savedKey and savedKey ~= "" then
-            -- ถ้ามี Key ให้ลองเช็คเงียบๆ
+            
+            -- แจ้งเตือนเล็กน้อย
             StarterGui:SetCore("SendNotification", {
-                Title = "Auto Login",
-                Text = "Checking saved key...",
+                Title = "VACUUM SYSTEM",
+                Text = "Auto-Authenticating...",
                 Duration = 2
             })
             
-            local ok, _ = CheckAndLock(savedKey)
+            -- เช็คเลย (รอบนี้ไวแน่นอน เพราะอ่าน CSV ก่อน)
+            local ok, msg = CheckAndLock(savedKey)
+            
             if ok then
-                -- ถ้า Key ยังใช้ได้ เข้าเกมเลย (ข้ามหน้านั้น)
+                -- ผ่าน! รันเลย (ข้าม UI)
                 StartMainScript()
-                return
+                return 
             else
-                -- ถ้า Key เก่าใช้ไม่ได้ (โดนแบน/เปลี่ยนเครื่อง) ให้ลบไฟล์ทิ้งแล้วเปิดหน้าต่างใหม่
+                -- ไม่ผ่าน (Key หมดอายุ/เปลี่ยนเครื่อง) ลบไฟล์ทิ้ง
                 delfile(KEY_FILE_NAME)
             end
         end
     end
     
-    -- ถ้าไม่มีไฟล์ หรือ Auto Login ไม่ผ่าน ให้สร้างหน้าต่างใส่ Key
+    -- ถ้า Auto Login ไม่ผ่าน ให้สร้างหน้าต่างใส่ Key
     CreateKeyUI(StartMainScript)
 end
 
