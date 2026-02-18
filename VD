@@ -1,5 +1,5 @@
--- [[ PROJECT: VIOLENCE DISTRICT - INSTANT V5 ]] --
--- [[ FIX: INSTANT TOGGLE RESPONSE (NO DELAY) ]] --
+-- [[ PROJECT: VIOLENCE DISTRICT - INSTANT V7 (AUTO PARRY + NO CROSSHAIR + HP MONITOR) ]] --
+-- [[ UPDATE: Added Auto Parry Logic ]] --
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -17,18 +17,22 @@ local SETTINGS = {
     Key_ESP = Enum.KeyCode.E,
     Key_Noclip = Enum.KeyCode.R,
     Key_AutoSkill = Enum.KeyCode.G, 
+    Key_AutoParry = Enum.KeyCode.V, -- [[ ปุ่มเปิด/ปิด Auto Parry ]] --
 
-    ESP_Enabled = true,            
+    ESP_Enabled = false,              
     Noclip_Enabled = false,
     AutoSkill_Enabled = true,
+    AutoParry_Enabled = true,
 
-    -- Colors
-    SurvivorColor = Color3.fromRGB(0, 255, 100),   
-    KillerColor = Color3.fromRGB(255, 0, 0),       
-    SuspectColor = Color3.fromRGB(255, 170, 0),    
+    -- ตั้งค่าระยะ Auto Parry
+    Parry_Radius = 10,       -- ระยะห่างที่จะเริ่มเช็ค (Studs)
+    Parry_Cooldown = 0.5,    -- เวลาหน่วงกันสแปมคลิก
+
+    SurvivorColor = Color3.fromRGB(0, 255, 100),    
+    KillerColor = Color3.fromRGB(255, 0, 0),        
+    SuspectColor = Color3.fromRGB(255, 170, 0),      
     GenColor = Color3.fromRGB(0, 255, 255),
     
-    -- Config UI
     GUI_NAME = "SkillCheckPromptGui",
     FRAME_NAME = "Check",
     NEEDLE_NAME = "Line",
@@ -38,8 +42,14 @@ local SETTINGS = {
 local KILLER_ITEMS = {"knife", "bat", "axe", "machete", "saw", "gun", "hammer", "sword", "katana", "pipe", "weapon"}
 local SURVIVOR_ITEMS = {"medkit", "firstaid", "bandage", "flashlight", "phone", "key", "card", "soda"}
 
+-- ไอดี Animation การโจมตีของฆาตกร (ใช้สำหรับ Auto Parry)
+local ATTACK_ANIMATIONS = {
+    "111920872708571", "78935059863801", "139369275981139", 
+    "78432063483146", "132817836308238", "133963973694098", "74968262036854"
+}
+
 ---------------------------------------------------------------------------------
--- 1. CLEANUP & UTILS
+-- 1. CLEANUP
 ---------------------------------------------------------------------------------
 if _G.ProScript_Connections then
     for _, conn in pairs(_G.ProScript_Connections) do
@@ -53,11 +63,10 @@ local function CleanVisuals()
         if v.Name:match("ESP") and (v:IsA("Highlight") or v:IsA("BillboardGui")) then v:Destroy() end
     end
 end
--- ล้างค่าเก่าทิ้งก่อนเริ่ม
-CleanVisuals() 
+CleanVisuals()
 
 ---------------------------------------------------------------------------------
--- 2. CORE LOGIC
+-- 2. CORE LOGIC (ESP & AutoSkill & AutoParry)
 ---------------------------------------------------------------------------------
 local function GetPlayerRole(plr)
     if not plr or not plr.Character then return "Unknown" end
@@ -84,189 +93,229 @@ end
 local function CreatePlayerESP(target, text, color)
     if not target or not target.Parent then return end
     local char = target.Parent
-    local hi = char:FindFirstChild("RoleESP_Highlight")
-    local bg = target:FindFirstChild("RoleESP_Tag")
-    if not hi then
-        hi = Instance.new("Highlight", char)
-        hi.Name = "RoleESP_Highlight"
-        hi.FillTransparency = 0.5
-        hi.OutlineTransparency = 0
-    end
-    hi.FillColor = color
-    hi.OutlineColor = color
-    if not bg then
-        bg = Instance.new("BillboardGui", target)
-        bg.Name = "RoleESP_Tag"
-        bg.Size = UDim2.new(0, 200, 0, 50)
-        bg.StudsOffset = Vector3.new(0, 3.5, 0)
-        bg.AlwaysOnTop = true
-        local tl = Instance.new("TextLabel", bg)
-        tl.Name = "Label"
-        tl.BackgroundTransparency = 1
-        tl.Size = UDim2.new(1, 0, 1, 0)
-        tl.Font = Enum.Font.GothamBold
-        tl.TextSize = 14
-        tl.TextStrokeTransparency = 0.4
-    end
-    if bg:FindFirstChild("Label") then
-        bg.Label.Text = text
-        bg.Label.TextColor3 = color
-    end
+    local hi = char:FindFirstChild("RoleESP_Highlight") or Instance.new("Highlight", char)
+    hi.Name = "RoleESP_Highlight"
+    hi.FillColor, hi.OutlineColor = color, color
+    hi.FillTransparency = 0.5
+
+    local bg = target:FindFirstChild("RoleESP_Tag") or Instance.new("BillboardGui", target)
+    bg.Name = "RoleESP_Tag"
+    bg.Size, bg.AlwaysOnTop = UDim2.new(0, 200, 0, 50), true
+    bg.StudsOffset = Vector3.new(0, 3.5, 0)
+    
+    local tl = bg:FindFirstChild("Label") or Instance.new("TextLabel", bg)
+    tl.Name = "Label"
+    tl.BackgroundTransparency, tl.Size = 1, UDim2.new(1, 0, 1, 0)
+    tl.Font, tl.TextSize = Enum.Font.GothamBold, 13
+    tl.Text, tl.TextColor3 = text, color
 end
 
 local function UpdatePlayerESP()
     if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
+    local myPos = LocalPlayer.Character.HumanoidRootPart.Position
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
             pcall(function()
+                local char = p.Character
+                local humanoid = char:FindFirstChild("Humanoid")
                 local role = GetPlayerRole(p)
-                local dist = (LocalPlayer.Character.HumanoidRootPart.Position - p.Character.HumanoidRootPart.Position).Magnitude
-                local text = "[☺] " .. p.DisplayName .. string.format(" [%d m]", math.floor(dist))
-                local color = SETTINGS.SurvivorColor
-                if role == "Killer" then 
-                    color = SETTINGS.KillerColor
-                    text = "[💀 KILLER] " .. p.DisplayName .. string.format(" [%d m]", math.floor(dist))
-                elseif role == "Suspect" then 
-                    color = SETTINGS.SuspectColor
-                    text = "[?] " .. p.DisplayName .. string.format(" [%d m]", math.floor(dist))
+                local dist = (myPos - char.HumanoidRootPart.Position).Magnitude
+                
+                -- [[ ส่วนเช็คเลือด (Health Check Logic) ]] --
+                local hpText = ""
+                if humanoid then
+                    local hp = math.floor(humanoid.Health)
+                    local maxHp = math.floor(humanoid.MaxHealth)
+                    
+                    if hp < maxHp then
+                        hpText = string.format(" [🩸%d%%]", (hp/maxHp)*100)
+                    else
+                        hpText = " [💚FULL]"
+                    end
                 end
-                CreatePlayerESP(p.Character.HumanoidRootPart, text, color)
+                
+                local color = (role == "Killer" and SETTINGS.KillerColor) or (role == "Suspect" and SETTINGS.SuspectColor) or SETTINGS.SurvivorColor
+                local prefix = (role == "Killer" and "[💀 KILLER] ") or (role == "Suspect" and "[?] ") or "[☺] "
+                
+                local displayText = prefix .. p.DisplayName .. hpText .. string.format("\n[%d m]", math.floor(dist))
+                CreatePlayerESP(char.HumanoidRootPart, displayText, color)
             end)
         end
     end
 end
 
+local function GetGenProgress(model)
+    local pct = tonumber(model:GetAttribute("RepairProgress")) or 0
+    if pct > 0 and pct <= 1.001 then pct = pct * 100 end
+    return math.floor(math.clamp(pct, 0, 100))
+end
+
 local function UpdateGenESP()
-    local processed = {}
     for _, v in pairs(Workspace:GetDescendants()) do
         if v:IsA("Model") then
             local name = v.Name:lower()
             if (name:match("generator") or name:match("cipher") or name:match("repair")) and not v:IsA("Character") then
-                if not processed[v] then
-                    processed[v] = true
-                    local hi = v:FindFirstChild("GenESP_Highlight")
-                    if not hi then
-                        hi = Instance.new("Highlight", v)
-                        hi.Name = "GenESP_Highlight"
-                        hi.FillTransparency = 0.4
-                        hi.OutlineTransparency = 0
+                local percent = GetGenProgress(v)
+                if percent >= 99 then
+                    if v:FindFirstChild("GenESP_Highlight") then v.GenESP_Highlight:Destroy() end
+                    local tag = v:FindFirstChild("GenESP_Tag", true)
+                    if tag then tag:Destroy() end
+                else 
+                    local hi = v:FindFirstChild("GenESP_Highlight") or Instance.new("Highlight", v)
+                    hi.Name = "GenESP_Highlight"
+                    hi.FillColor, hi.OutlineColor = SETTINGS.GenColor, SETTINGS.GenColor
+                    hi.FillTransparency = 0.4
+                    
+                    local centerPart = v.PrimaryPart or v:FindFirstChild("HitBox") or v:FindFirstChildWhichIsA("BasePart")
+                    if centerPart then
+                        local bg = centerPart:FindFirstChild("GenESP_Tag") or Instance.new("BillboardGui", centerPart)
+                        bg.Name = "GenESP_Tag"
+                        bg.Size, bg.AlwaysOnTop, bg.StudsOffset = UDim2.new(0, 150, 0, 40), true, Vector3.new(0, 2, 0)
+                        local tl = bg:FindFirstChild("Label") or Instance.new("TextLabel", bg)
+                        tl.Name = "Label"
+                        tl.BackgroundTransparency, tl.Size, tl.Font, tl.TextSize = 1, UDim2.new(1, 0, 1, 0), Enum.Font.GothamBlack, 16
+                        tl.Text = string.format("⚡ %d%%", percent)
+                        tl.TextColor3 = Color3.fromHSV(math.clamp((percent/100)*0.33, 0, 0.33), 1, 1)
                     end
-                    hi.FillColor = SETTINGS.GenColor
-                    hi.OutlineColor = SETTINGS.GenColor
                 end
             end
         end
     end
 end
 
--- Math Fix (104 Degree)
 local function LineInGoal(Line, Goal)
-    local lr = Line.Rotation % 360
-    local gr = Goal.Rotation % 360
-    local gs = (gr + 104) % 360
-    local ge = (gr + 114) % 360
-    if gs > ge then return lr >= gs or lr <= ge else return lr >= gs and lr <= ge end
+    local lr, gr = Line.Rotation % 360, Goal.Rotation % 360
+    local gs, ge = (gr + 104) % 360, (gr + 114) % 360
+    return gs > ge and (lr >= gs or lr <= ge) or (lr >= gs and lr <= ge)
 end
 
 local function AutoSkillCheck()
     if not SETTINGS.AutoSkill_Enabled then return end
     pcall(function()
         local mainGui = PlayerGui:FindFirstChild(SETTINGS.GUI_NAME)
-        if not mainGui then return end
-        local checkFrame = mainGui:FindFirstChild(SETTINGS.FRAME_NAME, true)
+        local checkFrame = mainGui and mainGui:FindFirstChild(SETTINGS.FRAME_NAME, true)
         if checkFrame and checkFrame.Visible then
-            local needle = checkFrame:FindFirstChild(SETTINGS.NEEDLE_NAME)
-            local goal = checkFrame:FindFirstChild(SETTINGS.GOAL_NAME)
-            if needle and goal then
-                if LineInGoal(needle, goal) then
-                    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-                    task.wait(0.01)
-                    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
-                    task.wait(0.1)
-                end
+            local needle, goal = checkFrame:FindFirstChild(SETTINGS.NEEDLE_NAME), checkFrame:FindFirstChild(SETTINGS.GOAL_NAME)
+            if needle and goal and LineInGoal(needle, goal) then
+                VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+                task.wait(0.01)
+                VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+                task.wait(0.1)
             end
         end
     end)
 end
 
+-- [[ AUTO PARRY LOGIC ]] --
+local lastParryTime = 0
+local function AutoParryCheck()
+    if not SETTINGS.AutoParry_Enabled then return end
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
+    
+    local myPos = LocalPlayer.Character.HumanoidRootPart.Position
+    local now = tick()
+    
+    if now - lastParryTime < SETTINGS.Parry_Cooldown then return end
+
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character then
+            -- เช็คว่าเป็น Killer หรือไม่ (หรือถืออาวุธ)
+            local role = GetPlayerRole(p)
+            if role == "Killer" then
+                local kChar = p.Character
+                local kHum = kChar:FindFirstChild("Humanoid")
+                local kRoot = kChar:FindFirstChild("HumanoidRootPart")
+                
+                if kRoot and kHum then
+                    local dist = (kRoot.Position - myPos).Magnitude
+                    if dist <= SETTINGS.Parry_Radius then
+                        -- เช็ค Animation
+                        local animator = kHum:FindFirstChild("Animator") or kChar:FindFirstChild("Animator")
+                        if animator then
+                            for _, track in pairs(animator:GetPlayingAnimationTracks()) do
+                                local id = track.Animation.AnimationId
+                                local isAttack = false
+                                
+                                -- เช็ค ID หรือชื่อว่ามีคำว่า Attack/Swing ไหม
+                                for _, aid in ipairs(ATTACK_ANIMATIONS) do
+                                    if id:match(aid) then isAttack = true break end
+                                end
+                                if not isAttack and (track.Name:lower():match("attack") or track.Name:lower():match("swing")) then
+                                    isAttack = true
+                                end
+
+                                if isAttack then
+                                    -- เจอท่าโจมตี + อยู่ใกล้ -> กดคลิกขวา (Parry)
+                                    VirtualInputManager:SendMouseButtonEvent(0, 0, 1, true, game, 1) -- Right Down
+                                    task.wait(0.05)
+                                    VirtualInputManager:SendMouseButtonEvent(0, 0, 1, false, game, 1) -- Right Up
+                                    
+                                    lastParryTime = now
+                                    -- แสดง Effect visual เล็กๆ ว่า Parry แล้ว (Optional)
+                                    local t = Instance.new("Part", Workspace)
+                                    t.Anchored, t.CanCollide, t.Transparency = true, false, 0.5
+                                    t.Color = Color3.fromRGB(255, 255, 0)
+                                    t.Size = Vector3.new(1,1,1)
+                                    t.CFrame = kRoot.CFrame
+                                    game:GetService("Debris"):AddItem(t, 0.5)
+                                    return -- Parry ทีละคนพอ
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
 ---------------------------------------------------------------------------------
--- 3. LOOPS
+-- 3. LOOPS & INPUTS
 ---------------------------------------------------------------------------------
 RunService.RenderStepped:Connect(AutoSkillCheck)
+RunService.Heartbeat:Connect(AutoParryCheck) -- รัน Auto Parry ตลอดเวลา
 
 RunService.Stepped:Connect(function()
     if SETTINGS.Noclip_Enabled and LocalPlayer.Character then
         for _, v in pairs(LocalPlayer.Character:GetDescendants()) do
-            if v:IsA("BasePart") and v.CanCollide == true then v.CanCollide = false end
+            if v:IsA("BasePart") and v.CanCollide then v.CanCollide = false end
         end
     end
 end)
 
--- Main Loop (Passive Update)
 task.spawn(function()
     while true do
-        if SETTINGS.ESP_Enabled then 
-            local success, _ = pcall(UpdatePlayerESP)
-            if not success then task.wait(1) end
-        end
+        if SETTINGS.ESP_Enabled then pcall(UpdatePlayerESP) end
         task.wait(0.5)
     end
 end)
+
 task.spawn(function()
     while true do
         if SETTINGS.ESP_Enabled then pcall(UpdateGenESP) end
-        task.wait(5)
+        task.wait(0.5)
     end
 end)
 
----------------------------------------------------------------------------------
--- 4. INPUTS (INSTANT RESPONSE FIX)
----------------------------------------------------------------------------------
-if UserInputService then
-    UserInputService.InputBegan:Connect(function(input, gpe)
-        if gpe then return end
-        
-        -- [ESP] : Instant Toggle
-        if input.KeyCode == SETTINGS.Key_ESP then
-            SETTINGS.ESP_Enabled = not SETTINGS.ESP_Enabled
-            
-            if SETTINGS.ESP_Enabled then
-                -- สั่งให้ทำงานทันที ไม่ต้องรอ Loop
-                task.spawn(UpdatePlayerESP)
-                task.spawn(UpdateGenESP)
-                StarterGui:SetCore("SendNotification", { Title = "ESP"; Text = "ON"; Duration = 0.5; })
-            else
-                -- สั่งลบทันที ไม่ต้องรอ Loop
-                CleanVisuals()
-                StarterGui:SetCore("SendNotification", { Title = "ESP"; Text = "OFF"; Duration = 0.5; })
-            end
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if input.KeyCode == SETTINGS.Key_ESP then
+        SETTINGS.ESP_Enabled = not SETTINGS.ESP_Enabled
+        if not SETTINGS.ESP_Enabled then CleanVisuals() end
+        StarterGui:SetCore("SendNotification", { Title = "ESP", Text = SETTINGS.ESP_Enabled and "ON" or "OFF", Duration = 0.5 })
+    elseif input.KeyCode == SETTINGS.Key_Noclip then
+        SETTINGS.Noclip_Enabled = not SETTINGS.Noclip_Enabled
+        if not SETTINGS.Noclip_Enabled and LocalPlayer.Character then
+            for _, v in pairs(LocalPlayer.Character:GetDescendants()) do if v:IsA("BasePart") then v.CanCollide = true end end
         end
-        
-        -- [Noclip] : Instant Toggle
-        if input.KeyCode == SETTINGS.Key_Noclip then
-            SETTINGS.Noclip_Enabled = not SETTINGS.Noclip_Enabled
-            
-            if not SETTINGS.Noclip_Enabled and LocalPlayer.Character then
-                -- คืนค่า Hitbox ทันที
-                for _, v in pairs(LocalPlayer.Character:GetChildren()) do if v:IsA("BasePart") then v.CanCollide = true end end
-                for _, v in pairs(LocalPlayer.Character:GetDescendants()) do
-                    local n = v.Name:lower()
-                    if v:IsA("BasePart") and (n:match("leg") or n:match("arm") or n:match("hand") or n:match("foot")) then v.CanCollide = false end
-                end
-            end
-            StarterGui:SetCore("SendNotification", { Title = "Noclip"; Text = SETTINGS.Noclip_Enabled and "ON" or "OFF"; Duration = 0.5; })
-        end
-        
-        -- [Auto Skill]
-        if input.KeyCode == SETTINGS.Key_AutoSkill then
-            SETTINGS.AutoSkill_Enabled = not SETTINGS.AutoSkill_Enabled
-            StarterGui:SetCore("SendNotification", { Title = "Auto Skill"; Text = SETTINGS.AutoSkill_Enabled and "ON" or "OFF"; Duration = 0.5; })
-        end
-    end)
-end
+        StarterGui:SetCore("SendNotification", { Title = "Noclip", Text = SETTINGS.Noclip_Enabled and "ON" or "OFF", Duration = 0.5 })
+    elseif input.KeyCode == SETTINGS.Key_AutoSkill then
+        SETTINGS.AutoSkill_Enabled = not SETTINGS.AutoSkill_Enabled
+        StarterGui:SetCore("SendNotification", { Title = "Auto Skill", Text = SETTINGS.AutoSkill_Enabled and "ON" or "OFF", Duration = 0.5 })
+    elseif input.KeyCode == SETTINGS.Key_AutoParry then
+        SETTINGS.AutoParry_Enabled = not SETTINGS.AutoParry_Enabled
+        StarterGui:SetCore("SendNotification", { Title = "Auto Parry", Text = SETTINGS.AutoParry_Enabled and "ON" or "OFF", Duration = 0.5 })
+    end
+end)
 
-StarterGui:SetCore("SendNotification", {
-    Title = "INSTANT LOADED";
-    Text = "Toggle delay removed!";
-    Duration = 3;
-})
+StarterGui:SetCore("SendNotification", { Title = "SCRIPT LOADED", Text = "V7: Auto Parry + HP Monitor", Duration = 3 })
