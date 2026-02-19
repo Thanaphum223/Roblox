@@ -21,7 +21,7 @@ local SETTINGS = {
     Key_Noclip = Enum.KeyCode.R,
     Key_AutoSkill = Enum.KeyCode.G, 
     Key_AutoParry = Enum.KeyCode.V, 
-    Key_Aimbot = Enum.KeyCode.X, -- สวิตช์เปิดระบบ Aimbot
+    Key_Aimbot = Enum.KeyCode.X,
 
     -- [STATUS]
     ESP_Enabled = false,              
@@ -32,13 +32,13 @@ local SETTINGS = {
 
     -- [PARRY SETTINGS (OPTIMIZED)]
     Parry_Key = "RightClick", 
-    Parry_MaxRange = 11.5,   -- ปรับระยะให้พอดี (ไม่ไกลเกินไปจนว่าว)
-    Parry_PanicRange = 6,    -- ระยะประชิด (Parry ทันทีไม่ต้องสนทิศทาง)
-    Parry_Cooldown = 0.2,    -- กัน Spam รัวจนค้าง
+    Parry_MaxRange = 10, 
+    Parry_PanicRange = 6,   
+    Parry_Cooldown = 0.2, 
 
     -- [AIMBOT SETTINGS]
     Aimbot_HoldKey = Enum.UserInputType.MouseButton2, -- ปุ่มที่ต้องกดค้างเพื่อล็อค (คลิกขวา)
-    Aimbot_FOV = 250,               
+    Aimbot_FOV = 150,               
     Aimbot_Smoothness = 0.2,        
     Aimbot_Prediction = 0.13,       
 
