@@ -20,18 +20,18 @@ local SETTINGS = {
     Key_AutoSkill = Enum.KeyCode.G, 
     Key_AutoParry = Enum.KeyCode.V, 
     Key_Aimbot = Enum.KeyCode.X,
-    Key_Rejoin = Enum.KeyCode.L, -- [NEW] ปุ่มกดรีจอยเข้าห้องเดิม
+    Key_Rejoin = Enum.KeyCode.L,
 
     ESP_Enabled = false,              
     Noclip_Enabled = false,
     AutoSkill_Enabled = true,
-    AutoParry_Enabled = true,
+    AutoParry_Enabled = false,
     Aimbot_Enabled = false,        
 
     Parry_Key = "RightClick", 
-    Parry_MaxRange = 10, 
-    Parry_PanicRange = 6,   
-    Parry_Cooldown = 0.2, 
+    Parry_MaxRange = 10.5, 
+    Parry_PanicRange = 6.5,   
+    Parry_Cooldown = 0.15, 
 
     Aimbot_HoldKey = Enum.UserInputType.MouseButton2,
     Aimbot_FOV = 150,               
