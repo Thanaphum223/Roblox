@@ -1,12 +1,11 @@
--- [[ PROJECT: VIOLENCE DISTRICT - INSTANT V8.4 (OPTIMIZED PARRY) ]] --
--- [[ UPDATE: Parry Range 11.5 / Panic Mode / Facing Check ]] --
-
+-- [[ PROJECT: VIOLENCE DISTRICT - INSTANT V8.6 (ADDED REJOIN) ]] --
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 local StarterGui = game:GetService("StarterGui")
+local TeleportService = game:GetService("TeleportService") -- [NEW] สำหรับระบบ Rejoin
 local Camera = Workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
@@ -16,33 +15,29 @@ local Mouse = LocalPlayer:GetMouse()
 -- [SETTINGS]
 ---------------------------------------------------------------------------------
 local SETTINGS = {
-    -- [KEYS]
     Key_ESP = Enum.KeyCode.E,
     Key_Noclip = Enum.KeyCode.R,
     Key_AutoSkill = Enum.KeyCode.G, 
     Key_AutoParry = Enum.KeyCode.V, 
     Key_Aimbot = Enum.KeyCode.X,
+    Key_Rejoin = Enum.KeyCode.L, -- [NEW] ปุ่มกดรีจอยเข้าห้องเดิม
 
-    -- [STATUS]
     ESP_Enabled = false,              
     Noclip_Enabled = false,
     AutoSkill_Enabled = true,
     AutoParry_Enabled = true,
     Aimbot_Enabled = false,        
 
-    -- [PARRY SETTINGS (OPTIMIZED)]
     Parry_Key = "RightClick", 
     Parry_MaxRange = 10, 
     Parry_PanicRange = 6,   
     Parry_Cooldown = 0.2, 
 
-    -- [AIMBOT SETTINGS]
-    Aimbot_HoldKey = Enum.UserInputType.MouseButton2, -- ปุ่มที่ต้องกดค้างเพื่อล็อค (คลิกขวา)
+    Aimbot_HoldKey = Enum.UserInputType.MouseButton2,
     Aimbot_FOV = 150,               
     Aimbot_Smoothness = 0.2,        
     Aimbot_Prediction = 0.13,       
 
-    -- [COLORS]
     SurvivorColor = Color3.fromRGB(0, 255, 100),    
     KillerColor = Color3.fromRGB(255, 0, 0),        
     SuspectColor = Color3.fromRGB(255, 170, 0),        
@@ -59,8 +54,6 @@ local SURVIVOR_ITEMS = {"medkit", "firstaid", "bandage", "flashlight", "phone", 
 local ATTACK_KEYWORDS = {"attack", "swing", "slash", "lunge", "m1", "punch", "strike", "heavy", "light"} 
 local ATTACK_IDS = { "111920872708571", "78935059863801", "139369275981139", "78432063483146", "132817836308238", "133963973694098", "74968262036854" }
 
----------------------------------------------------------------------------------
--- 1. CLEANUP
 ---------------------------------------------------------------------------------
 if _G.ProScript_Connections then
     for _, conn in pairs(_G.ProScript_Connections) do
@@ -102,8 +95,6 @@ local function CleanVisuals()
 end
 CleanVisuals()
 
----------------------------------------------------------------------------------
--- 2. CORE LOGIC
 ---------------------------------------------------------------------------------
 local function GetPlayerRole(plr)
     if not plr or not plr.Character then return "Unknown" end
@@ -164,10 +155,10 @@ local function UpdatePlayerESP()
                 if humanoid then
                     local hp = math.floor(humanoid.Health)
                     local maxHp = math.floor(humanoid.MaxHealth)
-                    hpText = hp < maxHp and string.format(" [🩸%d%%]", (hp/maxHp)*100) or " [💚FULL]"
+                    hpText = hp < maxHp and string.format(" [HP:%d%%]", (hp/maxHp)*100) or " [FULL]"
                 end
                 local color = (role == "Killer" and SETTINGS.KillerColor) or (role == "Suspect" and SETTINGS.SuspectColor) or SETTINGS.SurvivorColor
-                local prefix = (role == "Killer" and "[💀 KILLER] ") or (role == "Suspect" and "[?] ") or "[☺] "
+                local prefix = (role == "Killer" and "[KILLER] ") or (role == "Suspect" and "[?] ") or "[+] "
                 CreatePlayerESP(char.HumanoidRootPart, prefix .. p.DisplayName .. hpText .. string.format("\n[%d m]", math.floor(dist)), color)
             end)
         end
@@ -203,7 +194,7 @@ local function UpdateGenESP()
                         local tl = bg:FindFirstChild("Label") or Instance.new("TextLabel", bg)
                         tl.Name = "Label"
                         tl.BackgroundTransparency, tl.Size, tl.Font, tl.TextSize = 1, UDim2.new(1, 0, 1, 0), Enum.Font.GothamBlack, 16
-                        tl.Text = string.format("⚡ %d%%", percent)
+                        tl.Text = string.format("%d%%", percent)
                         tl.TextColor3 = Color3.fromHSV(math.clamp((percent/100)*0.33, 0, 0.33), 1, 1)
                         tl.TextStrokeTransparency = 0
                     end
@@ -235,7 +226,6 @@ local function AutoSkillCheck()
     end)
 end
 
--- [[ PRECISION PARRY LOGIC V8.4 (OPTIMIZED) ]] --
 local lastParryTime = 0
 
 local function SpamParry()
@@ -247,7 +237,7 @@ local function SpamParry()
             VirtualInputManager:SendKeyEvent(true, SETTINGS.Parry_Key, false, game)
             VirtualInputManager:SendKeyEvent(false, SETTINGS.Parry_Key, false, game)
         end
-        task.wait(0.01) -- ใส่ delay จิ๋วๆ เพื่อให้ Server รับ input ทัน
+        task.wait(0.01)
     end
 end
 
@@ -255,7 +245,7 @@ local function IsFacingMe(myPos, killerRoot)
     local directionToMe = (myPos - killerRoot.Position).Unit
     local killerLook = killerRoot.CFrame.LookVector
     local dotProduct = directionToMe:Dot(killerLook)
-    return dotProduct > 0.35 -- ลดความเข้มงวดลงเล็กน้อยให้ติดง่ายขึ้น (เดิม 0.5)
+    return dotProduct > 0.35 
 end
 
 local function AutoParryCheck()
@@ -268,80 +258,73 @@ local function AutoParryCheck()
 
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= LocalPlayer and p.Character then
-            local kHum = p.Character:FindFirstChild("Humanoid")
-            local kRoot = p.Character:FindFirstChild("HumanoidRootPart")
-            
-            if kRoot and kHum and kHum.Health > 0 then
-                local dist = (kRoot.Position - myRoot.Position).Magnitude
+            if GetPlayerRole(p) == "Killer" then
+                local kHum = p.Character:FindFirstChild("Humanoid")
+                local kRoot = p.Character:FindFirstChild("HumanoidRootPart")
                 
-                -- เงื่อนไข 1: ต้องอยู่ในระยะ MaxRange (11.5)
-                if dist <= SETTINGS.Parry_MaxRange then
+                if kRoot and kHum and kHum.Health > 0 then
+                    local dist = (kRoot.Position - myRoot.Position).Magnitude
                     
-                    local shouldParry = false
-                    local isPanic = dist <= SETTINGS.Parry_PanicRange -- ระยะประชิด (6)
+                    if dist <= SETTINGS.Parry_MaxRange then
+                        
+                        local isPanic = dist <= SETTINGS.Parry_PanicRange
 
-                    -- เงื่อนไข 2: ถ้าไม่ Panic ต้องหันหน้ามาหาเรา
-                    if not isPanic and not IsFacingMe(myRoot.Position, kRoot) then
-                        goto continue_loop 
-                    end
+                        if isPanic or IsFacingMe(myRoot.Position, kRoot) then
+                            local animator = kHum:FindFirstChild("Animator") or p.Character:FindFirstChild("Animator")
+                            if animator then
+                                for _, track in pairs(animator:GetPlayingAnimationTracks()) do
+                                    
+                                    local shouldParry = false
+                                    if track.Priority == Enum.AnimationPriority.Action or 
+                                       track.Priority == Enum.AnimationPriority.Action2 or 
+                                       track.Priority == Enum.AnimationPriority.Action3 then
+                                        shouldParry = true
+                                    end
+                                    
+                                    if not shouldParry then
+                                        local name = track.Name:lower()
+                                        local id = track.Animation.AnimationId
+                                        for _, kw in ipairs(ATTACK_KEYWORDS) do
+                                            if name:find(kw) then shouldParry = true break end
+                                        end
+                                        if not shouldParry then
+                                            for _, aid in ipairs(ATTACK_IDS) do
+                                                if id:find(aid) then shouldParry = true break end
+                                            end
+                                        end
+                                    end
 
-                    local animator = kHum:FindFirstChild("Animator") or p.Character:FindFirstChild("Animator")
-                    if animator then
-                        for _, track in pairs(animator:GetPlayingAnimationTracks()) do
-                            
-                            -- ตรวจจับ Animation Priority
-                            if track.Priority == Enum.AnimationPriority.Action or 
-                               track.Priority == Enum.AnimationPriority.Action2 or 
-                               track.Priority == Enum.AnimationPriority.Action3 then
-                                shouldParry = true
-                            end
-                            
-                            -- ตรวจจับ Animation Name/ID
-                            if not shouldParry then
-                                local name = track.Name:lower()
-                                local id = track.Animation.AnimationId
-                                for _, kw in ipairs(ATTACK_KEYWORDS) do
-                                    if name:find(kw) then shouldParry = true break end
-                                end
-                                if not shouldParry then
-                                    for _, aid in ipairs(ATTACK_IDS) do
-                                        if id:find(aid) then shouldParry = true break end
+                                    if shouldParry then
+                                        if not isPanic then
+                                            if track.Length > 0 and track.TimePosition < 0.05 then
+                                                task.wait(0.05) 
+                                            end
+                                        end
+
+                                        SpamParry()
+                                        lastParryTime = tick()
+                                        
+                                        local t = Instance.new("Part", Workspace)
+                                        t.Anchored = true
+                                        t.CanCollide = false
+                                        t.Transparency = 0.5
+                                        t.Color = Color3.fromRGB(255, 0, 0) 
+                                        t.Size = Vector3.new(4,4,4)
+                                        t.CFrame = kRoot.CFrame
+                                        t.Shape = Enum.PartType.Ball
+                                        game:GetService("Debris"):AddItem(t, 0.2)
+                                        return 
                                     end
                                 end
-                            end
-
-                            if shouldParry then
-                                -- Logic เสริม: ถ้ายังอยู่ไกล (ไม่ Panic) ให้รอจังหวะง้างนิดนึง
-                                if not isPanic then
-                                    -- ถ้าง้างมือเพิ่งเริ่ม (TimePosition น้อย) ให้รอเสี้ยววิ
-                                    if track.Length > 0 and track.TimePosition < 0.05 then
-                                        task.wait(0.05) 
-                                    end
-                                end
-
-                                SpamParry()
-                                lastParryTime = now
-                                
-                                -- Visual Effect
-                                local t = Instance.new("Part", Workspace)
-                                t.Anchored, t.CanCollide, t.Transparency = true, false, 0.5
-                                t.Color = Color3.fromRGB(255, 0, 0) 
-                                t.Size = Vector3.new(4,4,4)
-                                t.CFrame = kRoot.CFrame
-                                t.Shape = Enum.PartType.Ball
-                                game:GetService("Debris"):AddItem(t, 0.2)
-                                return -- Parry แล้วจบเลย รอ Cooldown
                             end
                         end
                     end
                 end
             end
         end
-        ::continue_loop::
     end
 end
 
--- [[ AIMBOT LOGIC V8.3 (HOLD TO AIM) ]] --
 local function GetClosestKiller()
     local closestTarget = nil
     local maxDist = SETTINGS.Aimbot_FOV
@@ -371,10 +354,7 @@ local function GetClosestKiller()
 end
 
 local function AutoAim()
-    -- 1. เช็คว่าสวิตช์ X เปิดอยู่ไหม
     if not SETTINGS.Aimbot_Enabled then return end
-    
-    -- 2. เช็คว่ากดคลิกขวาค้างอยู่ไหม (สำคัญ!)
     if not UserInputService:IsMouseButtonPressed(SETTINGS.Aimbot_HoldKey) then return end
     
     local target = GetClosestKiller()
@@ -386,8 +366,6 @@ local function AutoAim()
     end
 end
 
----------------------------------------------------------------------------------
--- 3. LOOPS & INPUTS
 ---------------------------------------------------------------------------------
 RunService.RenderStepped:Connect(AutoSkillCheck)
 RunService.RenderStepped:Connect(AutoParryCheck) 
@@ -401,48 +379,73 @@ RunService.Stepped:Connect(function()
     end
 end)
 
-task.spawn(function()
+coroutine.wrap(function()
     while true do
         if SETTINGS.ESP_Enabled then pcall(UpdatePlayerESP) end
         task.wait(0.2)
     end
-end)
+end)()
 
-task.spawn(function()
+coroutine.wrap(function()
     while true do
         if SETTINGS.ESP_Enabled then pcall(UpdateGenESP) end
         task.wait(0.5)
     end
-end)
+end)()
+
+local function SendNotify(titleText, descText)
+    pcall(function()
+        StarterGui:SetCore("SendNotification", { Title = titleText, Text = descText, Duration = 2 })
+    end)
+end
 
 UserInputService.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     if input.KeyCode == SETTINGS.Key_ESP then
         SETTINGS.ESP_Enabled = not SETTINGS.ESP_Enabled
         if not SETTINGS.ESP_Enabled then CleanVisuals() end
-        StarterGui:SetCore("SendNotification", { Title = "ESP", Text = SETTINGS.ESP_Enabled and "ON" or "OFF", Duration = 0.5 })
+        local status = "OFF"
+        if SETTINGS.ESP_Enabled then status = "ON" end
+        SendNotify("ESP", status)
         
     elseif input.KeyCode == SETTINGS.Key_Noclip then
         SETTINGS.Noclip_Enabled = not SETTINGS.Noclip_Enabled
-        if SETTINGS.Noclip_Enabled then SaveCollisionData(LocalPlayer.Character)
+        if SETTINGS.Noclip_Enabled then 
+            SaveCollisionData(LocalPlayer.Character)
         else 
             if next(originalCollision) then RestoreCollisionData(LocalPlayer.Character) 
             else ForceResetCollision(LocalPlayer.Character) end
         end
-        StarterGui:SetCore("SendNotification", { Title = "Noclip", Text = SETTINGS.Noclip_Enabled and "ON" or "OFF", Duration = 0.5 })
+        local status = "OFF"
+        if SETTINGS.Noclip_Enabled then status = "ON" end
+        SendNotify("Noclip", status)
         
     elseif input.KeyCode == SETTINGS.Key_AutoSkill then
         SETTINGS.AutoSkill_Enabled = not SETTINGS.AutoSkill_Enabled
-        StarterGui:SetCore("SendNotification", { Title = "Auto Skill", Text = SETTINGS.AutoSkill_Enabled and "ON" or "OFF", Duration = 0.5 })
+        local status = "OFF"
+        if SETTINGS.AutoSkill_Enabled then status = "ON" end
+        SendNotify("Auto Skill", status)
         
     elseif input.KeyCode == SETTINGS.Key_AutoParry then
         SETTINGS.AutoParry_Enabled = not SETTINGS.AutoParry_Enabled
-        StarterGui:SetCore("SendNotification", { Title = "Auto Parry", Text = SETTINGS.AutoParry_Enabled and "ON" or "OFF", Duration = 0.5 })
+        local status = "OFF"
+        if SETTINGS.AutoParry_Enabled then status = "ON" end
+        SendNotify("Auto Parry", status)
         
     elseif input.KeyCode == SETTINGS.Key_Aimbot then
         SETTINGS.Aimbot_Enabled = not SETTINGS.Aimbot_Enabled
-        StarterGui:SetCore("SendNotification", { Title = "Aimbot", Text = SETTINGS.Aimbot_Enabled and "ON (Hold Right Click)" or "OFF", Duration = 0.5 })
+        local status = "OFF"
+        if SETTINGS.Aimbot_Enabled then status = "ON (Hold Right Click)" end
+        SendNotify("Aimbot", status)
+
+    -- [NEW] ระบบ Rejoin กลับห้องเดิม
+    elseif input.KeyCode == SETTINGS.Key_Rejoin then
+        SendNotify("Rejoining", "Please wait... Teleporting back to server.")
+        task.wait(0.5)
+        pcall(function()
+            TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
+        end)
     end
 end)
 
-StarterGui:SetCore("SendNotification", { Title = "V8.4 OPTIMIZED", Text = "Parry [V] Range 11.5", Duration = 3 })
+SendNotify("V8.6 LOADED", "Added Rejoin Key [L]")
