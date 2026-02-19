@@ -1,5 +1,5 @@
--- [[ PROJECT: VIOLENCE DISTRICT - INSTANT V8.3 (AIM HOLD) ]] --
--- [[ UPDATE: Hold Right Click to Lock ]] --
+-- [[ PROJECT: VIOLENCE DISTRICT - INSTANT V8.4 (OPTIMIZED PARRY) ]] --
+-- [[ UPDATE: Parry Range 11.5 / Panic Mode / Facing Check ]] --
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -30,22 +30,22 @@ local SETTINGS = {
     AutoParry_Enabled = true,
     Aimbot_Enabled = false,        
 
-    -- [PARRY SETTINGS]
+    -- [PARRY SETTINGS (OPTIMIZED)]
     Parry_Key = "RightClick", 
-    Parry_MaxRange = 18,
-    Parry_PanicRange = 5,
-    Parry_Cooldown = 0,       
+    Parry_MaxRange = 11.5,   -- ปรับระยะให้พอดี (ไม่ไกลเกินไปจนว่าว)
+    Parry_PanicRange = 6,    -- ระยะประชิด (Parry ทันทีไม่ต้องสนทิศทาง)
+    Parry_Cooldown = 0.2,    -- กัน Spam รัวจนค้าง
 
     -- [AIMBOT SETTINGS]
     Aimbot_HoldKey = Enum.UserInputType.MouseButton2, -- ปุ่มที่ต้องกดค้างเพื่อล็อค (คลิกขวา)
-    Aimbot_FOV = 250,              
-    Aimbot_Smoothness = 0.2,       
-    Aimbot_Prediction = 0.13,      
+    Aimbot_FOV = 250,               
+    Aimbot_Smoothness = 0.2,        
+    Aimbot_Prediction = 0.13,       
 
     -- [COLORS]
     SurvivorColor = Color3.fromRGB(0, 255, 100),    
     KillerColor = Color3.fromRGB(255, 0, 0),        
-    SuspectColor = Color3.fromRGB(255, 170, 0),       
+    SuspectColor = Color3.fromRGB(255, 170, 0),        
     GenColor = Color3.fromRGB(0, 255, 255),
     
     GUI_NAME = "SkillCheckPromptGui",
@@ -235,7 +235,7 @@ local function AutoSkillCheck()
     end)
 end
 
--- [[ PRECISION PARRY LOGIC V8.1 ]] --
+-- [[ PRECISION PARRY LOGIC V8.4 (OPTIMIZED) ]] --
 local lastParryTime = 0
 
 local function SpamParry()
@@ -247,6 +247,7 @@ local function SpamParry()
             VirtualInputManager:SendKeyEvent(true, SETTINGS.Parry_Key, false, game)
             VirtualInputManager:SendKeyEvent(false, SETTINGS.Parry_Key, false, game)
         end
+        task.wait(0.01) -- ใส่ delay จิ๋วๆ เพื่อให้ Server รับ input ทัน
     end
 end
 
@@ -254,7 +255,7 @@ local function IsFacingMe(myPos, killerRoot)
     local directionToMe = (myPos - killerRoot.Position).Unit
     local killerLook = killerRoot.CFrame.LookVector
     local dotProduct = directionToMe:Dot(killerLook)
-    return dotProduct > 0.5 
+    return dotProduct > 0.35 -- ลดความเข้มงวดลงเล็กน้อยให้ติดง่ายขึ้น (เดิม 0.5)
 end
 
 local function AutoParryCheck()
@@ -273,22 +274,29 @@ local function AutoParryCheck()
             if kRoot and kHum and kHum.Health > 0 then
                 local dist = (kRoot.Position - myRoot.Position).Magnitude
                 
+                -- เงื่อนไข 1: ต้องอยู่ในระยะ MaxRange (11.5)
                 if dist <= SETTINGS.Parry_MaxRange then
-                    if dist > SETTINGS.Parry_PanicRange and not IsFacingMe(myRoot.Position, kRoot) then
-                        return 
+                    
+                    local shouldParry = false
+                    local isPanic = dist <= SETTINGS.Parry_PanicRange -- ระยะประชิด (6)
+
+                    -- เงื่อนไข 2: ถ้าไม่ Panic ต้องหันหน้ามาหาเรา
+                    if not isPanic and not IsFacingMe(myRoot.Position, kRoot) then
+                        goto continue_loop 
                     end
 
                     local animator = kHum:FindFirstChild("Animator") or p.Character:FindFirstChild("Animator")
                     if animator then
                         for _, track in pairs(animator:GetPlayingAnimationTracks()) do
-                            local shouldParry = false
-                            if dist <= SETTINGS.Parry_PanicRange then
-                                if track.Priority == Enum.AnimationPriority.Action or 
-                                   track.Priority == Enum.AnimationPriority.Action2 or 
-                                   track.Priority == Enum.AnimationPriority.Action3 then
-                                    shouldParry = true
-                                end
+                            
+                            -- ตรวจจับ Animation Priority
+                            if track.Priority == Enum.AnimationPriority.Action or 
+                               track.Priority == Enum.AnimationPriority.Action2 or 
+                               track.Priority == Enum.AnimationPriority.Action3 then
+                                shouldParry = true
                             end
+                            
+                            -- ตรวจจับ Animation Name/ID
                             if not shouldParry then
                                 local name = track.Name:lower()
                                 local id = track.Animation.AnimationId
@@ -303,22 +311,33 @@ local function AutoParryCheck()
                             end
 
                             if shouldParry then
+                                -- Logic เสริม: ถ้ายังอยู่ไกล (ไม่ Panic) ให้รอจังหวะง้างนิดนึง
+                                if not isPanic then
+                                    -- ถ้าง้างมือเพิ่งเริ่ม (TimePosition น้อย) ให้รอเสี้ยววิ
+                                    if track.Length > 0 and track.TimePosition < 0.05 then
+                                        task.wait(0.05) 
+                                    end
+                                end
+
                                 SpamParry()
                                 lastParryTime = now
+                                
+                                -- Visual Effect
                                 local t = Instance.new("Part", Workspace)
                                 t.Anchored, t.CanCollide, t.Transparency = true, false, 0.5
                                 t.Color = Color3.fromRGB(255, 0, 0) 
-                                t.Size = Vector3.new(3,3,3)
+                                t.Size = Vector3.new(4,4,4)
                                 t.CFrame = kRoot.CFrame
                                 t.Shape = Enum.PartType.Ball
                                 game:GetService("Debris"):AddItem(t, 0.2)
-                                return 
+                                return -- Parry แล้วจบเลย รอ Cooldown
                             end
                         end
                     end
                 end
             end
         end
+        ::continue_loop::
     end
 end
 
@@ -426,4 +445,4 @@ UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
-StarterGui:SetCore("SendNotification", { Title = "V8.3 LOADED", Text = "Parry [V] | Aim Hold [X]", Duration = 3 })
+StarterGui:SetCore("SendNotification", { Title = "V8.4 OPTIMIZED", Text = "Parry [V] Range 11.5", Duration = 3 })
