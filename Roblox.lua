@@ -36,7 +36,6 @@ local KEY_FILE_NAME = "Vacuum_Key.txt"
 
 -- ฟังก์ชันเช็ค Key แบบใหม่ (อ่านก่อนเขียน = ไว)
 local function CheckAndLock(inputKey)
-    -- 1. โหลดข้อมูลจาก CSV (ใส่ nocache เพื่อให้ได้ข้อมูลล่าสุด)
     local success, result = pcall(function()
         return game:HttpGet(CSV_URL .. "&nocache=" .. tostring(os.time()))
     end)
@@ -46,13 +45,11 @@ local function CheckAndLock(inputKey)
     local foundKey = false
     local storedHWID = nil
 
-    -- 2. วนลูปหา Key
     for line in result:gmatch("[^\r\n]+") do
         local key, hwid = line:match("([^,]+),([^,]*)")
         if key == inputKey then
             foundKey = true
             storedHWID = hwid
-            -- ลบช่องว่างที่อาจติดมา
             if storedHWID then storedHWID = storedHWID:gsub("%s+", "") end
             break
         end
@@ -60,13 +57,10 @@ local function CheckAndLock(inputKey)
 
     if not foundKey then return false, "ไม่พบ Key นี้ในระบบ!" end
 
-    -- 3. ตรวจสอบเงื่อนไข (Logic แบบไว)
     if storedHWID == MyHWID then
-        -- [กรณี 1] Key ผูกกับเครื่องนี้อยู่แล้ว -> ผ่านทันที (ไวที่สุด)
         return true, "Verified"
         
     elseif storedHWID == "" or storedHWID == nil then
-        -- [กรณี 2] Key ว่าง (เพิ่งได้มา) -> ส่งข้อมูลไปผูก (Background)
         task.spawn(function()
             local body = HttpService:JSONEncode({ key = inputKey, hwid = MyHWID })
             local httpRequest = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
@@ -81,11 +75,9 @@ local function CheckAndLock(inputKey)
                 end)
             end
         end)
-        -- ให้ User กดอีกทีเพื่อยืนยัน (ปลอดภัยกว่า)
         return false, "กำลังบันทึกเครื่อง... กรุณากดปุ่มเดิมอีกครั้ง"
         
     else
-        -- [กรณี 3] Key ติดเครื่องอื่น
         return false, "Key นี้ติดเครื่องอื่นไปแล้ว!"
     end
 end
@@ -144,26 +136,27 @@ local function CreateKeyUI(onSuccess)
         Btn.Text = "CHECKING..."
         Btn.Active = false
         local key = Box.Text
-        local ok, msg = CheckAndLock(key)
-        if ok then
-            Status.TextColor3 = Color3.fromRGB(100, 255, 100)
-            Status.Text = "Access Granted!"
-            Btn.Text = "DONE"
-            
-            -- บันทึก Key ลงเครื่อง
-            if writefile then
-                writefile(KEY_FILE_NAME, key)
+        
+        -- ใช้ task.spawn เพื่อไม่ให้ UI ค้างระหว่างรอเน็ต
+        task.spawn(function()
+            local ok, msg = CheckAndLock(key)
+            if ok then
+                Status.TextColor3 = Color3.fromRGB(100, 255, 100)
+                Status.Text = "Access Granted!"
+                Btn.Text = "DONE"
+                
+                if writefile then writefile(KEY_FILE_NAME, key) end
+                
+                task.wait(0.5)
+                ScreenGui:Destroy()
+                onSuccess()
+            else
+                Status.TextColor3 = Color3.fromRGB(255, 100, 100)
+                Status.Text = msg
+                Btn.Text = "VERIFY"
+                Btn.Active = true
             end
-            
-            task.wait(0.5)
-            ScreenGui:Destroy()
-            onSuccess()
-        else
-            Status.TextColor3 = Color3.fromRGB(255, 100, 100)
-            Status.Text = msg
-            Btn.Text = "VERIFY"
-            Btn.Active = true
-        end
+        end)
     end)
 end
 
@@ -241,12 +234,11 @@ local function StartMainScript()
         SpecialWarps = {
             {Name = {EN = "Spawn",        TH = "จุดเกิด"},        Pos = CFrame.new(7.92047453, 2.40828323, 100.69519)},
             {Name = {EN = "Color Point", TH = "จุดชื่อสี"},       Pos = CFrame.new(14.6551895, -53.0000038, 16.1253815)},
-            {Name = {EN = "Und. Shop",   TH = "ร้านใต้ดิน"},     Pos = CFrame.new(1183.3916, -226.482635, -537.569092)},
-            {Name = {EN = "Pavilion",    TH = "ศาลาน้ำ"},       Pos = CFrame.new(-546.928711, -93.0000076, 381.976349)}
+            {Name = {EN = "Und. Shop",   TH = "ร้านใต้ดิน"},      Pos = CFrame.new(1183.3916, -226.482635, -537.569092)},
+            {Name = {EN = "Pavilion",    TH = "ศาลาน้ำ"},        Pos = CFrame.new(-546.928711, -93.0000076, 381.976349)}
         }
     }
 
-    -- Custom Waypoints Storage
     local CustomWaypoints = {}
 
     local THEME = {
@@ -314,7 +306,8 @@ local function StartMainScript()
         VerticalMode = "None",
         FarmInfo = { Count = 0, StartTime = 0, CurrentState = "Idle", Tween = nil },
         Connections = {},
-        OldSpeed = nil
+        OldSpeed = nil,
+        CachedParts = {} -- [OPTIMIZATION] เก็บข้อมูลอวัยวะตัวละคร
     }
 
     ---------------------------------------------------------------------------------
@@ -380,11 +373,23 @@ local function StartMainScript()
         end)
     end
 
-    function Utils.noclip(char)
+    -- [OPTIMIZATION] แคชตัวละครล่วงหน้า
+    function Utils.updateCharCache(char)
+        State.CachedParts = {}
         if not char then return end
-        for _, v in pairs(char:GetChildren()) do
-            if v:IsA("BasePart") and v.CanCollide == true then
-                v.CanCollide = false
+        for _, v in ipairs(char:GetDescendants()) do
+            if v:IsA("BasePart") then
+                table.insert(State.CachedParts, v)
+            end
+        end
+    end
+
+    -- [OPTIMIZATION] ไม่ต้อง GetChildren() ทุกเฟรมอีกต่อไป
+    function Utils.noclip()
+        for i = 1, #State.CachedParts do
+            local part = State.CachedParts[i]
+            if part and part.CanCollide then
+                part.CanCollide = false
             end
         end
     end
@@ -404,8 +409,8 @@ local function StartMainScript()
         if hrp:FindFirstChild("SinkGyro") then hrp.SinkGyro:Destroy() end
         if hrp:FindFirstChild("FarmGyro") then hrp.FarmGyro:Destroy() end
         
-        for _, v in pairs(char:GetChildren()) do
-            if v:IsA("BasePart") then v.CanCollide = true end
+        for _, v in ipairs(State.CachedParts) do
+            if v and v:IsA("BasePart") then v.CanCollide = true end
         end
     end
 
@@ -436,7 +441,6 @@ local function StartMainScript()
     GUI.Screen.ResetOnSpawn = false
     GUI.Screen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
-    -- Helper for standard buttons
     function GUI.createBtn(parent, textKey, sizeScale)
         local container = Instance.new("Frame", parent)
         container.Size = UDim2.new(sizeScale, -8, 0, 45)
@@ -471,7 +475,6 @@ local function StartMainScript()
     GUI.MenuContainer.BackgroundTransparency = 1
     GUI.MenuContainer.Visible = true
 
-    -- [[ STATUS FRAME ]] --
     GUI.StatusFrame = Instance.new("Frame", GUI.Screen)
     GUI.StatusFrame.AutomaticSize = Enum.AutomaticSize.X
     GUI.StatusFrame.Size = UDim2.new(0, 0, 0, 40)
@@ -494,7 +497,6 @@ local function StartMainScript()
     GUI.StatusLabel.TextSize = 16
     GUI.StatusLabel.Text = TRANSLATIONS.STATUS_WAIT.EN
 
-    -- [[ MAIN BAR (Bottom Center) ]] --
     GUI.MainBar = Instance.new("Frame", GUI.MenuContainer)
     GUI.MainBar.Size = UDim2.new(0, 1150, 0, 65)
     GUI.MainBar.Position = UDim2.new(0.5, -575, 1.5, 0) 
@@ -536,7 +538,6 @@ local function StartMainScript()
     Utils.addStroke(speedInput, 0.6)
     GUI.Buttons.Lang = GUI.createBtn(GUI.MainBar, "LANG_BTN", 0.07)
 
-    -- [[ SIDE PANEL (Right Side) ]] --
     GUI.SideFrame = Instance.new("Frame", GUI.MenuContainer)
     GUI.SideFrame.Size = UDim2.new(0, 300, 0, 450)
     GUI.SideFrame.Position = UDim2.new(1.5, 0, 0.2, 0) 
@@ -546,7 +547,6 @@ local function StartMainScript()
     Utils.addStroke(GUI.SideFrame, 0.4)
     Utils.makeDraggable(GUI.SideFrame)
 
-    -- Tab Container
     local TabContainer = Instance.new("Frame", GUI.SideFrame)
     TabContainer.Size = UDim2.new(1, -20, 0, 40)
     TabContainer.Position = UDim2.new(0, 10, 0, 10)
@@ -556,7 +556,6 @@ local function StartMainScript()
     TabListLayout.FillDirection = Enum.FillDirection.Horizontal
     TabListLayout.Padding = UDim.new(0, 5)
 
-    -- Function to create stylized tabs
     local function createTabBtn(text, isActive, widthScale)
         local btn = Instance.new("TextButton", TabContainer)
         btn.Size = UDim2.new(widthScale, -3, 1, 0)
@@ -583,14 +582,12 @@ local function StartMainScript()
     local TabBtn_Warps, TabLine_Warps = createTabBtn("⚡ Warps", false, 0.33)
     local TabBtn_Custom, TabLine_Custom = createTabBtn("📍 Custom", false, 0.33)
 
-    -- Content Container
     local ContentFrame = Instance.new("Frame", GUI.SideFrame)
     ContentFrame.Size = UDim2.new(1, -10, 1, -110) 
     ContentFrame.Position = UDim2.new(0, 5, 0, 60)
     ContentFrame.BackgroundTransparency = 1
     ContentFrame.ClipsDescendants = true
 
-    -- [[ 1. PLAYER SCROLL ]] --
     local scrollFrame = Instance.new("ScrollingFrame", ContentFrame)
     scrollFrame.Name = "PlayerList"
     scrollFrame.Size = UDim2.new(1, 0, 1, 0)
@@ -602,7 +599,6 @@ local function StartMainScript()
     listLayout.SortOrder = Enum.SortOrder.Name
     listLayout.Padding = UDim.new(0, 6)
 
-    -- [[ 2. WARP SCROLL ]] --
     local warpScrollFrame = Instance.new("ScrollingFrame", ContentFrame)
     warpScrollFrame.Name = "WarpList"
     warpScrollFrame.Size = UDim2.new(1, 0, 1, 0)
@@ -617,7 +613,6 @@ local function StartMainScript()
     warpLayout.SortOrder = Enum.SortOrder.LayoutOrder
     warpLayout.Padding = UDim.new(0, 8)
 
-    -- [[ 3. CUSTOM WARP SCROLL & UI ]] --
     local customContainer = Instance.new("Frame", ContentFrame)
     customContainer.Name = "CustomContainer"
     customContainer.Size = UDim2.new(1, 0, 1, 0)
@@ -680,9 +675,6 @@ local function StartMainScript()
 
     GUI.Buttons.Reset = {Button = resetBtn, Key = "RESET", Gradient = Utils.addGradient(resetBtn)}
 
-    -- [[ TAB LOGIC ]] --
-    local currentTab = "Players"
-
     local function UpdateTabVisuals(selected)
         local isP, isW, isC = (selected=="Players"), (selected=="Warps"), (selected=="Custom")
         
@@ -708,7 +700,6 @@ local function StartMainScript()
     TabBtn_Warps.MouseButton1Click:Connect(function() UpdateTabVisuals("Warps") end)
     TabBtn_Custom.MouseButton1Click:Connect(function() UpdateTabVisuals("Custom") end)
 
-    -- [[ CUSTOM WARP LOGIC ]] --
     local function refreshCustomList()
         for _, v in pairs(customScroll:GetChildren()) do
             if v:IsA("Frame") then v:Destroy() end
@@ -874,7 +865,6 @@ local function StartMainScript()
         TweenService:Create(GUI.StatusFrame, tweenInfo, {Position = targetPos}):Play()
     end
 
-    -- [[ CORE LOGIC ]] --
     local Features = {}
 
     function Features.setupInstantPrompts()
@@ -1005,7 +995,7 @@ local function StartMainScript()
         else GUI.toggleVisual(GUI.Buttons.Rise, true); GUI.setStatus(TRANSLATIONS.RISE_STATUS[CONFIG.CurrentLang]) end
 
         hum.PlatformStand = true
-        Utils.noclip(char)
+        Utils.noclip()
         local bv = Instance.new("BodyVelocity"); bv.Name = "SinkLift"; bv.Velocity = Vector3.new(0, (mode == "Sink" and -6 or 6), 0); bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge); bv.Parent = hrp
         local bg = Instance.new("BodyGyro"); bg.Name = "SinkGyro"; bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9); bg.CFrame = hrp.CFrame; bg.Parent = hrp
     end
@@ -1033,26 +1023,36 @@ local function StartMainScript()
         if hum then hum:ChangeState(Enum.HumanoidStateType.Running) end
     end
 
+    -- [OPTIMIZATION] แก้ปัญหา Memory Leak
     function Features.interactUntil(conditionFunc, maxTime)
         local elapsed = 0
+        local overlap = OverlapParams.new()
+        overlap.FilterType = Enum.RaycastFilterType.Exclude
+
         while elapsed < maxTime and State.AutoFarm do
             if conditionFunc() then return true end
-            local char, hrp, _ = Utils.getChar()
-            if char then
-                 local overlap = OverlapParams.new(); overlap.FilterDescendantsInstances = {char}; overlap.FilterType = Enum.RaycastFilterType.Exclude
-                 local parts = workspace:GetPartBoundsInRadius(hrp.Position, 25, overlap)
-                 for _, part in ipairs(parts) do
-                     local prompt = part:FindFirstChildWhichIsA("ProximityPrompt") or (part.Parent and part.Parent:FindFirstChildWhichIsA("ProximityPrompt"))
-                     if prompt and prompt.Enabled then
-                         prompt:InputHoldBegin()
-                         task.spawn(function()
-                             VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game); task.wait(0.05)
-                             VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game); prompt:InputHoldEnd()
-                         end)
-                     end
-                 end
+            
+            local currentChar, currentHrp, _ = Utils.getChar()
+            if currentChar and currentHrp then
+                overlap.FilterDescendantsInstances = {currentChar}
+                local parts = workspace:GetPartBoundsInRadius(currentHrp.Position, 25, overlap)
+                
+                for i = 1, #parts do
+                    local part = parts[i]
+                    local prompt = part:FindFirstChildWhichIsA("ProximityPrompt") or (part.Parent and part.Parent:FindFirstChildWhichIsA("ProximityPrompt"))
+                    if prompt and prompt.Enabled then
+                        prompt:InputHoldBegin()
+                        task.spawn(function()
+                            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+                            task.wait(0.05)
+                            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+                            prompt:InputHoldEnd()
+                        end)
+                    end
+                end
             end
-            task.wait(0.2); elapsed = elapsed + 0.2
+            task.wait(0.2)
+            elapsed = elapsed + 0.2
         end
         return false
     end
@@ -1092,13 +1092,11 @@ local function StartMainScript()
         end
     end
 
-    -- [[ UPDATED: ESP & TRACER LOGIC ]] --
     function Features.updateESP()
         for _, p in pairs(Players:GetPlayers()) do
             if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
                 local char = p.Character
                 
-                -- [ESP BOX]
                 if State.ESP then
                     if not char:FindFirstChild("Elite_Highlight") then
                         local hi = Instance.new("Highlight", char); hi.Name = "Elite_Highlight"; hi.FillTransparency = 0.5; hi.FillColor = THEME.ESP_Color; hi.OutlineColor = THEME.ESP_Color
@@ -1110,7 +1108,6 @@ local function StartMainScript()
                     if char:FindFirstChild("Elite_Tag") then char.Elite_Tag:Destroy() end
                 end
 
-                -- [TRACER BEAM LOGIC]
                 local shouldDrawBeam = (State.TracerTarget == p) 
 
                 if shouldDrawBeam then
@@ -1190,7 +1187,9 @@ local function StartMainScript()
         local char, hrp, hum = Utils.getChar()
         if not char then return end
         
-        if State.Flying or State.Invisible or State.VerticalMode ~= "None" or State.AutoFarm then Utils.noclip(char) end
+        if State.Flying or State.Invisible or State.VerticalMode ~= "None" or State.AutoFarm then 
+            Utils.noclip() 
+        end
         
         if State.Flying and not State.GhostMode then
             local bv = hrp:FindFirstChild("Elite_Movement")
@@ -1246,7 +1245,6 @@ local function StartMainScript()
     table.insert(_G.ProScript_Connections, speedInput:GetPropertyChangedSignal("Text"):Connect(function() CONFIG.Speed = tonumber(speedInput.Text) or 1 end))
     table.insert(_G.ProScript_Connections, LocalPlayer.Idled:Connect(function() VirtualUser:CaptureController(); VirtualUser:ClickButton2(Vector2.new()); GUI.setStatus(TRANSLATIONS.AFK[CONFIG.CurrentLang]) end))
 
-    -- [[ UPDATED PLAYER LIST (Toggle Track) ]] --
     local function updateList()
         for _, item in pairs(scrollFrame:GetChildren()) do if item:IsA("Frame") then item:Destroy() end end
         
@@ -1296,7 +1294,6 @@ local function StartMainScript()
                 Utils.addCorner(sBtn, 6)
                 sBtn.MouseButton1Click:Connect(function() if p.Character and p.Character:FindFirstChild("Humanoid") then Camera.CameraSubject = p.Character.Humanoid end end)
 
-                -- [[ ปุ่ม TRACK ]] --
                 local trackBtn = Instance.new("TextButton", pRow)
                 trackBtn.Size = UDim2.new(0.2, 0, 0.7, 0); 
                 trackBtn.Position = UDim2.new(0.78, 0, 0.15, 0)
@@ -1332,7 +1329,19 @@ local function StartMainScript()
         scrollFrame.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 10)
     end
 
-    -- [[ UPDATED: EVENT BINDINGS ]] --
+    -- [OPTIMIZATION] ผูก Event แจ้ง Cache ตัวละครเมื่อเกิดใหม่
+    local function bindLocalCharacter(char)
+        Utils.updateCharCache(char)
+        local conn = char.DescendantAdded:Connect(function(descendant)
+            if descendant:IsA("BasePart") then
+                table.insert(State.CachedParts, descendant)
+            end
+        end)
+        table.insert(_G.ProScript_Connections, conn)
+    end
+    if LocalPlayer.Character then bindLocalCharacter(LocalPlayer.Character) end
+    table.insert(_G.ProScript_Connections, LocalPlayer.CharacterAdded:Connect(bindLocalCharacter))
+
     local function bindPlayerEvents(p)
         if p == LocalPlayer then return end 
         
@@ -1364,7 +1373,7 @@ local function StartMainScript()
 
     -- [[ INTRO SEQUENCE ]] --
     local function playIntro()
-        if LocalPlayer.UserId == 473092660 then return end -- Skip intro for dev/specific user
+        if LocalPlayer.UserId == 473092660 then return end -- Skip intro for dev
         local introGui = Instance.new("ScreenGui", LocalPlayer.PlayerGui)
         introGui.Name = "Intro_Vacuum_Cinematic"
         introGui.IgnoreGuiInset = true 
@@ -1441,33 +1450,27 @@ end
 -- [[ 3. AUTO LOGIN INITIALIZATION (FASTEST) ]] --
 ---------------------------------------------------------------------------------
 local function Initialize()
-    -- เช็คไฟล์ Key ในเครื่อง
     if isfile and isfile(KEY_FILE_NAME) then
         local savedKey = readfile(KEY_FILE_NAME)
         if savedKey and savedKey ~= "" then
             
-            -- แจ้งเตือนเล็กน้อย
             StarterGui:SetCore("SendNotification", {
                 Title = "VACUUM SYSTEM",
                 Text = "Auto-Authenticating...",
                 Duration = 2
             })
             
-            -- เช็คเลย (รอบนี้ไวแน่นอน เพราะอ่าน CSV ก่อน)
             local ok, msg = CheckAndLock(savedKey)
             
             if ok then
-                -- ผ่าน! รันเลย (ข้าม UI)
                 StartMainScript()
                 return 
             else
-                -- ไม่ผ่าน (Key หมดอายุ/เปลี่ยนเครื่อง) ลบไฟล์ทิ้ง
                 delfile(KEY_FILE_NAME)
             end
         end
     end
     
-    -- ถ้า Auto Login ไม่ผ่าน ให้สร้างหน้าต่างใส่ Key
     CreateKeyUI(StartMainScript)
 end
 
