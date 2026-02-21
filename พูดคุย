@@ -1099,7 +1099,7 @@ local function StartMainScript()
                 
                 if State.ESP then
                     if not char:FindFirstChild("Elite_Highlight") then
-                        local hi = Instance.new("Highlight", char); hi.Name = "Elite_Highlight"; hi.FillTransparency = 0.5; hi.FillColor = THEME.ESP_Color; hi.OutlineColor = THEME.ESP_Color
+                        local hi = Instance.new("Highlight", char); hi.Name = "Elite_Highlight"; hi.FillTransparency = 1; hi.OutlineColor = THEME.ESP_Color
                         local bg = Instance.new("BillboardGui", char); bg.Name = "Elite_Tag"; bg.Adornee = char.HumanoidRootPart; bg.Size = UDim2.new(0, 100, 0, 40); bg.StudsOffset = Vector3.new(0, 3.5, 0); bg.AlwaysOnTop = true
                         local tl = Instance.new("TextLabel", bg); tl.BackgroundTransparency = 1; tl.Size = UDim2.new(1, 0, 1, 0); tl.Text = p.DisplayName; tl.TextColor3 = THEME.ESP_Color; tl.Font = Enum.Font.GothamBold; tl.TextSize = 14; tl.TextStrokeTransparency = 0.5
                     end
