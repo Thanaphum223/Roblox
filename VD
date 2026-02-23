@@ -29,9 +29,9 @@ local SETTINGS = {
     Aimbot_Enabled = false,        
 
     Parry_Key = "RightClick", 
-    Parry_MaxRange = 10.5, 
+    Parry_MaxRange = 11.5, 
     Parry_PanicRange = 6.5,   
-    Parry_Cooldown = 0.15, 
+    Parry_Cooldown = 0.05, 
 
     Aimbot_HoldKey = Enum.UserInputType.MouseButton2,
     Aimbot_FOV = 150,               
