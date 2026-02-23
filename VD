@@ -1,14 +1,7 @@
 -- [[ PROJECT: VIOLENCE DISTRICT - INSTANT V8.6 (ADDED REJOIN) ]] --
--- ระบบป้องกันการโหลดสคริปต์ซ้ำ
 if _G.ViolenceDistrict_Loaded then
-    pcall(function()
-        game:GetService("StarterGui"):SetCore("SendNotification", { 
-            Title = "System", 
-            Text = "Script is already loaded!", 
-            Duration = 3 
-        })
-    end)
-    return -- หยุดการทำงานของสคริปต์ใหม่ทันที
+    pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", { Title = "System", Text = "Script is already loaded!", Duration = 3 }) end)
+    return
 end
 _G.ViolenceDistrict_Loaded = true
 local Players = game:GetService("Players")
@@ -56,22 +49,16 @@ local SURVIVOR_ITEMS = {"medkit", "firstaid", "bandage", "flashlight", "phone", 
 local ATTACK_KEYWORDS = {"attack", "swing", "slash", "lunge", "m1", "punch", "strike", "heavy", "light"} 
 local ATTACK_IDS = { "111920872708571", "78935059863801", "139369275981139", "78432063483146", "132817836308238", "133963973694098", "74968262036854" }
 if _G.ProScript_Connections then
-    for _, conn in pairs(_G.ProScript_Connections) do
-        if conn then pcall(function() conn:Disconnect() end) end
-    end
+    for _, conn in pairs(_G.ProScript_Connections) do if conn then pcall(function() conn:Disconnect() end) end end
 end
 _G.ProScript_Connections = {} 
 local originalCollision = {}
 local function SaveCollisionData(char)
     originalCollision = {}
-    for _, v in pairs(char:GetDescendants()) do
-        if v:IsA("BasePart") then originalCollision[v] = v.CanCollide end
-    end
+    for _, v in pairs(char:GetDescendants()) do if v:IsA("BasePart") then originalCollision[v] = v.CanCollide end end
 end
 local function RestoreCollisionData(char)
-    for part, canCollide in pairs(originalCollision) do
-        if part and part.Parent then part.CanCollide = canCollide end
-    end
+    for part, canCollide in pairs(originalCollision) do if part and part.Parent then part.CanCollide = canCollide end end
     originalCollision = {}
 end
 local function ForceResetCollision(char)
@@ -84,9 +71,7 @@ local function ForceResetCollision(char)
     end
 end
 local function CleanVisuals()
-    for _, v in pairs(Workspace:GetDescendants()) do
-        if v.Name:match("ESP") and (v:IsA("Highlight") or v:IsA("BillboardGui")) then v:Destroy() end
-    end
+    for _, v in pairs(Workspace:GetDescendants()) do if v.Name:match("ESP") and (v:IsA("Highlight") or v:IsA("BillboardGui")) then v:Destroy() end end
 end
 CleanVisuals()
 local function GetPlayerRole(plr)
@@ -114,21 +99,11 @@ local function CreatePlayerESP(target, text, color)
     if not target or not target.Parent then return end
     local char = target.Parent
     local hi = char:FindFirstChild("RoleESP_Highlight") or Instance.new("Highlight", char)
-    hi.Name = "RoleESP_Highlight"
-    hi.FillColor, hi.OutlineColor = color, color
-    hi.FillTransparency = 1 
-    hi.OutlineTransparency = 0  
+    hi.Name, hi.FillColor, hi.OutlineColor, hi.FillTransparency, hi.OutlineTransparency = "RoleESP_Highlight", color, color, 1, 0
     local bg = target:FindFirstChild("RoleESP_Tag") or Instance.new("BillboardGui", target)
-    bg.Name = "RoleESP_Tag"
-    bg.Size, bg.AlwaysOnTop = UDim2.new(0, 200, 0, 50), true
-    bg.StudsOffset = Vector3.new(0, 3.5, 0)
+    bg.Name, bg.Size, bg.AlwaysOnTop, bg.StudsOffset = "RoleESP_Tag", UDim2.new(0, 200, 0, 50), true, Vector3.new(0, 3.5, 0)
     local tl = bg:FindFirstChild("Label") or Instance.new("TextLabel", bg)
-    tl.Name = "Label"
-    tl.BackgroundTransparency, tl.Size = 1, UDim2.new(1, 0, 1, 0)
-    tl.Font, tl.TextSize = Enum.Font.GothamBold, 13
-    tl.Text, tl.TextColor3 = text, color
-    tl.TextStrokeTransparency = 0
-    tl.TextStrokeColor3 = Color3.new(0,0,0)
+    tl.Name, tl.BackgroundTransparency, tl.Size, tl.Font, tl.TextSize, tl.Text, tl.TextColor3, tl.TextStrokeTransparency, tl.TextStrokeColor3 = "Label", 1, UDim2.new(1, 0, 1, 0), Enum.Font.GothamBold, 13, text, color, 0, Color3.new(0,0,0)
 end
 local function UpdatePlayerESP()
     if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
@@ -141,7 +116,8 @@ local function UpdatePlayerESP()
                 local role = GetPlayerRole(p)
                 local dist = (myPos - char.HumanoidRootPart.Position).Magnitude
                 local hpText = ""
-                if humanoid then
+                -- [แก้ตรงนี้] ตรวจสอบว่ามี Humanoid และ role ต้องเป็น Survivor เท่านั้นถึงจะโชว์เลือด
+                if humanoid and role == "Survivor" then
                     local hp = math.floor(humanoid.Health)
                     local maxHp = math.floor(humanoid.MaxHealth)
                     hpText = hp < maxHp and string.format(" [HP:%d%%]", (hp/maxHp)*100) or " [FULL]"
@@ -170,20 +146,13 @@ local function UpdateGenESP()
                     if tag then tag:Destroy() end
                 else 
                     local hi = v:FindFirstChild("GenESP_Highlight") or Instance.new("Highlight", v)
-                    hi.Name = "GenESP_Highlight"
-                    hi.FillColor, hi.OutlineColor = SETTINGS.GenColor, SETTINGS.GenColor
-                    hi.FillTransparency = 0.4
+                    hi.Name, hi.FillColor, hi.OutlineColor, hi.FillTransparency = "GenESP_Highlight", SETTINGS.GenColor, SETTINGS.GenColor, 0.4
                     local centerPart = v.PrimaryPart or v:FindFirstChild("HitBox") or v:FindFirstChildWhichIsA("BasePart")
                     if centerPart then
                         local bg = centerPart:FindFirstChild("GenESP_Tag") or Instance.new("BillboardGui", centerPart)
-                        bg.Name = "GenESP_Tag"
-                        bg.Size, bg.AlwaysOnTop, bg.StudsOffset = UDim2.new(0, 150, 0, 40), true, Vector3.new(0, 2, 0)
+                        bg.Name, bg.Size, bg.AlwaysOnTop, bg.StudsOffset = "GenESP_Tag", UDim2.new(0, 150, 0, 40), true, Vector3.new(0, 2, 0)
                         local tl = bg:FindFirstChild("Label") or Instance.new("TextLabel", bg)
-                        tl.Name = "Label"
-                        tl.BackgroundTransparency, tl.Size, tl.Font, tl.TextSize = 1, UDim2.new(1, 0, 1, 0), Enum.Font.GothamBlack, 16
-                        tl.Text = string.format("%d%%", percent)
-                        tl.TextColor3 = Color3.fromHSV(math.clamp((percent/100)*0.33, 0, 0.33), 1, 1)
-                        tl.TextStrokeTransparency = 0
+                        tl.Name, tl.BackgroundTransparency, tl.Size, tl.Font, tl.TextSize, tl.Text, tl.TextColor3, tl.TextStrokeTransparency = "Label", 1, UDim2.new(1, 0, 1, 0), Enum.Font.GothamBlack, 16, string.format("%d%%", percent), Color3.fromHSV(math.clamp((percent/100)*0.33, 0, 0.33), 1, 1), 0
                     end
                 end
             end
@@ -213,21 +182,15 @@ end
 local lastParryTime = 0
 local function SpamParry()
     for i = 1, 3 do
-        if SETTINGS.Parry_Key == "RightClick" then
-            VirtualInputManager:SendMouseButtonEvent(0, 0, 1, true, game, 1) 
-            VirtualInputManager:SendMouseButtonEvent(0, 0, 1, false, game, 1)
-        else
-            VirtualInputManager:SendKeyEvent(true, SETTINGS.Parry_Key, false, game)
-            VirtualInputManager:SendKeyEvent(false, SETTINGS.Parry_Key, false, game)
-        end
+        if SETTINGS.Parry_Key == "RightClick" then VirtualInputManager:SendMouseButtonEvent(0, 0, 1, true, game, 1) VirtualInputManager:SendMouseButtonEvent(0, 0, 1, false, game, 1)
+        else VirtualInputManager:SendKeyEvent(true, SETTINGS.Parry_Key, false, game) VirtualInputManager:SendKeyEvent(false, SETTINGS.Parry_Key, false, game) end
         task.wait(0.01)
     end
 end
 local function IsFacingMe(myPos, killerRoot)
     local directionToMe = (myPos - killerRoot.Position).Unit
     local killerLook = killerRoot.CFrame.LookVector
-    local dotProduct = directionToMe:Dot(killerLook)
-    return dotProduct > 0.35 
+    return directionToMe:Dot(killerLook) > 0.35 
 end
 local function AutoParryCheck()
     if not SETTINGS.AutoParry_Enabled or not LocalPlayer.Character then return end
@@ -249,29 +212,15 @@ local function AutoParryCheck()
                             if animator then
                                 for _, track in pairs(animator:GetPlayingAnimationTracks()) do
                                     local shouldParry = false
-                                    if track.Priority == Enum.AnimationPriority.Action or 
-                                       track.Priority == Enum.AnimationPriority.Action2 or 
-                                       track.Priority == Enum.AnimationPriority.Action3 then
-                                        shouldParry = true
-                                    end
+                                    if track.Priority == Enum.AnimationPriority.Action or track.Priority == Enum.AnimationPriority.Action2 or track.Priority == Enum.AnimationPriority.Action3 then shouldParry = true end
                                     if not shouldParry then
                                         local name = track.Name:lower()
                                         local id = track.Animation.AnimationId
-                                        for _, kw in ipairs(ATTACK_KEYWORDS) do
-                                            if name:find(kw) then shouldParry = true break end
-                                        end
-                                        if not shouldParry then
-                                            for _, aid in ipairs(ATTACK_IDS) do
-                                                if id:find(aid) then shouldParry = true break end
-                                            end
-                                        end
+                                        for _, kw in ipairs(ATTACK_KEYWORDS) do if name:find(kw) then shouldParry = true break end end
+                                        if not shouldParry then for _, aid in ipairs(ATTACK_IDS) do if id:find(aid) then shouldParry = true break end end end
                                     end
                                     if shouldParry then
-                                        if not isPanic then
-                                            if track.Length > 0 and track.TimePosition < 0.05 then
-                                                task.wait(0.05) 
-                                            end
-                                        end
+                                        if not isPanic then if track.Length > 0 and track.TimePosition < 0.05 then task.wait(0.05) end end
                                         SpamParry()
                                         lastParryTime = tick()
                                         local t = Instance.new("Part", Workspace)
@@ -329,28 +278,12 @@ RunService.RenderStepped:Connect(AutoParryCheck)
 RunService.RenderStepped:Connect(AutoAim) 
 RunService.Stepped:Connect(function()
     if SETTINGS.Noclip_Enabled and LocalPlayer.Character then
-        for _, v in pairs(LocalPlayer.Character:GetDescendants()) do
-            if v:IsA("BasePart") then v.CanCollide = false end
-        end
+        for _, v in pairs(LocalPlayer.Character:GetDescendants()) do if v:IsA("BasePart") then v.CanCollide = false end end
     end
 end)
-coroutine.wrap(function()
-    while true do
-        if SETTINGS.ESP_Enabled then pcall(UpdatePlayerESP) end
-        task.wait(0.2)
-    end
-end)()
-coroutine.wrap(function()
-    while true do
-        if SETTINGS.ESP_Enabled then pcall(UpdateGenESP) end
-        task.wait(0.5)
-    end
-end)()
-local function SendNotify(titleText, descText)
-    pcall(function()
-        StarterGui:SetCore("SendNotification", { Title = titleText, Text = descText, Duration = 2 })
-    end)
-end
+coroutine.wrap(function() while true do if SETTINGS.ESP_Enabled then pcall(UpdatePlayerESP) end task.wait(0.2) end end)()
+coroutine.wrap(function() while true do if SETTINGS.ESP_Enabled then pcall(UpdateGenESP) end task.wait(0.5) end end)()
+local function SendNotify(titleText, descText) pcall(function() StarterGui:SetCore("SendNotification", { Title = titleText, Text = descText, Duration = 2 }) end) end
 UserInputService.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     if input.KeyCode == SETTINGS.Key_ESP then
