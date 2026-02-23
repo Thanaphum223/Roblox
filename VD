@@ -1,4 +1,4 @@
--- [[ PROJECT: VIOLENCE DISTRICT - INSTANT V8.6 (FIXED AIMBOT + NO FOG) ]] --
+-- [[ PROJECT: VIOLENCE DISTRICT - INSTANT V8.6 (ADDED REJOIN) ]] --
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
@@ -6,15 +6,10 @@ local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 local StarterGui = game:GetService("StarterGui")
 local TeleportService = game:GetService("TeleportService")
-local Lighting = game:GetService("Lighting") 
 local Camera = Workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local Mouse = LocalPlayer:GetMouse()
-
----------------------------------------------------------------------------------
--- [SETTINGS]
----------------------------------------------------------------------------------
 local SETTINGS = {
     Key_ESP = Enum.KeyCode.E,
     Key_Noclip = Enum.KeyCode.R,
@@ -22,66 +17,51 @@ local SETTINGS = {
     Key_AutoParry = Enum.KeyCode.V, 
     Key_Aimbot = Enum.KeyCode.X,
     Key_Rejoin = Enum.KeyCode.L,
-    Key_NoFog = Enum.KeyCode.T, 
-
     ESP_Enabled = false,              
     Noclip_Enabled = false,
     AutoSkill_Enabled = true,
     AutoParry_Enabled = false,
     Aimbot_Enabled = false,        
-    NoFog_Enabled = false, 
-
     Parry_Key = "RightClick", 
     Parry_MaxRange = 11.5, 
     Parry_PanicRange = 6.5,   
     Parry_Cooldown = 0.05, 
-
     Aimbot_HoldKey = Enum.UserInputType.MouseButton2,
-    Aimbot_FOV = 150,               
+    Aimbot_FOV = 150,                
     Aimbot_Smoothness = 0.2,        
-    Aimbot_VisibleCheck = true, 
-
+    Aimbot_Prediction = 0.13,       
     SurvivorColor = Color3.fromRGB(0, 255, 100),    
     KillerColor = Color3.fromRGB(255, 0, 0),        
     SuspectColor = Color3.fromRGB(255, 170, 0),        
     GenColor = Color3.fromRGB(0, 255, 255),
-    
     GUI_NAME = "SkillCheckPromptGui",
     FRAME_NAME = "Check",
     NEEDLE_NAME = "Line",
     GOAL_NAME = "Goal",
 }
-
 local KILLER_ITEMS = {"knife", "bat", "axe", "machete", "saw", "gun", "hammer", "sword", "katana", "pipe", "weapon"}
 local SURVIVOR_ITEMS = {"medkit", "firstaid", "bandage", "flashlight", "phone", "key", "card", "soda"}
 local ATTACK_KEYWORDS = {"attack", "swing", "slash", "lunge", "m1", "punch", "strike", "heavy", "light"} 
 local ATTACK_IDS = { "111920872708571", "78935059863801", "139369275981139", "78432063483146", "132817836308238", "133963973694098", "74968262036854" }
-
----------------------------------------------------------------------------------
 if _G.ProScript_Connections then
     for _, conn in pairs(_G.ProScript_Connections) do
         if conn then pcall(function() conn:Disconnect() end) end
     end
 end
 _G.ProScript_Connections = {} 
-_G.NoFog_Connection = nil 
-
 local originalCollision = {}
-
 local function SaveCollisionData(char)
     originalCollision = {}
     for _, v in pairs(char:GetDescendants()) do
         if v:IsA("BasePart") then originalCollision[v] = v.CanCollide end
     end
 end
-
 local function RestoreCollisionData(char)
     for part, canCollide in pairs(originalCollision) do
         if part and part.Parent then part.CanCollide = canCollide end
     end
     originalCollision = {}
 end
-
 local function ForceResetCollision(char)
     for _, v in pairs(char:GetDescendants()) do
         if v:IsA("BasePart") then
@@ -91,15 +71,12 @@ local function ForceResetCollision(char)
         end
     end
 end
-
 local function CleanVisuals()
     for _, v in pairs(Workspace:GetDescendants()) do
         if v.Name:match("ESP") and (v:IsA("Highlight") or v:IsA("BillboardGui")) then v:Destroy() end
     end
 end
 CleanVisuals()
-
----------------------------------------------------------------------------------
 local function GetPlayerRole(plr)
     if not plr or not plr.Character then return "Unknown" end
     local success, teamName = pcall(function() return plr.Team.Name:lower() end)
@@ -121,7 +98,6 @@ local function GetPlayerRole(plr)
     if not role and plr:FindFirstChild("Backpack") then role = CheckItems(plr.Backpack) end
     return role or "Suspect"
 end
-
 local function CreatePlayerESP(target, text, color)
     if not target or not target.Parent then return end
     local char = target.Parent
@@ -130,12 +106,10 @@ local function CreatePlayerESP(target, text, color)
     hi.FillColor, hi.OutlineColor = color, color
     hi.FillTransparency = 1 
     hi.OutlineTransparency = 0  
-
     local bg = target:FindFirstChild("RoleESP_Tag") or Instance.new("BillboardGui", target)
     bg.Name = "RoleESP_Tag"
     bg.Size, bg.AlwaysOnTop = UDim2.new(0, 200, 0, 50), true
     bg.StudsOffset = Vector3.new(0, 3.5, 0)
-    
     local tl = bg:FindFirstChild("Label") or Instance.new("TextLabel", bg)
     tl.Name = "Label"
     tl.BackgroundTransparency, tl.Size = 1, UDim2.new(1, 0, 1, 0)
@@ -144,7 +118,6 @@ local function CreatePlayerESP(target, text, color)
     tl.TextStrokeTransparency = 0
     tl.TextStrokeColor3 = Color3.new(0,0,0)
 end
-
 local function UpdatePlayerESP()
     if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
     local myPos = LocalPlayer.Character.HumanoidRootPart.Position
@@ -168,13 +141,11 @@ local function UpdatePlayerESP()
         end
     end
 end
-
 local function GetGenProgress(model)
     local pct = tonumber(model:GetAttribute("RepairProgress")) or 0
     if pct > 0 and pct <= 1.001 then pct = pct * 100 end
     return math.floor(math.clamp(pct, 0, 100))
 end
-
 local function UpdateGenESP()
     for _, v in pairs(Workspace:GetDescendants()) do
         if v:IsA("Model") then
@@ -207,13 +178,11 @@ local function UpdateGenESP()
         end
     end
 end
-
 local function LineInGoal(Line, Goal)
     local lr, gr = Line.Rotation % 360, Goal.Rotation % 360
     local gs, ge = (gr + 104) % 360, (gr + 114) % 360
     return gs > ge and (lr >= gs or lr <= ge) or (lr >= gs and lr <= ge)
 end
-
 local function AutoSkillCheck()
     if not SETTINGS.AutoSkill_Enabled then return end
     pcall(function()
@@ -229,9 +198,7 @@ local function AutoSkillCheck()
         end
     end)
 end
-
 local lastParryTime = 0
-
 local function SpamParry()
     for i = 1, 3 do
         if SETTINGS.Parry_Key == "RightClick" then
@@ -244,47 +211,37 @@ local function SpamParry()
         task.wait(0.01)
     end
 end
-
 local function IsFacingMe(myPos, killerRoot)
     local directionToMe = (myPos - killerRoot.Position).Unit
     local killerLook = killerRoot.CFrame.LookVector
     local dotProduct = directionToMe:Dot(killerLook)
     return dotProduct > 0.35 
 end
-
 local function AutoParryCheck()
     if not SETTINGS.AutoParry_Enabled or not LocalPlayer.Character then return end
     local myRoot = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not myRoot then return end
-    
     local now = tick()
     if now - lastParryTime < SETTINGS.Parry_Cooldown then return end
-
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= LocalPlayer and p.Character then
             if GetPlayerRole(p) == "Killer" then
                 local kHum = p.Character:FindFirstChild("Humanoid")
                 local kRoot = p.Character:FindFirstChild("HumanoidRootPart")
-                
                 if kRoot and kHum and kHum.Health > 0 then
                     local dist = (kRoot.Position - myRoot.Position).Magnitude
-                    
                     if dist <= SETTINGS.Parry_MaxRange then
-                        
                         local isPanic = dist <= SETTINGS.Parry_PanicRange
-
                         if isPanic or IsFacingMe(myRoot.Position, kRoot) then
                             local animator = kHum:FindFirstChild("Animator") or p.Character:FindFirstChild("Animator")
                             if animator then
                                 for _, track in pairs(animator:GetPlayingAnimationTracks()) do
-                                    
                                     local shouldParry = false
                                     if track.Priority == Enum.AnimationPriority.Action or 
                                        track.Priority == Enum.AnimationPriority.Action2 or 
                                        track.Priority == Enum.AnimationPriority.Action3 then
                                         shouldParry = true
                                     end
-                                    
                                     if not shouldParry then
                                         local name = track.Name:lower()
                                         local id = track.Animation.AnimationId
@@ -297,25 +254,17 @@ local function AutoParryCheck()
                                             end
                                         end
                                     end
-
                                     if shouldParry then
                                         if not isPanic then
                                             if track.Length > 0 and track.TimePosition < 0.05 then
                                                 task.wait(0.05) 
                                             end
                                         end
-
                                         SpamParry()
                                         lastParryTime = tick()
-                                        
                                         local t = Instance.new("Part", Workspace)
-                                        t.Anchored = true
-                                        t.CanCollide = false
-                                        t.Transparency = 0.5
-                                        t.Color = Color3.fromRGB(255, 0, 0) 
-                                        t.Size = Vector3.new(4,4,4)
-                                        t.CFrame = kRoot.CFrame
-                                        t.Shape = Enum.PartType.Ball
+                                        t.Anchored, t.CanCollide, t.Transparency = true, false, 0.5
+                                        t.Color, t.Size, t.CFrame, t.Shape = Color3.fromRGB(255, 0, 0), Vector3.new(4,4,4), kRoot.CFrame, Enum.PartType.Ball
                                         game:GetService("Debris"):AddItem(t, 0.2)
                                         return 
                                     end
@@ -328,47 +277,22 @@ local function AutoParryCheck()
         end
     end
 end
-
--- [แก้ไขแล้ว] Aimbot พร้อม Visible Check แบบทำงาน 100%
 local function GetClosestKiller()
     local closestTarget = nil
     local maxDist = SETTINGS.Aimbot_FOV
     local mousePos = Vector2.new(Mouse.X, Mouse.Y)
-
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= LocalPlayer and p.Character then
-            local role = GetPlayerRole(p)
-            if role == "Killer" then
+            if GetPlayerRole(p) == "Killer" then
                 local hum = p.Character:FindFirstChild("Humanoid")
                 local root = p.Character:FindFirstChild("HumanoidRootPart")
-                
                 if hum and root and hum.Health > 0 then
                     local screenPos, onScreen = Camera:WorldToViewportPoint(root.Position)
                     if onScreen then
-                        local isVisible = true
-                        
-                        -- ระบบเช็คกำแพงแบบใหม่ (ตัดตัวฆาตกรออกจาก Blacklist เพื่อให้เรย์พุ่งชนฆาตกรได้)
-                        if SETTINGS.Aimbot_VisibleCheck then
-                            local raycastParams = RaycastParams.new()
-                            -- เอาแค่ตัวเราเองลง Blacklist เพื่อไม่ให้เรย์ติดตัวเราเอง
-                            raycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
-                            raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
-                            
-                            local direction = root.Position - Camera.CFrame.Position
-                            local raycastResult = Workspace:Raycast(Camera.CFrame.Position, direction, raycastParams)
-                            
-                            -- ถ้าเส้นเล็งไปชนอะไรสักอย่าง แล้วของชิ้นนั้น "ไม่ใช่" ร่างกายฆาตกร แปลว่าติดกำแพง
-                            if raycastResult and not raycastResult.Instance:IsDescendantOf(p.Character) then
-                                isVisible = false
-                            end
-                        end
-
-                        if isVisible then
-                            local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
-                            if dist < maxDist then
-                                closestTarget = root
-                                maxDist = dist
-                            end
+                        local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+                        if dist < maxDist then
+                            closestTarget = root
+                            maxDist = dist
                         end
                     end
                 end
@@ -377,130 +301,73 @@ local function GetClosestKiller()
     end
     return closestTarget
 end
-
--- [อัปเกรด] ระบบเล็งเป้าหมายสุดสมูท
 local function AutoAim()
     if not SETTINGS.Aimbot_Enabled then return end
     if not UserInputService:IsMouseButtonPressed(SETTINGS.Aimbot_HoldKey) then return end
-    
     local target = GetClosestKiller()
     if target then
-        local distance = (target.Position - Camera.CFrame.Position).Magnitude
-        local travelTime = distance / 1000 
-        local predictedPos = target.Position + (target.Velocity * travelTime)
-        
+        local predictedPos = target.Position + (target.Velocity * SETTINGS.Aimbot_Prediction)
         local currentCamCF = Camera.CFrame
-        local goalCF = CFrame.lookAt(currentCamCF.Position, predictedPos + Vector3.new(0, 1.5, 0))
-        
+        local goalCF = CFrame.new(currentCamCF.Position, predictedPos)
         Camera.CFrame = currentCamCF:Lerp(goalCF, SETTINGS.Aimbot_Smoothness)
     end
 end
-
--- [NEW] ระบบเปิด/ปิด หมอก
-local function ToggleNoFogConfig(enabled)
-    if enabled then
-        if _G.NoFog_Connection then _G.NoFog_Connection:Disconnect() end
-        _G.NoFog_Connection = RunService.Heartbeat:Connect(function()
-            if Lighting:FindFirstChild("FogEnd") then Lighting.FogEnd = 1000000 end
-            if Lighting:FindFirstChild("FogStart") then Lighting.FogStart = 100000 end
-        end)
-    else
-        if _G.NoFog_Connection then
-            _G.NoFog_Connection:Disconnect()
-            _G.NoFog_Connection = nil
-        end
-        if Lighting:FindFirstChild("FogEnd") then Lighting.FogEnd = 1000 end
-        if Lighting:FindFirstChild("FogStart") then Lighting.FogStart = 0 end
-    end
-end
-
----------------------------------------------------------------------------------
-table.insert(_G.ProScript_Connections, RunService.RenderStepped:Connect(AutoSkillCheck))
-table.insert(_G.ProScript_Connections, RunService.RenderStepped:Connect(AutoParryCheck)) 
-table.insert(_G.ProScript_Connections, RunService.RenderStepped:Connect(AutoAim)) 
-
-table.insert(_G.ProScript_Connections, RunService.Stepped:Connect(function()
+RunService.RenderStepped:Connect(AutoSkillCheck)
+RunService.RenderStepped:Connect(AutoParryCheck) 
+RunService.RenderStepped:Connect(AutoAim) 
+RunService.Stepped:Connect(function()
     if SETTINGS.Noclip_Enabled and LocalPlayer.Character then
         for _, v in pairs(LocalPlayer.Character:GetDescendants()) do
             if v:IsA("BasePart") then v.CanCollide = false end
         end
     end
-end))
-
+end)
 coroutine.wrap(function()
     while true do
         if SETTINGS.ESP_Enabled then pcall(UpdatePlayerESP) end
         task.wait(0.2)
     end
 end)()
-
 coroutine.wrap(function()
     while true do
         if SETTINGS.ESP_Enabled then pcall(UpdateGenESP) end
         task.wait(0.5)
     end
 end)()
-
 local function SendNotify(titleText, descText)
     pcall(function()
         StarterGui:SetCore("SendNotification", { Title = titleText, Text = descText, Duration = 2 })
     end)
 end
-
-table.insert(_G.ProScript_Connections, UserInputService.InputBegan:Connect(function(input, gpe)
+UserInputService.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     if input.KeyCode == SETTINGS.Key_ESP then
         SETTINGS.ESP_Enabled = not SETTINGS.ESP_Enabled
         if not SETTINGS.ESP_Enabled then CleanVisuals() end
-        local status = "OFF"
-        if SETTINGS.ESP_Enabled then status = "ON" end
+        local status = SETTINGS.ESP_Enabled and "ON" or "OFF"
         SendNotify("ESP", status)
-        
     elseif input.KeyCode == SETTINGS.Key_Noclip then
         SETTINGS.Noclip_Enabled = not SETTINGS.Noclip_Enabled
-        if SETTINGS.Noclip_Enabled then 
-            SaveCollisionData(LocalPlayer.Character)
-        else 
-            if next(originalCollision) then RestoreCollisionData(LocalPlayer.Character) 
-            else ForceResetCollision(LocalPlayer.Character) end
-        end
-        local status = "OFF"
-        if SETTINGS.Noclip_Enabled then status = "ON" end
+        if SETTINGS.Noclip_Enabled then SaveCollisionData(LocalPlayer.Character)
+        else if next(originalCollision) then RestoreCollisionData(LocalPlayer.Character) else ForceResetCollision(LocalPlayer.Character) end end
+        local status = SETTINGS.Noclip_Enabled and "ON" or "OFF"
         SendNotify("Noclip", status)
-        
     elseif input.KeyCode == SETTINGS.Key_AutoSkill then
         SETTINGS.AutoSkill_Enabled = not SETTINGS.AutoSkill_Enabled
-        local status = "OFF"
-        if SETTINGS.AutoSkill_Enabled then status = "ON" end
+        local status = SETTINGS.AutoSkill_Enabled and "ON" or "OFF"
         SendNotify("Auto Skill", status)
-        
     elseif input.KeyCode == SETTINGS.Key_AutoParry then
         SETTINGS.AutoParry_Enabled = not SETTINGS.AutoParry_Enabled
-        local status = "OFF"
-        if SETTINGS.AutoParry_Enabled then status = "ON" end
+        local status = SETTINGS.AutoParry_Enabled and "ON" or "OFF"
         SendNotify("Auto Parry", status)
-        
     elseif input.KeyCode == SETTINGS.Key_Aimbot then
         SETTINGS.Aimbot_Enabled = not SETTINGS.Aimbot_Enabled
-        local status = "OFF"
-        if SETTINGS.Aimbot_Enabled then status = "ON (Hold Right Click)" end
-        SendNotify("Aimbot (Safe)", status)
-
-    -- [NEW] ปุ่มกดลบหมอก
-    elseif input.KeyCode == SETTINGS.Key_NoFog then
-        SETTINGS.NoFog_Enabled = not SETTINGS.NoFog_Enabled
-        ToggleNoFogConfig(SETTINGS.NoFog_Enabled)
-        local status = "OFF"
-        if SETTINGS.NoFog_Enabled then status = "ON" end
-        SendNotify("No Fog", status)
-
+        local status = SETTINGS.Aimbot_Enabled and "ON (Hold Right Click)" or "OFF"
+        SendNotify("Aimbot", status)
     elseif input.KeyCode == SETTINGS.Key_Rejoin then
         SendNotify("Rejoining", "Please wait... Teleporting back to server.")
         task.wait(0.5)
-        pcall(function()
-            TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
-        end)
+        pcall(function() TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer) end)
     end
-end))
-
-SendNotify("V8.6 UPGRADED", "Aimbot Fixed! Press [X] then Hold RMB")
+end)
+SendNotify("V8.6 LOADED", "Added Rejoin Key [L]")
