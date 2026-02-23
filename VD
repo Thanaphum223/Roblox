@@ -1,4 +1,16 @@
 -- [[ PROJECT: VIOLENCE DISTRICT - INSTANT V8.6 (ADDED REJOIN) ]] --
+-- ระบบป้องกันการโหลดสคริปต์ซ้ำ
+if _G.ViolenceDistrict_Loaded then
+    pcall(function()
+        game:GetService("StarterGui"):SetCore("SendNotification", { 
+            Title = "System", 
+            Text = "Script is already loaded!", 
+            Duration = 3 
+        })
+    end)
+    return -- หยุดการทำงานของสคริปต์ใหม่ทันที
+end
+_G.ViolenceDistrict_Loaded = true
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
