@@ -1,11 +1,12 @@
--- [[ PROJECT: VIOLENCE DISTRICT - INSTANT V8.6 (ADDED REJOIN) ]] --
+-- [[ PROJECT: VIOLENCE DISTRICT - INSTANT V8.6 (UPGRADED AIMBOT + NO FOG) ]] --
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 local StarterGui = game:GetService("StarterGui")
-local TeleportService = game:GetService("TeleportService") -- [NEW] สำหรับระบบ Rejoin
+local TeleportService = game:GetService("TeleportService")
+local Lighting = game:GetService("Lighting") -- [NEW] สำหรับระบบ No Fog
 local Camera = Workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
@@ -21,12 +22,14 @@ local SETTINGS = {
     Key_AutoParry = Enum.KeyCode.V, 
     Key_Aimbot = Enum.KeyCode.X,
     Key_Rejoin = Enum.KeyCode.L,
+    Key_NoFog = Enum.KeyCode.T, -- [NEW] ปุ่มสำหรับเปิด/ปิดหมอก
 
     ESP_Enabled = false,              
     Noclip_Enabled = false,
     AutoSkill_Enabled = true,
     AutoParry_Enabled = false,
     Aimbot_Enabled = false,        
+    NoFog_Enabled = false, -- [NEW]
 
     Parry_Key = "RightClick", 
     Parry_MaxRange = 11.5, 
@@ -36,7 +39,7 @@ local SETTINGS = {
     Aimbot_HoldKey = Enum.UserInputType.MouseButton2,
     Aimbot_FOV = 150,               
     Aimbot_Smoothness = 0.2,        
-    Aimbot_Prediction = 0.13,       
+    Aimbot_VisibleCheck = true, -- [NEW] เปิดใช้การเช็คกำแพง
 
     SurvivorColor = Color3.fromRGB(0, 255, 100),    
     KillerColor = Color3.fromRGB(255, 0, 0),        
@@ -61,6 +64,7 @@ if _G.ProScript_Connections then
     end
 end
 _G.ProScript_Connections = {} 
+_G.NoFog_Connection = nil -- [NEW] ตัวแปรเก็บลูปของ No Fog
 
 local originalCollision = {}
 
@@ -325,6 +329,7 @@ local function AutoParryCheck()
     end
 end
 
+-- [อัปเกรด] Aimbot พร้อม Visible Check (Raycast)
 local function GetClosestKiller()
     local closestTarget = nil
     local maxDist = SETTINGS.Aimbot_FOV
@@ -340,10 +345,31 @@ local function GetClosestKiller()
                 if hum and root and hum.Health > 0 then
                     local screenPos, onScreen = Camera:WorldToViewportPoint(root.Position)
                     if onScreen then
-                        local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
-                        if dist < maxDist then
-                            closestTarget = root
-                            maxDist = dist
+                        -- ระบบเช็คกำแพงแบบเจาะจง
+                        local isVisible = true
+                        if SETTINGS.Aimbot_VisibleCheck then
+                            local raycastParams = RaycastParams.new()
+                            raycastParams.FilterDescendantsInstances = {LocalPlayer.Character, p.Character}
+                            raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+                            
+                            local raycastResult = Workspace:Raycast(
+                                Camera.CFrame.Position,
+                                (root.Position - Camera.CFrame.Position).Unit * 1000,
+                                raycastParams
+                            )
+                            
+                            -- ถ้าชนวัตถุอื่นที่ไม่ได้อยู่ในตัวฆาตกร ถือว่ามองไม่เห็น
+                            if raycastResult and not raycastResult.Instance:IsDescendantOf(p.Character) then
+                                isVisible = false
+                            end
+                        end
+
+                        if isVisible then
+                            local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+                            if dist < maxDist then
+                                closestTarget = root
+                                maxDist = dist
+                            end
                         end
                     end
                 end
@@ -353,31 +379,56 @@ local function GetClosestKiller()
     return closestTarget
 end
 
+-- [อัปเกรด] ระบบเล็งเป้าหมายสุดสมูท
 local function AutoAim()
     if not SETTINGS.Aimbot_Enabled then return end
     if not UserInputService:IsMouseButtonPressed(SETTINGS.Aimbot_HoldKey) then return end
     
     local target = GetClosestKiller()
     if target then
-        local predictedPos = target.Position + (target.Velocity * SETTINGS.Aimbot_Prediction)
+        local distance = (target.Position - Camera.CFrame.Position).Magnitude
+        local travelTime = distance / 1000 -- กะความเร็วการเคลื่อนที่ (Prediction)
+        local predictedPos = target.Position + (target.Velocity * travelTime)
+        
         local currentCamCF = Camera.CFrame
-        local goalCF = CFrame.new(currentCamCF.Position, predictedPos)
+        -- เล็งไปที่หน้าอก/หัว (เพิ่มแกน Y เล็กน้อย)
+        local goalCF = CFrame.lookAt(currentCamCF.Position, predictedPos + Vector3.new(0, 1.5, 0))
+        
         Camera.CFrame = currentCamCF:Lerp(goalCF, SETTINGS.Aimbot_Smoothness)
     end
 end
 
----------------------------------------------------------------------------------
-RunService.RenderStepped:Connect(AutoSkillCheck)
-RunService.RenderStepped:Connect(AutoParryCheck) 
-RunService.RenderStepped:Connect(AutoAim) 
+-- [NEW] ระบบเปิด/ปิด หมอก
+local function ToggleNoFogConfig(enabled)
+    if enabled then
+        if _G.NoFog_Connection then _G.NoFog_Connection:Disconnect() end
+        _G.NoFog_Connection = RunService.Heartbeat:Connect(function()
+            if Lighting:FindFirstChild("FogEnd") then Lighting.FogEnd = 1000000 end
+            if Lighting:FindFirstChild("FogStart") then Lighting.FogStart = 100000 end
+        end)
+    else
+        if _G.NoFog_Connection then
+            _G.NoFog_Connection:Disconnect()
+            _G.NoFog_Connection = nil
+        end
+        -- คืนค่าหมอกดั้งเดิม
+        if Lighting:FindFirstChild("FogEnd") then Lighting.FogEnd = 1000 end
+        if Lighting:FindFirstChild("FogStart") then Lighting.FogStart = 0 end
+    end
+end
 
-RunService.Stepped:Connect(function()
+---------------------------------------------------------------------------------
+table.insert(_G.ProScript_Connections, RunService.RenderStepped:Connect(AutoSkillCheck))
+table.insert(_G.ProScript_Connections, RunService.RenderStepped:Connect(AutoParryCheck)) 
+table.insert(_G.ProScript_Connections, RunService.RenderStepped:Connect(AutoAim)) 
+
+table.insert(_G.ProScript_Connections, RunService.Stepped:Connect(function()
     if SETTINGS.Noclip_Enabled and LocalPlayer.Character then
         for _, v in pairs(LocalPlayer.Character:GetDescendants()) do
             if v:IsA("BasePart") then v.CanCollide = false end
         end
     end
-end)
+end))
 
 coroutine.wrap(function()
     while true do
@@ -399,7 +450,7 @@ local function SendNotify(titleText, descText)
     end)
 end
 
-UserInputService.InputBegan:Connect(function(input, gpe)
+table.insert(_G.ProScript_Connections, UserInputService.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     if input.KeyCode == SETTINGS.Key_ESP then
         SETTINGS.ESP_Enabled = not SETTINGS.ESP_Enabled
@@ -436,9 +487,16 @@ UserInputService.InputBegan:Connect(function(input, gpe)
         SETTINGS.Aimbot_Enabled = not SETTINGS.Aimbot_Enabled
         local status = "OFF"
         if SETTINGS.Aimbot_Enabled then status = "ON (Hold Right Click)" end
-        SendNotify("Aimbot", status)
+        SendNotify("Aimbot (Safe)", status)
 
-    -- [NEW] ระบบ Rejoin กลับห้องเดิม
+    -- [NEW] ปุ่มกดลบหมอก
+    elseif input.KeyCode == SETTINGS.Key_NoFog then
+        SETTINGS.NoFog_Enabled = not SETTINGS.NoFog_Enabled
+        ToggleNoFogConfig(SETTINGS.NoFog_Enabled)
+        local status = "OFF"
+        if SETTINGS.NoFog_Enabled then status = "ON" end
+        SendNotify("No Fog", status)
+
     elseif input.KeyCode == SETTINGS.Key_Rejoin then
         SendNotify("Rejoining", "Please wait... Teleporting back to server.")
         task.wait(0.5)
@@ -446,6 +504,6 @@ UserInputService.InputBegan:Connect(function(input, gpe)
             TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
         end)
     end
-end)
+end))
 
-SendNotify("V8.6 LOADED", "Added Rejoin Key [L]")
+SendNotify("V8.6 UPGRADED", "Added Smart Aimbot & No Fog [T]")
