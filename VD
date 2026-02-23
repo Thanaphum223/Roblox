@@ -1,4 +1,4 @@
--- [[ PROJECT: VIOLENCE DISTRICT - INSTANT V8.6 (UPGRADED AIMBOT + NO FOG) ]] --
+-- [[ PROJECT: VIOLENCE DISTRICT - INSTANT V8.6 (FIXED AIMBOT + NO FOG) ]] --
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
@@ -6,7 +6,7 @@ local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 local StarterGui = game:GetService("StarterGui")
 local TeleportService = game:GetService("TeleportService")
-local Lighting = game:GetService("Lighting") -- [NEW] สำหรับระบบ No Fog
+local Lighting = game:GetService("Lighting") 
 local Camera = Workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
@@ -22,14 +22,14 @@ local SETTINGS = {
     Key_AutoParry = Enum.KeyCode.V, 
     Key_Aimbot = Enum.KeyCode.X,
     Key_Rejoin = Enum.KeyCode.L,
-    Key_NoFog = Enum.KeyCode.T, -- [NEW] ปุ่มสำหรับเปิด/ปิดหมอก
+    Key_NoFog = Enum.KeyCode.T, 
 
     ESP_Enabled = false,              
     Noclip_Enabled = false,
     AutoSkill_Enabled = true,
     AutoParry_Enabled = false,
     Aimbot_Enabled = false,        
-    NoFog_Enabled = false, -- [NEW]
+    NoFog_Enabled = false, 
 
     Parry_Key = "RightClick", 
     Parry_MaxRange = 11.5, 
@@ -39,7 +39,7 @@ local SETTINGS = {
     Aimbot_HoldKey = Enum.UserInputType.MouseButton2,
     Aimbot_FOV = 150,               
     Aimbot_Smoothness = 0.2,        
-    Aimbot_VisibleCheck = true, -- [NEW] เปิดใช้การเช็คกำแพง
+    Aimbot_VisibleCheck = true, 
 
     SurvivorColor = Color3.fromRGB(0, 255, 100),    
     KillerColor = Color3.fromRGB(255, 0, 0),        
@@ -64,7 +64,7 @@ if _G.ProScript_Connections then
     end
 end
 _G.ProScript_Connections = {} 
-_G.NoFog_Connection = nil -- [NEW] ตัวแปรเก็บลูปของ No Fog
+_G.NoFog_Connection = nil 
 
 local originalCollision = {}
 
@@ -329,7 +329,7 @@ local function AutoParryCheck()
     end
 end
 
--- [อัปเกรด] Aimbot พร้อม Visible Check (Raycast)
+-- [แก้ไขแล้ว] Aimbot พร้อม Visible Check แบบทำงาน 100%
 local function GetClosestKiller()
     local closestTarget = nil
     local maxDist = SETTINGS.Aimbot_FOV
@@ -345,20 +345,19 @@ local function GetClosestKiller()
                 if hum and root and hum.Health > 0 then
                     local screenPos, onScreen = Camera:WorldToViewportPoint(root.Position)
                     if onScreen then
-                        -- ระบบเช็คกำแพงแบบเจาะจง
                         local isVisible = true
+                        
+                        -- ระบบเช็คกำแพงแบบใหม่ (ตัดตัวฆาตกรออกจาก Blacklist เพื่อให้เรย์พุ่งชนฆาตกรได้)
                         if SETTINGS.Aimbot_VisibleCheck then
                             local raycastParams = RaycastParams.new()
-                            raycastParams.FilterDescendantsInstances = {LocalPlayer.Character, p.Character}
+                            -- เอาแค่ตัวเราเองลง Blacklist เพื่อไม่ให้เรย์ติดตัวเราเอง
+                            raycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
                             raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
                             
-                            local raycastResult = Workspace:Raycast(
-                                Camera.CFrame.Position,
-                                (root.Position - Camera.CFrame.Position).Unit * 1000,
-                                raycastParams
-                            )
+                            local direction = root.Position - Camera.CFrame.Position
+                            local raycastResult = Workspace:Raycast(Camera.CFrame.Position, direction, raycastParams)
                             
-                            -- ถ้าชนวัตถุอื่นที่ไม่ได้อยู่ในตัวฆาตกร ถือว่ามองไม่เห็น
+                            -- ถ้าเส้นเล็งไปชนอะไรสักอย่าง แล้วของชิ้นนั้น "ไม่ใช่" ร่างกายฆาตกร แปลว่าติดกำแพง
                             if raycastResult and not raycastResult.Instance:IsDescendantOf(p.Character) then
                                 isVisible = false
                             end
@@ -387,11 +386,10 @@ local function AutoAim()
     local target = GetClosestKiller()
     if target then
         local distance = (target.Position - Camera.CFrame.Position).Magnitude
-        local travelTime = distance / 1000 -- กะความเร็วการเคลื่อนที่ (Prediction)
+        local travelTime = distance / 1000 
         local predictedPos = target.Position + (target.Velocity * travelTime)
         
         local currentCamCF = Camera.CFrame
-        -- เล็งไปที่หน้าอก/หัว (เพิ่มแกน Y เล็กน้อย)
         local goalCF = CFrame.lookAt(currentCamCF.Position, predictedPos + Vector3.new(0, 1.5, 0))
         
         Camera.CFrame = currentCamCF:Lerp(goalCF, SETTINGS.Aimbot_Smoothness)
@@ -411,7 +409,6 @@ local function ToggleNoFogConfig(enabled)
             _G.NoFog_Connection:Disconnect()
             _G.NoFog_Connection = nil
         end
-        -- คืนค่าหมอกดั้งเดิม
         if Lighting:FindFirstChild("FogEnd") then Lighting.FogEnd = 1000 end
         if Lighting:FindFirstChild("FogStart") then Lighting.FogStart = 0 end
     end
@@ -506,4 +503,4 @@ table.insert(_G.ProScript_Connections, UserInputService.InputBegan:Connect(funct
     end
 end))
 
-SendNotify("V8.6 UPGRADED", "Added Smart Aimbot & No Fog [T]")
+SendNotify("V8.6 UPGRADED", "Aimbot Fixed! Press [X] then Hold RMB")
