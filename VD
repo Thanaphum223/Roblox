@@ -1,4 +1,4 @@
--- [[ PROJECT: VIOLENCE DISTRICT - INSTANT V8.6 (ADDED REJOIN + PALLET & WINDOW ESP) ]] --
+-- [[ PROJECT: VIOLENCE DISTRICT - INSTANT V8.6 (OPTIMIZED + PALLET & WINDOW ESP) ]] --
 if _G.ViolenceDistrict_Loaded then
     pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", { Title = "System", Text = "Script is already loaded!", Duration = 3 }) end)
     return
@@ -45,8 +45,8 @@ local SETTINGS = {
     KillerColor = Color3.fromRGB(255, 0, 0),        
     SuspectColor = Color3.fromRGB(255, 170, 0),        
     GenColor = Color3.fromRGB(0, 255, 255),
-    PalletColor = Color3.fromRGB(74, 255, 181), -- สีของไม้กระดาน
-    WindowColor = Color3.fromRGB(100, 180, 255), -- สีของหน้าต่าง
+    PalletColor = Color3.fromRGB(74, 255, 181),
+    WindowColor = Color3.fromRGB(100, 180, 255),
     
     GUI_NAME = "SkillCheckPromptGui",
     FRAME_NAME = "Check",
@@ -65,6 +65,14 @@ end
 _G.ProScript_Connections = {} 
 
 local originalCollision = {}
+local cachedNoclipParts = {}
+
+local function CacheNoclipParts(char)
+    cachedNoclipParts = {}
+    for _, v in pairs(char:GetDescendants()) do 
+        if v:IsA("BasePart") then table.insert(cachedNoclipParts, v) end 
+    end
+end
 
 local function SaveCollisionData(char)
     originalCollision = {}
@@ -159,14 +167,18 @@ local function GetGenProgress(model)
     return math.floor(math.clamp(pct, 0, 100))
 end
 
-local function UpdateGenESP()
+-- [OPTIMIZED] รวมฟังก์ชัน Generator, Pallet และ Window ESP ไว้ด้วยกัน ลดการสแกนแมพซ้ำซ้อน
+local function UpdateWorldESP()
     for _, v in pairs(Workspace:GetDescendants()) do
-        if v:IsA("Model") then
+        if v:IsA("Model") and not v:IsA("Character") then
             local name = v.Name:lower()
-            if (name:match("generator") or name:match("cipher") or name:match("repair")) and not v:IsA("Character") then
+            
+            -- Generator Logic
+            if name:match("generator") or name:match("cipher") or name:match("repair") then
                 local percent = GetGenProgress(v)
                 if percent >= 99 then
-                    if v:FindFirstChild("GenESP_Highlight") then v.GenESP_Highlight:Destroy() end
+                    local hi = v:FindFirstChild("GenESP_Highlight")
+                    if hi then hi:Destroy() end
                     local tag = v:FindFirstChild("GenESP_Tag", true)
                     if tag then tag:Destroy() end
                 else 
@@ -180,47 +192,30 @@ local function UpdateGenESP()
                         tl.Name, tl.BackgroundTransparency, tl.Size, tl.Font, tl.TextSize, tl.Text, tl.TextColor3, tl.TextStrokeTransparency = "Label", 1, UDim2.new(1, 0, 1, 0), Enum.Font.GothamBlack, 16, string.format("%d%%", percent), Color3.fromHSV(math.clamp((percent/100)*0.33, 0, 0.33), 1, 1), 0
                     end
                 end
-            end
-        end
-    end
-end
-
--- [ฟังก์ชันใหม่] สำหรับทำ ESP ไม้กระดาน และ หน้าต่าง
--- [ฟังก์ชันใหม่] สำหรับทำ ESP ไม้กระดาน และ หน้าต่าง (อัปเดตแยกประเภทแล้ว)
-local function UpdateObjectESP()
-    for _, v in pairs(Workspace:GetDescendants()) do
-        if v:IsA("Model") and not v:IsA("Character") then
-            local name = v.Name:lower()
-            local isPallet = name == "palletwrong" or name == "pallet"
-            local isWindow = name == "window"
-            
-            if isPallet or isWindow then
-                local centerPart = v.PrimaryPart or v:FindFirstChildWhichIsA("BasePart")
                 
-                if isPallet then
-                    -- สำหรับไม้พับ (Pallet): แสดงแค่กรอบไฮไลต์ (ลบป้ายชื่อถ้ามี)
-                    local hi = v:FindFirstChild("ObjESP_Highlight") or Instance.new("Highlight", v)
-                    hi.Name, hi.FillColor, hi.OutlineColor, hi.FillTransparency, hi.OutlineTransparency = "ObjESP_Highlight", SETTINGS.PalletColor, SETTINGS.PalletColor, 0.8, 0.3
-                    hi.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                    
-                    -- ลบป้ายชื่อ (ถ้าระบบเคยสร้างไว้)
-                    if centerPart then
-                        local oldTag = centerPart:FindFirstChild("ObjESP_Tag")
-                        if oldTag then oldTag:Destroy() end
-                    end
-                    
-                elseif isWindow then
-                    -- สำหรับหน้าต่าง (Window): แสดงแค่ป้ายชื่อ (ลบกรอบถ้ามี)
-                    -- ลบกรอบไฮไลต์ (ถ้าระบบเคยสร้างไว้)
-                    local oldHi = v:FindFirstChild("ObjESP_Highlight")
-                    if oldHi then oldHi:Destroy() end
-                    
-                    if centerPart then
-                        local bg = centerPart:FindFirstChild("ObjESP_Tag") or Instance.new("BillboardGui", centerPart)
-                        bg.Name, bg.Size, bg.AlwaysOnTop, bg.StudsOffset = "ObjESP_Tag", UDim2.new(0, 100, 0, 30), true, Vector3.new(0, 1.5, 0)
-                        local tl = bg:FindFirstChild("Label") or Instance.new("TextLabel", bg)
-                        tl.Name, tl.BackgroundTransparency, tl.Size, tl.Font, tl.TextSize, tl.Text, tl.TextColor3, tl.TextStrokeTransparency, tl.TextStrokeColor3 = "Label", 1, UDim2.new(1, 0, 1, 0), Enum.Font.GothamBold, 11, "[WINDOW]", SETTINGS.WindowColor, 0, Color3.new(0,0,0)
-                    end
+            -- Pallet Logic
+            elseif name == "palletwrong" or name == "pallet" then
+                local centerPart = v.PrimaryPart or v:FindFirstChildWhichIsA("BasePart")
+                local hi = v:FindFirstChild("ObjESP_Highlight") or Instance.new("Highlight", v)
+                hi.Name, hi.FillColor, hi.OutlineColor, hi.FillTransparency, hi.OutlineTransparency = "ObjESP_Highlight", SETTINGS.PalletColor, SETTINGS.PalletColor, 0.8, 0.3
+                hi.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                
+                if centerPart then
+                    local oldTag = centerPart:FindFirstChild("ObjESP_Tag")
+                    if oldTag then oldTag:Destroy() end
+                end
+                
+            -- Window Logic
+            elseif name == "window" then
+                local centerPart = v.PrimaryPart or v:FindFirstChildWhichIsA("BasePart")
+                local oldHi = v:FindFirstChild("ObjESP_Highlight")
+                if oldHi then oldHi:Destroy() end
+                
+                if centerPart then
+                    local bg = centerPart:FindFirstChild("ObjESP_Tag") or Instance.new("BillboardGui", centerPart)
+                    bg.Name, bg.Size, bg.AlwaysOnTop, bg.StudsOffset = "ObjESP_Tag", UDim2.new(0, 100, 0, 30), true, Vector3.new(0, 1.5, 0)
+                    local tl = bg:FindFirstChild("Label") or Instance.new("TextLabel", bg)
+                    tl.Name, tl.BackgroundTransparency, tl.Size, tl.Font, tl.TextSize, tl.Text, tl.TextColor3, tl.TextStrokeTransparency, tl.TextStrokeColor3 = "Label", 1, UDim2.new(1, 0, 1, 0), Enum.Font.GothamBold, 11, "[WINDOW]", SETTINGS.WindowColor, 0, Color3.new(0,0,0)
                 end
             end
         end
@@ -348,13 +343,20 @@ local function AutoAim()
     end
 end
 
+-- ผูกเข้ากับระบบวาดภาพจอ (เฉพาะสิ่งที่เกี่ยวข้องกับ UI/กล้อง)
 RunService.RenderStepped:Connect(AutoSkillCheck)
-RunService.RenderStepped:Connect(AutoParryCheck) 
 RunService.RenderStepped:Connect(AutoAim) 
 
+-- ย้าย AutoParry มาไว้เบื้องหลัง (ไม่ให้เฟรมเรตตก)
+RunService.Heartbeat:Connect(AutoParryCheck)
+
+-- Noclip แบบใช้ Cache ชิ้นส่วนไว้ ไม่ต้องค้นหาใหม่ทุกเฟรม
 RunService.Stepped:Connect(function()
     if SETTINGS.Noclip_Enabled and LocalPlayer.Character then
-        for _, v in pairs(LocalPlayer.Character:GetDescendants()) do if v:IsA("BasePart") then v.CanCollide = false end end
+        for i = 1, #cachedNoclipParts do 
+            local p = cachedNoclipParts[i]
+            if p and p.Parent then p.CanCollide = false end
+        end
     end
 end)
 
@@ -370,10 +372,9 @@ end)()
 coroutine.wrap(function() 
     while true do 
         if SETTINGS.ESP_Enabled then 
-            pcall(UpdateGenESP)
-            pcall(UpdateObjectESP) -- อัปเดต ESP Pallet กับ Window พร้อมกับเครื่องปั่นไฟ
+            pcall(UpdateWorldESP)
         end 
-        task.wait(0.5) 
+        task.wait(1.5) -- หน่วงเวลาเป็น 1.5 วิ (ปกติวัตถุบนแมพไม่ได้เปลี่ยนบ่อย ช่วยประหยัด CPU ได้มหาศาล)
     end 
 end)()
 
@@ -388,8 +389,12 @@ UserInputService.InputBegan:Connect(function(input, gpe)
         SendNotify("ESP", status)
     elseif input.KeyCode == SETTINGS.Key_Noclip then
         SETTINGS.Noclip_Enabled = not SETTINGS.Noclip_Enabled
-        if SETTINGS.Noclip_Enabled then SaveCollisionData(LocalPlayer.Character)
-        else if next(originalCollision) then RestoreCollisionData(LocalPlayer.Character) else ForceResetCollision(LocalPlayer.Character) end end
+        if SETTINGS.Noclip_Enabled then 
+            SaveCollisionData(LocalPlayer.Character)
+            CacheNoclipParts(LocalPlayer.Character) -- ดึงชิ้นส่วนเก็บไว้จำครั้งเดียว
+        else 
+            if next(originalCollision) then RestoreCollisionData(LocalPlayer.Character) else ForceResetCollision(LocalPlayer.Character) end 
+        end
         local status = SETTINGS.Noclip_Enabled and "ON" or "OFF"
         SendNotify("Noclip", status)
     elseif input.KeyCode == SETTINGS.Key_AutoSkill then
@@ -411,4 +416,13 @@ UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
-SendNotify("V8.6 + OBJECT ESP", "Added Palleฟt & Window ESP!")
+-- รีเซ็ต Cache ตอนตัวละครเกิดใหม่
+LocalPlayer.CharacterAdded:Connect(function(char)
+    char:WaitForChild("HumanoidRootPart")
+    if SETTINGS.Noclip_Enabled then
+        SaveCollisionData(char)
+        CacheNoclipParts(char)
+    end
+end)
+
+SendNotify("V8.6 + OPTIMIZED", "FPS Boosted & Bug Fixed!")
