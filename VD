@@ -124,7 +124,7 @@ local function UpdatePlayerESP()
                 end
                 local color = (role == "Killer" and SETTINGS.KillerColor) or (role == "Suspect" and SETTINGS.SuspectColor) or SETTINGS.SurvivorColor
                 local prefix = (role == "Killer" and "[KILLER] ") or (role == "Suspect" and "[?] ") or "[+] "
-                CreatePlayerESP(char.HumanoidRootPart, prefix .. p.DisplayName .. hpText .. string.format("\n[%d m]", math.floor(dist)), color)
+                CreatePlayerESP(char.HumanoidRootPart, prefix .. p.Name .. hpText .. string.format("\n[%d m]", math.floor(dist)), color)
             end)
         end
     end
