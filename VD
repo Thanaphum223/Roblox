@@ -1,9 +1,10 @@
--- [[ PROJECT: VIOLENCE DISTRICT - INSTANT V8.6 (ADDED REJOIN) ]] --
+-- [[ PROJECT: VIOLENCE DISTRICT - INSTANT V8.6 (ADDED REJOIN + PALLET & WINDOW ESP) ]] --
 if _G.ViolenceDistrict_Loaded then
     pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", { Title = "System", Text = "Script is already loaded!", Duration = 3 }) end)
     return
 end
 _G.ViolenceDistrict_Loaded = true
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
@@ -15,6 +16,7 @@ local Camera = Workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local Mouse = LocalPlayer:GetMouse()
+
 local SETTINGS = {
     Key_ESP = Enum.KeyCode.E,
     Key_Noclip = Enum.KeyCode.R,
@@ -22,45 +24,58 @@ local SETTINGS = {
     Key_AutoParry = Enum.KeyCode.V, 
     Key_Aimbot = Enum.KeyCode.X,
     Key_Rejoin = Enum.KeyCode.L,
+    
     ESP_Enabled = false,              
     Noclip_Enabled = false,
     AutoSkill_Enabled = true,
     AutoParry_Enabled = false,
     Aimbot_Enabled = false,        
+    
     Parry_Key = "RightClick", 
     Parry_MaxRange = 11.5, 
     Parry_PanicRange = 6.5,   
     Parry_Cooldown = 0.05, 
+    
     Aimbot_HoldKey = Enum.UserInputType.MouseButton2,
     Aimbot_FOV = 150,                
     Aimbot_Smoothness = 0.2,        
-    Aimbot_Prediction = 0.13,       
+    Aimbot_Prediction = 0.13,        
+    
     SurvivorColor = Color3.fromRGB(0, 255, 100),    
     KillerColor = Color3.fromRGB(255, 0, 0),        
     SuspectColor = Color3.fromRGB(255, 170, 0),        
     GenColor = Color3.fromRGB(0, 255, 255),
+    PalletColor = Color3.fromRGB(74, 255, 181), -- สีของไม้กระดาน
+    WindowColor = Color3.fromRGB(100, 180, 255), -- สีของหน้าต่าง
+    
     GUI_NAME = "SkillCheckPromptGui",
     FRAME_NAME = "Check",
     NEEDLE_NAME = "Line",
     GOAL_NAME = "Goal",
 }
+
 local KILLER_ITEMS = {"knife", "bat", "axe", "machete", "saw", "gun", "hammer", "sword", "katana", "pipe", "weapon"}
 local SURVIVOR_ITEMS = {"medkit", "firstaid", "bandage", "flashlight", "phone", "key", "card", "soda"}
 local ATTACK_KEYWORDS = {"attack", "swing", "slash", "lunge", "m1", "punch", "strike", "heavy", "light"} 
 local ATTACK_IDS = { "111920872708571", "78935059863801", "139369275981139", "78432063483146", "132817836308238", "133963973694098", "74968262036854" }
+
 if _G.ProScript_Connections then
     for _, conn in pairs(_G.ProScript_Connections) do if conn then pcall(function() conn:Disconnect() end) end end
 end
 _G.ProScript_Connections = {} 
+
 local originalCollision = {}
+
 local function SaveCollisionData(char)
     originalCollision = {}
     for _, v in pairs(char:GetDescendants()) do if v:IsA("BasePart") then originalCollision[v] = v.CanCollide end end
 end
+
 local function RestoreCollisionData(char)
     for part, canCollide in pairs(originalCollision) do if part and part.Parent then part.CanCollide = canCollide end end
     originalCollision = {}
 end
+
 local function ForceResetCollision(char)
     for _, v in pairs(char:GetDescendants()) do
         if v:IsA("BasePart") then
@@ -70,10 +85,17 @@ local function ForceResetCollision(char)
         end
     end
 end
+
 local function CleanVisuals()
-    for _, v in pairs(Workspace:GetDescendants()) do if v.Name:match("ESP") and (v:IsA("Highlight") or v:IsA("BillboardGui")) then v:Destroy() end end
+    for _, v in pairs(Workspace:GetDescendants()) do 
+        if v.Name:match("ESP") and (v:IsA("Highlight") or v:IsA("BillboardGui")) then 
+            v:Destroy() 
+        end 
+    end
 end
+
 CleanVisuals()
+
 local function GetPlayerRole(plr)
     if not plr or not plr.Character then return "Unknown" end
     local success, teamName = pcall(function() return plr.Team.Name:lower() end)
@@ -95,6 +117,7 @@ local function GetPlayerRole(plr)
     if not role and plr:FindFirstChild("Backpack") then role = CheckItems(plr.Backpack) end
     return role or "Suspect"
 end
+
 local function CreatePlayerESP(target, text, color)
     if not target or not target.Parent then return end
     local char = target.Parent
@@ -105,6 +128,7 @@ local function CreatePlayerESP(target, text, color)
     local tl = bg:FindFirstChild("Label") or Instance.new("TextLabel", bg)
     tl.Name, tl.BackgroundTransparency, tl.Size, tl.Font, tl.TextSize, tl.Text, tl.TextColor3, tl.TextStrokeTransparency, tl.TextStrokeColor3 = "Label", 1, UDim2.new(1, 0, 1, 0), Enum.Font.GothamBold, 13, text, color, 0, Color3.new(0,0,0)
 end
+
 local function UpdatePlayerESP()
     if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
     local myPos = LocalPlayer.Character.HumanoidRootPart.Position
@@ -116,7 +140,6 @@ local function UpdatePlayerESP()
                 local role = GetPlayerRole(p)
                 local dist = (myPos - char.HumanoidRootPart.Position).Magnitude
                 local hpText = ""
-                -- [แก้ตรงนี้] ตรวจสอบว่ามี Humanoid และ role ต้องเป็น Survivor เท่านั้นถึงจะโชว์เลือด
                 if humanoid and role == "Survivor" then
                     local hp = math.floor(humanoid.Health)
                     local maxHp = math.floor(humanoid.MaxHealth)
@@ -124,18 +147,18 @@ local function UpdatePlayerESP()
                 end
                 local color = (role == "Killer" and SETTINGS.KillerColor) or (role == "Suspect" and SETTINGS.SuspectColor) or SETTINGS.SurvivorColor
                 local prefix = (role == "Killer" and "[KILLER] ") or (role == "Suspect" and "[?] ") or "[+] "
-                
-                -- เปลี่ยนจาก p.DisplayName เป็น p.Name เพื่อให้แสดงชื่อจริงๆ
                 CreatePlayerESP(char.HumanoidRootPart, prefix .. p.Name .. hpText .. string.format("\n[%d m]", math.floor(dist)), color)
             end)
         end
     end
 end
+
 local function GetGenProgress(model)
     local pct = tonumber(model:GetAttribute("RepairProgress")) or 0
     if pct > 0 and pct <= 1.001 then pct = pct * 100 end
     return math.floor(math.clamp(pct, 0, 100))
 end
+
 local function UpdateGenESP()
     for _, v in pairs(Workspace:GetDescendants()) do
         if v:IsA("Model") then
@@ -161,11 +184,55 @@ local function UpdateGenESP()
         end
     end
 end
+
+-- [ฟังก์ชันใหม่] สำหรับทำ ESP ไม้กระดาน และ หน้าต่าง
+-- [ฟังก์ชันใหม่] สำหรับทำ ESP ไม้กระดาน และ หน้าต่าง (อัปเดตแยกประเภทแล้ว)
+local function UpdateObjectESP()
+    for _, v in pairs(Workspace:GetDescendants()) do
+        if v:IsA("Model") and not v:IsA("Character") then
+            local name = v.Name:lower()
+            local isPallet = name == "palletwrong" or name == "pallet"
+            local isWindow = name == "window"
+            
+            if isPallet or isWindow then
+                local centerPart = v.PrimaryPart or v:FindFirstChildWhichIsA("BasePart")
+                
+                if isPallet then
+                    -- สำหรับไม้พับ (Pallet): แสดงแค่กรอบไฮไลต์ (ลบป้ายชื่อถ้ามี)
+                    local hi = v:FindFirstChild("ObjESP_Highlight") or Instance.new("Highlight", v)
+                    hi.Name, hi.FillColor, hi.OutlineColor, hi.FillTransparency, hi.OutlineTransparency = "ObjESP_Highlight", SETTINGS.PalletColor, SETTINGS.PalletColor, 0.8, 0.3
+                    hi.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                    
+                    -- ลบป้ายชื่อ (ถ้าระบบเคยสร้างไว้)
+                    if centerPart then
+                        local oldTag = centerPart:FindFirstChild("ObjESP_Tag")
+                        if oldTag then oldTag:Destroy() end
+                    end
+                    
+                elseif isWindow then
+                    -- สำหรับหน้าต่าง (Window): แสดงแค่ป้ายชื่อ (ลบกรอบถ้ามี)
+                    -- ลบกรอบไฮไลต์ (ถ้าระบบเคยสร้างไว้)
+                    local oldHi = v:FindFirstChild("ObjESP_Highlight")
+                    if oldHi then oldHi:Destroy() end
+                    
+                    if centerPart then
+                        local bg = centerPart:FindFirstChild("ObjESP_Tag") or Instance.new("BillboardGui", centerPart)
+                        bg.Name, bg.Size, bg.AlwaysOnTop, bg.StudsOffset = "ObjESP_Tag", UDim2.new(0, 100, 0, 30), true, Vector3.new(0, 1.5, 0)
+                        local tl = bg:FindFirstChild("Label") or Instance.new("TextLabel", bg)
+                        tl.Name, tl.BackgroundTransparency, tl.Size, tl.Font, tl.TextSize, tl.Text, tl.TextColor3, tl.TextStrokeTransparency, tl.TextStrokeColor3 = "Label", 1, UDim2.new(1, 0, 1, 0), Enum.Font.GothamBold, 11, "[WINDOW]", SETTINGS.WindowColor, 0, Color3.new(0,0,0)
+                    end
+                end
+            end
+        end
+    end
+end
+
 local function LineInGoal(Line, Goal)
     local lr, gr = Line.Rotation % 360, Goal.Rotation % 360
     local gs, ge = (gr + 104) % 360, (gr + 114) % 360
     return gs > ge and (lr >= gs or lr <= ge) or (lr >= gs and lr <= ge)
 end
+
 local function AutoSkillCheck()
     if not SETTINGS.AutoSkill_Enabled then return end
     pcall(function()
@@ -181,6 +248,7 @@ local function AutoSkillCheck()
         end
     end)
 end
+
 local lastParryTime = 0
 local function SpamParry()
     for i = 1, 3 do
@@ -189,11 +257,13 @@ local function SpamParry()
         task.wait(0.01)
     end
 end
+
 local function IsFacingMe(myPos, killerRoot)
     local directionToMe = (myPos - killerRoot.Position).Unit
     local killerLook = killerRoot.CFrame.LookVector
     return directionToMe:Dot(killerLook) > 0.35 
 end
+
 local function AutoParryCheck()
     if not SETTINGS.AutoParry_Enabled or not LocalPlayer.Character then return end
     local myRoot = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
@@ -240,6 +310,7 @@ local function AutoParryCheck()
         end
     end
 end
+
 local function GetClosestKiller()
     local closestTarget = nil
     local maxDist = SETTINGS.Aimbot_FOV
@@ -264,6 +335,7 @@ local function GetClosestKiller()
     end
     return closestTarget
 end
+
 local function AutoAim()
     if not SETTINGS.Aimbot_Enabled then return end
     if not UserInputService:IsMouseButtonPressed(SETTINGS.Aimbot_HoldKey) then return end
@@ -275,17 +347,38 @@ local function AutoAim()
         Camera.CFrame = currentCamCF:Lerp(goalCF, SETTINGS.Aimbot_Smoothness)
     end
 end
+
 RunService.RenderStepped:Connect(AutoSkillCheck)
 RunService.RenderStepped:Connect(AutoParryCheck) 
 RunService.RenderStepped:Connect(AutoAim) 
+
 RunService.Stepped:Connect(function()
     if SETTINGS.Noclip_Enabled and LocalPlayer.Character then
         for _, v in pairs(LocalPlayer.Character:GetDescendants()) do if v:IsA("BasePart") then v.CanCollide = false end end
     end
 end)
-coroutine.wrap(function() while true do if SETTINGS.ESP_Enabled then pcall(UpdatePlayerESP) end task.wait(0.2) end end)()
-coroutine.wrap(function() while true do if SETTINGS.ESP_Enabled then pcall(UpdateGenESP) end task.wait(0.5) end end)()
+
+coroutine.wrap(function() 
+    while true do 
+        if SETTINGS.ESP_Enabled then 
+            pcall(UpdatePlayerESP) 
+        end 
+        task.wait(0.2) 
+    end 
+end)()
+
+coroutine.wrap(function() 
+    while true do 
+        if SETTINGS.ESP_Enabled then 
+            pcall(UpdateGenESP)
+            pcall(UpdateObjectESP) -- อัปเดต ESP Pallet กับ Window พร้อมกับเครื่องปั่นไฟ
+        end 
+        task.wait(0.5) 
+    end 
+end)()
+
 local function SendNotify(titleText, descText) pcall(function() StarterGui:SetCore("SendNotification", { Title = titleText, Text = descText, Duration = 2 }) end) end
+
 UserInputService.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     if input.KeyCode == SETTINGS.Key_ESP then
@@ -317,4 +410,5 @@ UserInputService.InputBegan:Connect(function(input, gpe)
         pcall(function() TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer) end)
     end
 end)
-SendNotify("V8.6 LOADED", "Added Rejoin Key [L]")
+
+SendNotify("V8.6 + OBJECT ESP", "Added Palleฟt & Window ESP!")
