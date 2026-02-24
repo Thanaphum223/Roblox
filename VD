@@ -124,6 +124,8 @@ local function UpdatePlayerESP()
                 end
                 local color = (role == "Killer" and SETTINGS.KillerColor) or (role == "Suspect" and SETTINGS.SuspectColor) or SETTINGS.SurvivorColor
                 local prefix = (role == "Killer" and "[KILLER] ") or (role == "Suspect" and "[?] ") or "[+] "
+                
+                -- เปลี่ยนจาก p.DisplayName เป็น p.Name เพื่อให้แสดงชื่อจริงๆ
                 CreatePlayerESP(char.HumanoidRootPart, prefix .. p.Name .. hpText .. string.format("\n[%d m]", math.floor(dist)), color)
             end)
         end
