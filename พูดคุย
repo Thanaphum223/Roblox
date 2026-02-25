@@ -1,4 +1,4 @@
--- [[ PROJECT: VACUUM - ULTIMATE EDITION (v9.0: FAST LOGIN + OPTIMIZED) ]] --
+-- [[ PROJECT: VACUUM - ULTIMATE EDITION (v9.0: FAST LOGIN + OPTIMIZED + PERFECT COLLISION) ]] --
 
 ---------------------------------------------------------------------------------
 -- [[ 0. SECURITY & MAP LOCK ]] --
@@ -307,7 +307,7 @@ local function StartMainScript()
         FarmInfo = { Count = 0, StartTime = 0, CurrentState = "Idle", Tween = nil },
         Connections = {},
         OldSpeed = nil,
-        CachedParts = {} -- [OPTIMIZATION] เก็บข้อมูลอวัยวะตัวละคร
+        CachedParts = {} -- [OPTIMIZATION] เก็บข้อมูลอวัยวะตัวละครพร้อมค่าเดิม
     }
 
     ---------------------------------------------------------------------------------
@@ -373,27 +373,28 @@ local function StartMainScript()
         end)
     end
 
-    -- [OPTIMIZATION] แคชตัวละครล่วงหน้า
+    -- [OPTIMIZATION] แคชตัวละครล่วงหน้า พร้อมจำค่า CanCollide ดั้งเดิม
     function Utils.updateCharCache(char)
         State.CachedParts = {}
         if not char then return end
         for _, v in ipairs(char:GetDescendants()) do
             if v:IsA("BasePart") then
-                table.insert(State.CachedParts, v)
+                table.insert(State.CachedParts, {Part = v, OrigCollide = v.CanCollide})
             end
         end
     end
 
-    -- [OPTIMIZATION] ไม่ต้อง GetChildren() ทุกเฟรมอีกต่อไป
+    -- [OPTIMIZATION] ไม่ต้อง GetChildren() ทุกเฟรมอีกต่อไป และดึงจาก Cache
     function Utils.noclip()
         for i = 1, #State.CachedParts do
-            local part = State.CachedParts[i]
-            if part and part.CanCollide then
-                part.CanCollide = false
+            local data = State.CachedParts[i]
+            if data.Part and data.Part.Parent then
+                data.Part.CanCollide = false
             end
         end
     end
 
+    -- [FIX] คืนค่า CanCollide กลับเป็นค่าดั้งเดิมแทนที่จะบังคับ true ทั้งหมด
     function Utils.restorePhysics()
         local char, hrp, hum = Utils.getChar()
         if not char then return end
@@ -409,8 +410,11 @@ local function StartMainScript()
         if hrp:FindFirstChild("SinkGyro") then hrp.SinkGyro:Destroy() end
         if hrp:FindFirstChild("FarmGyro") then hrp.FarmGyro:Destroy() end
         
-        for _, v in ipairs(State.CachedParts) do
-            if v and v:IsA("BasePart") then v.CanCollide = true end
+        for i = 1, #State.CachedParts do
+            local data = State.CachedParts[i]
+            if data.Part and data.Part.Parent then 
+                data.Part.CanCollide = data.OrigCollide 
+            end
         end
     end
 
@@ -1334,7 +1338,7 @@ local function StartMainScript()
         Utils.updateCharCache(char)
         local conn = char.DescendantAdded:Connect(function(descendant)
             if descendant:IsA("BasePart") then
-                table.insert(State.CachedParts, descendant)
+                table.insert(State.CachedParts, {Part = descendant, OrigCollide = descendant.CanCollide})
             end
         end)
         table.insert(_G.ProScript_Connections, conn)
