@@ -32,7 +32,7 @@ local SETTINGS = {
     Aimbot_Enabled = false,        
     
     Parry_Key = "RightClick", 
-    Parry_MaxRange = 11.5, 
+    Parry_MaxRange = 12, 
     Parry_PanicRange = 6.5,   
     Parry_Cooldown = 0.05, 
     
