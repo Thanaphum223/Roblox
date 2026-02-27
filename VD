@@ -1,4 +1,4 @@
--- [[ PROJECT: VIOLENCE DISTRICT - INSTANT V8.6 (OPTIMIZED + PALLET & WINDOW ESP) ]] --
+-- [[ PROJECT: VIOLENCE DISTRICT - INSTANT V8.6 (PERFORMANCE + FULLBRIGHT + NO RED BALL) ]] --
 if _G.ViolenceDistrict_Loaded then
     pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", { Title = "System", Text = "Script is already loaded!", Duration = 3 }) end)
     return
@@ -12,6 +12,7 @@ local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 local StarterGui = game:GetService("StarterGui")
 local TeleportService = game:GetService("TeleportService")
+local Lighting = game:GetService("Lighting")
 local Camera = Workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
@@ -23,6 +24,7 @@ local SETTINGS = {
     Key_AutoSkill = Enum.KeyCode.G, 
     Key_AutoParry = Enum.KeyCode.V, 
     Key_Aimbot = Enum.KeyCode.X,
+    Key_Fullbright = Enum.KeyCode.K, 
     Key_Rejoin = Enum.KeyCode.L,
     
     ESP_Enabled = false,              
@@ -30,6 +32,7 @@ local SETTINGS = {
     AutoSkill_Enabled = true,
     AutoParry_Enabled = false,
     Aimbot_Enabled = false,        
+    Fullbright_Enabled = false, 
     
     Parry_Key = "RightClick", 
     Parry_MaxRange = 12, 
@@ -66,6 +69,15 @@ _G.ProScript_Connections = {}
 
 local originalCollision = {}
 local cachedNoclipParts = {}
+
+local origLighting = {
+    Ambient = Lighting.Ambient,
+    OutdoorAmbient = Lighting.OutdoorAmbient,
+    Brightness = Lighting.Brightness,
+    FogEnd = Lighting.FogEnd,
+    GlobalShadows = Lighting.GlobalShadows,
+    ClockTime = Lighting.ClockTime
+}
 
 local function CacheNoclipParts(char)
     cachedNoclipParts = {}
@@ -167,13 +179,31 @@ local function GetGenProgress(model)
     return math.floor(math.clamp(pct, 0, 100))
 end
 
--- [OPTIMIZED] รวมฟังก์ชัน Generator, Pallet และ Window ESP ไว้ด้วยกัน ลดการสแกนแมพซ้ำซ้อน
+local cachedWorldObjects = {}
+
+local function AddWorldObject(v)
+    if v:IsA("Model") and not v:IsA("Character") then
+        local name = v.Name:lower()
+        if name:match("generator") or name:match("cipher") or name:match("repair") or name == "palletwrong" or name == "pallet" or name == "window" then
+            table.insert(cachedWorldObjects, v)
+        end
+    end
+end
+
+for _, v in pairs(Workspace:GetDescendants()) do
+    AddWorldObject(v)
+end
+
+Workspace.DescendantAdded:Connect(AddWorldObject)
+
 local function UpdateWorldESP()
-    for _, v in pairs(Workspace:GetDescendants()) do
-        if v:IsA("Model") and not v:IsA("Character") then
+    local activeObjects = {}
+    
+    for _, v in ipairs(cachedWorldObjects) do
+        if v and v.Parent then
+            table.insert(activeObjects, v) 
             local name = v.Name:lower()
             
-            -- Generator Logic
             if name:match("generator") or name:match("cipher") or name:match("repair") then
                 local percent = GetGenProgress(v)
                 if percent >= 99 then
@@ -193,7 +223,6 @@ local function UpdateWorldESP()
                     end
                 end
                 
-            -- Pallet Logic
             elseif name == "palletwrong" or name == "pallet" then
                 local centerPart = v.PrimaryPart or v:FindFirstChildWhichIsA("BasePart")
                 local hi = v:FindFirstChild("ObjESP_Highlight") or Instance.new("Highlight", v)
@@ -205,7 +234,6 @@ local function UpdateWorldESP()
                     if oldTag then oldTag:Destroy() end
                 end
                 
-            -- Window Logic
             elseif name == "window" then
                 local centerPart = v.PrimaryPart or v:FindFirstChildWhichIsA("BasePart")
                 local oldHi = v:FindFirstChild("ObjESP_Highlight")
@@ -220,6 +248,7 @@ local function UpdateWorldESP()
             end
         end
     end
+    cachedWorldObjects = activeObjects
 end
 
 local function LineInGoal(Line, Goal)
@@ -288,12 +317,12 @@ local function AutoParryCheck()
                                     end
                                     if shouldParry then
                                         if not isPanic then if track.Length > 0 and track.TimePosition < 0.05 then task.wait(0.05) end end
-                                        SpamParry()
+                                        
+                                        task.spawn(SpamParry) 
                                         lastParryTime = tick()
-                                        local t = Instance.new("Part", Workspace)
-                                        t.Anchored, t.CanCollide, t.Transparency = true, false, 0.5
-                                        t.Color, t.Size, t.CFrame, t.Shape = Color3.fromRGB(255, 0, 0), Vector3.new(4,4,4), kRoot.CFrame, Enum.PartType.Ball
-                                        game:GetService("Debris"):AddItem(t, 0.2)
+                                        
+                                        -- ลบโค้ดสร้าง Part ลูกบอลสีแดงออกไปแล้ว
+                                        
                                         return 
                                     end
                                 end
@@ -343,14 +372,11 @@ local function AutoAim()
     end
 end
 
--- ผูกเข้ากับระบบวาดภาพจอ (เฉพาะสิ่งที่เกี่ยวข้องกับ UI/กล้อง)
 RunService.RenderStepped:Connect(AutoSkillCheck)
 RunService.RenderStepped:Connect(AutoAim) 
 
--- ย้าย AutoParry มาไว้เบื้องหลัง (ไม่ให้เฟรมเรตตก)
 RunService.Heartbeat:Connect(AutoParryCheck)
 
--- Noclip แบบใช้ Cache ชิ้นส่วนไว้ ไม่ต้องค้นหาใหม่ทุกเฟรม
 RunService.Stepped:Connect(function()
     if SETTINGS.Noclip_Enabled and LocalPlayer.Character then
         for i = 1, #cachedNoclipParts do 
@@ -374,7 +400,7 @@ coroutine.wrap(function()
         if SETTINGS.ESP_Enabled then 
             pcall(UpdateWorldESP)
         end 
-        task.wait(1.5) -- หน่วงเวลาเป็น 1.5 วิ (ปกติวัตถุบนแมพไม่ได้เปลี่ยนบ่อย ช่วยประหยัด CPU ได้มหาศาล)
+        task.wait(1.5) 
     end 
 end)()
 
@@ -391,7 +417,7 @@ UserInputService.InputBegan:Connect(function(input, gpe)
         SETTINGS.Noclip_Enabled = not SETTINGS.Noclip_Enabled
         if SETTINGS.Noclip_Enabled then 
             SaveCollisionData(LocalPlayer.Character)
-            CacheNoclipParts(LocalPlayer.Character) -- ดึงชิ้นส่วนเก็บไว้จำครั้งเดียว
+            CacheNoclipParts(LocalPlayer.Character) 
         else 
             if next(originalCollision) then RestoreCollisionData(LocalPlayer.Character) else ForceResetCollision(LocalPlayer.Character) end 
         end
@@ -409,6 +435,32 @@ UserInputService.InputBegan:Connect(function(input, gpe)
         SETTINGS.Aimbot_Enabled = not SETTINGS.Aimbot_Enabled
         local status = SETTINGS.Aimbot_Enabled and "ON (Hold Right Click)" or "OFF"
         SendNotify("Aimbot", status)
+    elseif input.KeyCode == SETTINGS.Key_Fullbright then
+        SETTINGS.Fullbright_Enabled = not SETTINGS.Fullbright_Enabled
+        if SETTINGS.Fullbright_Enabled then
+            origLighting.Ambient = Lighting.Ambient
+            origLighting.OutdoorAmbient = Lighting.OutdoorAmbient
+            origLighting.Brightness = Lighting.Brightness
+            origLighting.FogEnd = Lighting.FogEnd
+            origLighting.GlobalShadows = Lighting.GlobalShadows
+            origLighting.ClockTime = Lighting.ClockTime
+            
+            Lighting.Ambient = Color3.fromRGB(255, 255, 255)
+            Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
+            Lighting.Brightness = 2
+            Lighting.FogEnd = 100000
+            Lighting.GlobalShadows = false
+            Lighting.ClockTime = 12
+            SendNotify("Fullbright", "ON")
+        else
+            Lighting.Ambient = origLighting.Ambient
+            Lighting.OutdoorAmbient = origLighting.OutdoorAmbient
+            Lighting.Brightness = origLighting.Brightness
+            Lighting.FogEnd = origLighting.FogEnd
+            Lighting.GlobalShadows = origLighting.GlobalShadows
+            Lighting.ClockTime = origLighting.ClockTime
+            SendNotify("Fullbright", "OFF")
+        end
     elseif input.KeyCode == SETTINGS.Key_Rejoin then
         SendNotify("Rejoining", "Please wait... Teleporting back to server.")
         task.wait(0.5)
@@ -416,7 +468,6 @@ UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
--- รีเซ็ต Cache ตอนตัวละครเกิดใหม่
 LocalPlayer.CharacterAdded:Connect(function(char)
     char:WaitForChild("HumanoidRootPart")
     if SETTINGS.Noclip_Enabled then
@@ -425,4 +476,4 @@ LocalPlayer.CharacterAdded:Connect(function(char)
     end
 end)
 
-SendNotify("V8.6 + OPTIMIZED", "FPS Boosted & Bug Fixed!")
+SendNotify("V8.6 + FPS BOOST + FULLBRIGHT", "Loaded! (No Red Ball for Parry)")
