@@ -1,4 +1,4 @@
--- [[ PROJECT: VACUUM - ULTIMATE EDITION (v9.0: FAST LOGIN + OPTIMIZED + PERFECT COLLISION) ]] --
+-- [[ PROJECT: VACUUM - ULTIMATE EDITION (v9.5: OPTIMIZED PHYSICS + MEMORY LEAK FIX + PERFECT TP) ]] --
 
 ---------------------------------------------------------------------------------
 -- [[ 0. SECURITY & MAP LOCK ]] --
@@ -307,7 +307,9 @@ local function StartMainScript()
         FarmInfo = { Count = 0, StartTime = 0, CurrentState = "Idle", Tween = nil },
         Connections = {},
         OldSpeed = nil,
-        CachedParts = {} -- [OPTIMIZATION] เก็บข้อมูลอวัยวะตัวละครพร้อมค่าเดิม
+        CachedParts = {}, -- [OPTIMIZATION] เก็บข้อมูลอวัยวะตัวละครพร้อมค่าเดิม
+        FarmThreads = {}, -- [OPTIMIZATION] เก็บ Thread ป้องกัน loop ทับซ้อน
+        AvatarCache = {}  -- [OPTIMIZATION] เก็บรูป Avatar ป้องกัน Lag
     }
 
     ---------------------------------------------------------------------------------
@@ -394,7 +396,7 @@ local function StartMainScript()
         end
     end
 
-    -- [FIX] คืนค่า CanCollide กลับเป็นค่าดั้งเดิมแทนที่จะบังคับ true ทั้งหมด
+    -- [FIX] คืนค่า CanCollide กลับเป็นค่าดั้งเดิม และใช้ลบ Constraint แบบใหม่
     function Utils.restorePhysics()
         local char, hrp, hum = Utils.getChar()
         if not char then return end
@@ -405,10 +407,10 @@ local function StartMainScript()
         hrp.AssemblyLinearVelocity = Vector3.zero
         hrp.Anchored = false
         
-        if hrp:FindFirstChild("Elite_Movement") then hrp.Elite_Movement:Destroy() end
-        if hrp:FindFirstChild("SinkLift") then hrp.SinkLift:Destroy() end
-        if hrp:FindFirstChild("SinkGyro") then hrp.SinkGyro:Destroy() end
-        if hrp:FindFirstChild("FarmGyro") then hrp.FarmGyro:Destroy() end
+        for _, name in pairs({"Elite_Movement", "SinkLift", "SinkGyro", "FarmGyro", "ActionAtt"}) do
+            local obj = hrp:FindFirstChild(name)
+            if obj then obj:Destroy() end
+        end
         
         for i = 1, #State.CachedParts do
             local data = State.CachedParts[i]
@@ -988,6 +990,7 @@ local function StartMainScript()
         end
     end
 
+    -- Use LinearVelocity & AlignOrientation instead of BodyVelocity & BodyGyro
     function Features.setVertical(mode)
         if State.VerticalMode == mode then Features.stopVertical(); return end
         Features.stopVertical()
@@ -1000,8 +1003,22 @@ local function StartMainScript()
 
         hum.PlatformStand = true
         Utils.noclip()
-        local bv = Instance.new("BodyVelocity"); bv.Name = "SinkLift"; bv.Velocity = Vector3.new(0, (mode == "Sink" and -6 or 6), 0); bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge); bv.Parent = hrp
-        local bg = Instance.new("BodyGyro"); bg.Name = "SinkGyro"; bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9); bg.CFrame = hrp.CFrame; bg.Parent = hrp
+        
+        local att = Instance.new("Attachment", hrp)
+        att.Name = "ActionAtt"
+        
+        local lv = Instance.new("LinearVelocity", hrp)
+        lv.Name = "SinkLift"
+        lv.Attachment0 = att
+        lv.MaxForce = math.huge
+        lv.VectorVelocity = Vector3.new(0, (mode == "Sink" and -6 or 6), 0)
+        
+        local ao = Instance.new("AlignOrientation", hrp)
+        ao.Name = "SinkGyro"
+        ao.Attachment0 = att
+        ao.Mode = Enum.OrientationAlignmentMode.OneAttachment
+        ao.MaxTorque = math.huge
+        ao.CFrame = hrp.CFrame
     end
 
     function Features.stopVertical()
@@ -1011,23 +1028,33 @@ local function StartMainScript()
         GUI.setStatus(TRANSLATIONS.STATUS_READY[CONFIG.CurrentLang])
     end
 
+    -- Use AlignOrientation instead of BodyGyro
     function Features.smartMove(targetCFrame)
         local char, hrp, hum = Utils.getChar()
         if not char then return end
         if not hrp:FindFirstChild("FarmGyro") then
-            local bg = Instance.new("BodyGyro"); bg.Name = "FarmGyro"; bg.P = 9e4; bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9); bg.CFrame = hrp.CFrame; bg.Parent = hrp
+            local att = hrp:FindFirstChild("ActionAtt") or Instance.new("Attachment", hrp)
+            att.Name = "ActionAtt"
+            
+            local ao = Instance.new("AlignOrientation", hrp)
+            ao.Name = "FarmGyro"
+            ao.Attachment0 = att
+            ao.Mode = Enum.OrientationAlignmentMode.OneAttachment
+            ao.MaxTorque = math.huge
+            ao.CFrame = hrp.CFrame
         end
+        
         local dist = (hrp.Position - targetCFrame.Position).Magnitude
         local speedFactor = math.max(1, CONFIG.Speed * 150) 
         local tweenTime = dist / speedFactor
         if tweenTime < 0.1 then tweenTime = 0.1 end
+        
         local tween = TweenService:Create(hrp, TweenInfo.new(tweenTime, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
         State.FarmInfo.Tween = tween; tween:Play(); tween.Completed:Wait(); State.FarmInfo.Tween = nil
         hrp.Velocity = Vector3.zero
         if hum then hum:ChangeState(Enum.HumanoidStateType.Running) end
     end
 
-    -- [OPTIMIZATION] แก้ปัญหา Memory Leak
     function Features.interactUntil(conditionFunc, maxTime)
         local elapsed = 0
         local overlap = OverlapParams.new()
@@ -1061,15 +1088,31 @@ local function StartMainScript()
         return false
     end
 
+    -- Thread Cleanup & Tracking
     function Features.toggleFarm()
         State.AutoFarm = not State.AutoFarm
         GUI.toggleVisual(GUI.Buttons.Farm, State.AutoFarm)
+        
+        for _, th in pairs(State.FarmThreads) do
+            if th then task.cancel(th) end
+        end
+        State.FarmThreads = {}
+
         if State.AutoFarm then
             State.OldSpeed = CONFIG.Speed; CONFIG.Speed = 4; if speedInput then speedInput.Text = tostring(CONFIG.Speed) end
             GUI.moveStatus(true)
             State.FarmInfo.StartTime = os.time(); State.FarmInfo.Count = 0; State.FarmInfo.CurrentState = "Starting..."
-            task.spawn(function() while State.AutoFarm do local elapsed = os.time() - State.FarmInfo.StartTime; local info = string.format("Action: %s | Loop: %d | Time: %s", State.FarmInfo.CurrentState, State.FarmInfo.Count, Utils.formatTime(elapsed)); GUI.setStatus(info); task.wait(1) end end)
-            task.spawn(function()
+            
+            local statusTh = task.spawn(function() 
+                while State.AutoFarm do 
+                    local elapsed = os.time() - State.FarmInfo.StartTime; 
+                    local info = string.format("Action: %s | Loop: %d | Time: %s", State.FarmInfo.CurrentState, State.FarmInfo.Count, Utils.formatTime(elapsed)); 
+                    GUI.setStatus(info); 
+                    task.wait(1) 
+                end 
+            end)
+            
+            local logicTh = task.spawn(function()
                 pcall(function() local char, hrp, _ = Utils.getChar(); if char and hrp then hrp.CFrame = CONFIG.Locations.Job; task.wait(0.5) end end)
                 while State.AutoFarm do
                     pcall(function()
@@ -1090,6 +1133,9 @@ local function StartMainScript()
                 end
                 if State.FarmInfo.Tween then State.FarmInfo.Tween:Cancel() end; Utils.restorePhysics(); GUI.setStatus(TRANSLATIONS.ABORT[CONFIG.CurrentLang]); GUI.moveStatus(false)
             end)
+            
+            table.insert(State.FarmThreads, statusTh)
+            table.insert(State.FarmThreads, logicTh)
         else
             if State.OldSpeed then CONFIG.Speed = State.OldSpeed; if speedInput then speedInput.Text = tostring(CONFIG.Speed) end end
             if State.FarmInfo.Tween then State.FarmInfo.Tween:Cancel() end; Utils.restorePhysics(); GUI.setStatus(TRANSLATIONS.ABORT[CONFIG.CurrentLang]); GUI.moveStatus(false)
@@ -1151,12 +1197,23 @@ local function StartMainScript()
         if State.Flying then GUI.setStatus(TRANSLATIONS.FLY_ON[CONFIG.CurrentLang]) else Utils.restorePhysics(); GUI.setStatus(TRANSLATIONS.STATUS_READY[CONFIG.CurrentLang]) end
     end
 
+    -- [MODIFIED] Perfect Teleport Logic with Physics Clear and Rotation Maintain
     function Features.teleportClick()
         if State.ClickTP and UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
             local char, hrp, _ = Utils.getChar()
             if Mouse.Target and char then
+                -- 1. เก็บรักษาทิศทางหน้าของตัวละครปัจจุบันไว้
+                local currentRotation = hrp.CFrame - hrp.CFrame.Position
+                
+                -- 2. เคลียร์แรงเฉื่อยทั้งหมด (ป้องกันการกระเด็น/Fling)
+                hrp.AssemblyLinearVelocity = Vector3.zero
+                hrp.AssemblyAngularVelocity = Vector3.zero
+                
+                -- 3. วาร์ปไปยังจุดที่เมาส์ชี้ + ความสูง 3.5 studs และหันหน้าไปทางเดิม
                 local targetPos = Mouse.Hit.p + Vector3.new(0, 3.5, 0)
-                hrp.CFrame = CFrame.new(targetPos)
+                hrp.CFrame = CFrame.new(targetPos) * currentRotation
+                
+                -- 4. แจ้งเตือนสถานะ
                 GUI.setStatus(TRANSLATIONS.WARPED[CONFIG.CurrentLang])
             end
         end
@@ -1195,9 +1252,18 @@ local function StartMainScript()
             Utils.noclip() 
         end
         
+        -- Use LinearVelocity instead of BodyVelocity
         if State.Flying and not State.GhostMode then
-            local bv = hrp:FindFirstChild("Elite_Movement")
-            if not bv then bv = Instance.new("BodyVelocity"); bv.Name = "Elite_Movement"; bv.MaxForce = Vector3.new(9e9, 9e9, 9e9); bv.Parent = hrp end
+            local lv = hrp:FindFirstChild("Elite_Movement")
+            if not lv then 
+                local att = hrp:FindFirstChild("ActionAtt") or Instance.new("Attachment", hrp)
+                att.Name = "ActionAtt"
+                lv = Instance.new("LinearVelocity", hrp)
+                lv.Name = "Elite_Movement"
+                lv.Attachment0 = att
+                lv.MaxForce = math.huge
+            end
+            
             local camCF = Camera.CFrame; local moveDir = Vector3.zero
             if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + camCF.LookVector end
             if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - camCF.LookVector end
@@ -1205,7 +1271,8 @@ local function StartMainScript()
             if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + camCF.RightVector end
             if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir = moveDir + Vector3.new(0, 1, 0) end
             if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveDir = moveDir - Vector3.new(0, 1, 0) end
-            bv.Velocity = moveDir.Magnitude > 0 and (moveDir.Unit * (CONFIG.Speed * 50)) or Vector3.zero
+            
+            lv.VectorVelocity = moveDir.Magnitude > 0 and (moveDir.Unit * (CONFIG.Speed * 50)) or Vector3.zero
             hrp.AssemblyLinearVelocity = Vector3.zero
             hum:ChangeState(Enum.HumanoidStateType.Physics)
         end
@@ -1253,26 +1320,23 @@ local function StartMainScript()
         for _, item in pairs(scrollFrame:GetChildren()) do if item:IsA("Frame") then item:Destroy() end end
         
         local playersList = Players:GetPlayers()
-        local TextService = game:GetService("TextService") -- นำ Service มาใช้วัดขนาดตัวอักษร
-        local maxRowWidth = 280 -- กำหนดความกว้างเริ่มต้น
+        local TextService = game:GetService("TextService")
+        local maxRowWidth = 280 
 
         for _, p in pairs(playersList) do
             if p ~= LocalPlayer then
-                -- [1] คำนวณความกว้างของชื่อ
                 local nameSize = TextService:GetTextSize(p.DisplayName, 14, Enum.Font.GothamMedium, Vector2.new(9999, 40))
-                local baseWidth = 135 -- ขนาดล็อคเดิม (สัดส่วน 0.45 เดิม ไม่ให้เล็กไปกว่านี้)
-                local dynamicWidth = math.max(baseWidth, nameSize.X + 10) -- ถ้าชื่อยาวกว่า baseWidth ให้ขยายเพิ่ม
+                local baseWidth = 135
+                local dynamicWidth = math.max(baseWidth, nameSize.X + 10)
 
-                -- [2] คำนวณความกว้างรวมของแถว
-                local currentRowWidth = 45 + dynamicWidth + 5 + 60 + 5 + 60 + 10 -- Avatar(45) + ชื่อ + ปุ่ม1(60) + ปุ่ม2(60)
+                local currentRowWidth = 45 + dynamicWidth + 5 + 60 + 5 + 60 + 10 
                 if currentRowWidth > maxRowWidth then
                     maxRowWidth = currentRowWidth
                 end
 
-                -- สร้างแถวใหม่โดยปรับให้ยืดตามขนาดชื่อที่คำนวณมา
                 local pRow = Instance.new("Frame", scrollFrame)
                 pRow.Name = p.DisplayName 
-                pRow.Size = UDim2.new(0, math.max(280, currentRowWidth), 0, 40) -- ใช้ Offset พิกเซลแทน Scale
+                pRow.Size = UDim2.new(0, math.max(280, currentRowWidth), 0, 40)
                 pRow.BackgroundTransparency = 0.5
                 pRow.BackgroundColor3 = THEME.ButtonOff
                 Utils.addCorner(pRow, 8)
@@ -1287,10 +1351,24 @@ local function StartMainScript()
                 headIcon.ZIndex = 2
                 local iconCorner = Instance.new("UICorner", headIcon)
                 iconCorner.CornerRadius = UDim.new(1, 0)
-                task.spawn(function() local success, content = pcall(function() return Players:GetUserThumbnailAsync(p.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size48x48) end); if success and content then headIcon.Image = content; headIcon.BackgroundTransparency = 1 end end)
+                
+                -- Avatar Cache System
+                if State.AvatarCache[p.UserId] then
+                    headIcon.Image = State.AvatarCache[p.UserId]
+                    headIcon.BackgroundTransparency = 1
+                else
+                    task.spawn(function() 
+                        local success, content = pcall(function() return Players:GetUserThumbnailAsync(p.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size48x48) end)
+                        if success and content then 
+                            State.AvatarCache[p.UserId] = content
+                            headIcon.Image = content
+                            headIcon.BackgroundTransparency = 1 
+                        end 
+                    end)
+                end
                 
                 local tBtn = Instance.new("TextButton", pRow)
-                tBtn.Size = UDim2.new(0, dynamicWidth, 1, 0) -- ปรับขนาดให้เป็นไปตามค่าที่เช็คมา
+                tBtn.Size = UDim2.new(0, dynamicWidth, 1, 0) 
                 tBtn.Position = UDim2.new(0, 45, 0, 0)
                 tBtn.Text = p.DisplayName
                 tBtn.TextXAlignment = Enum.TextXAlignment.Left
@@ -1299,12 +1377,12 @@ local function StartMainScript()
                 tBtn.Font = Enum.Font.GothamMedium
                 tBtn.TextSize = 14
                 tBtn.ZIndex = 2
-                tBtn.TextTruncate = Enum.TextTruncate.AtEnd -- ตัดจบคำด้วย ... กรณีฉุกเฉิน
+                tBtn.TextTruncate = Enum.TextTruncate.AtEnd
                 tBtn.MouseButton1Click:Connect(function() if p.Character and p.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character then LocalPlayer.Character.HumanoidRootPart.CFrame = p.Character.HumanoidRootPart.CFrame * CFrame.new(0,0,3) end end)
                 
                 local sBtn = Instance.new("TextButton", pRow)
-                sBtn.Size = UDim2.new(0, 60, 0.7, 0) -- ฟิกซ์ขนาดปุ่ม VIEW (กว้าง 60px)
-                sBtn.Position = UDim2.new(0, 45 + dynamicWidth + 5, 0.15, 0) -- ดันตำแหน่งหนีชื่อ
+                sBtn.Size = UDim2.new(0, 60, 0.7, 0)
+                sBtn.Position = UDim2.new(0, 45 + dynamicWidth + 5, 0.15, 0) 
                 sBtn.Text = "VIEW"
                 sBtn.BackgroundColor3 = THEME.ButtonOn_Start
                 sBtn.TextColor3 = Color3.new(1,1,1)
@@ -1315,8 +1393,8 @@ local function StartMainScript()
                 sBtn.MouseButton1Click:Connect(function() if p.Character and p.Character:FindFirstChild("Humanoid") then Camera.CameraSubject = p.Character.Humanoid end end)
 
                 local trackBtn = Instance.new("TextButton", pRow)
-                trackBtn.Size = UDim2.new(0, 60, 0.7, 0) -- ฟิกซ์ขนาดปุ่ม TRACK (กว้าง 60px)
-                trackBtn.Position = UDim2.new(0, 45 + dynamicWidth + 5 + 60 + 5, 0.15, 0) -- ดันตำแหน่งหนีปุ่ม VIEW
+                trackBtn.Size = UDim2.new(0, 60, 0.7, 0) 
+                trackBtn.Position = UDim2.new(0, 45 + dynamicWidth + 5 + 60 + 5, 0.15, 0)
                 trackBtn.Text = "TRACK"
                 trackBtn.Font = Enum.Font.GothamBold
                 trackBtn.TextSize = 9
@@ -1346,11 +1424,9 @@ local function StartMainScript()
                 end)
             end
         end
-        -- อัปเดตขนาด Canvas เพื่อให้ Scroll แนวนอนได้ในกรณีที่ชื่อดันปุ่มไปไกล
         scrollFrame.CanvasSize = UDim2.new(0, maxRowWidth, 0, listLayout.AbsoluteContentSize.Y + 10)
     end
 
-    -- [OPTIMIZATION] ผูก Event แจ้ง Cache ตัวละครเมื่อเกิดใหม่
     local function bindLocalCharacter(char)
         Utils.updateCharCache(char)
         local conn = char.DescendantAdded:Connect(function(descendant)
