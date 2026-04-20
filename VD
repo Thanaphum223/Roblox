@@ -1,4 +1,4 @@
--- [[ PROJECT: VIOLENCE DISTRICT - INSTANT V8.6 (PERFORMANCE + FULLBRIGHT + NO RED BALL) ]] --
+-- [[ PROJECT: VIOLENCE DISTRICT - INSTANT V8.6 (PERFORMANCE + FULLBRIGHT + NO RED BALL + HELP MENU) ]] --
 if _G.ViolenceDistrict_Loaded then
     pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", { Title = "System", Text = "Script is already loaded!", Duration = 3 }) end)
     return
@@ -26,6 +26,7 @@ local SETTINGS = {
     Key_Aimbot = Enum.KeyCode.X,
     Key_Fullbright = Enum.KeyCode.K, 
     Key_Rejoin = Enum.KeyCode.L,
+    Key_Help = Enum.KeyCode.Z, -- [เพิ่มปุ่ม Z สำหรับเรียกดู Help Menu]
     
     ESP_Enabled = false,              
     Noclip_Enabled = false,
@@ -321,8 +322,6 @@ local function AutoParryCheck()
                                         task.spawn(SpamParry) 
                                         lastParryTime = tick()
                                         
-                                        -- ลบโค้ดสร้าง Part ลูกบอลสีแดงออกไปแล้ว
-                                        
                                         return 
                                     end
                                 end
@@ -408,7 +407,17 @@ local function SendNotify(titleText, descText) pcall(function() StarterGui:SetCo
 
 UserInputService.InputBegan:Connect(function(input, gpe)
     if gpe then return end
-    if input.KeyCode == SETTINGS.Key_ESP then
+    
+    -- [ระบบเช็คปุ่ม Z เพื่อเปิด Help Menu]
+    if input.KeyCode == SETTINGS.Key_Help then
+        pcall(function() 
+            StarterGui:SetCore("SendNotification", { 
+                Title = "📜 รายการปุ่มกด (Help)", 
+                Text = "E = ESP | R = Noclip\nG = AutoSkill | V = AutoParry\nX = Aimbot | K = Fullbright\nL = Rejoin | Z = ช่วยเหลือ", 
+                Duration = 5 
+            }) 
+        end)
+    elseif input.KeyCode == SETTINGS.Key_ESP then
         SETTINGS.ESP_Enabled = not SETTINGS.ESP_Enabled
         if not SETTINGS.ESP_Enabled then CleanVisuals() end
         local status = SETTINGS.ESP_Enabled and "ON" or "OFF"
@@ -476,4 +485,4 @@ LocalPlayer.CharacterAdded:Connect(function(char)
     end
 end)
 
-SendNotify("V8.6 + FPS BOOST + FULLBRIGHT", "Loaded! (No Red Ball for Parry)")
+SendNotify("V8.6 + FPS BOOST + FULLBRIGHT", "Loaded! (Press Z for Keybinds)")
