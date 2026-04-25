@@ -8,6 +8,7 @@ local Supported_IDs = {
     [8391915840] = true, -- Map เก่า
     [8125861255] = true, -- Map ใหม่
     [99002761413888] = true, -- Map Unnamed
+    [118703690267719] = true, 
 }
 
 if not Supported_IDs[PlaceID] then
