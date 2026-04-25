@@ -602,8 +602,9 @@ local function StartMainScript()
     scrollFrame.BorderSizePixel = 0
     scrollFrame.ScrollBarThickness = 3
     scrollFrame.ScrollBarImageColor3 = THEME.ButtonOn_Start
+    
     local listLayout = Instance.new("UIListLayout", scrollFrame)
-    listLayout.SortOrder = Enum.SortOrder.Name
+    listLayout.SortOrder = Enum.SortOrder.LayoutOrder -- 🌟 ปรับตรงนี้เพื่อใช้การเรียง A-Z ตาม LayoutOrder
     listLayout.Padding = UDim.new(0, 6)
 
     local warpScrollFrame = Instance.new("ScrollingFrame", ContentFrame)
@@ -829,8 +830,29 @@ local function StartMainScript()
         TweenService:Create(GUI.SideFrame, animInfo, {Position = targetSidePos}):Play()
     end
 
+local statusHideThread = nil
+
     function GUI.setStatus(text)
         GUI.StatusLabel.Text = text
+        
+        -- 1. ทำให้กล่องแสดงขึ้นมา (Fade In)
+        TweenService:Create(GUI.StatusFrame, TweenInfo.new(0.2), {BackgroundTransparency = 0.1}):Play()
+        TweenService:Create(GUI.StatusLabel, TweenInfo.new(0.2), {TextTransparency = 0}):Play()
+        
+        -- หาขอบ (Stroke) แล้วทำให้มันสว่างขึ้นมาด้วย
+        local stroke = GUI.StatusFrame:FindFirstChildWhichIsA("UIStroke")
+        if stroke then TweenService:Create(stroke, TweenInfo.new(0.2), {Transparency = 0.3}):Play() end
+
+        -- 2. ยกเลิกการซ่อนของเก่า (ถ้าเรากดปุ่มรัวๆ จะได้ไม่บัคกระพริบ)
+        if statusHideThread then task.cancel(statusHideThread) end
+        
+        -- 3. นับเวลา 3 วินาที แล้วทำให้จางหายไป (Fade Out)
+        statusHideThread = task.spawn(function()
+            task.wait(3)
+            TweenService:Create(GUI.StatusFrame, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play()
+            TweenService:Create(GUI.StatusLabel, TweenInfo.new(0.5), {TextTransparency = 1}):Play()
+            if stroke then TweenService:Create(stroke, TweenInfo.new(0.5), {Transparency = 1}):Play() end
+        end)
     end
 
     function GUI.toggleVisual(btnStruct, isOn)
@@ -991,7 +1013,6 @@ local function StartMainScript()
         end
     end
 
-    -- Use LinearVelocity & AlignOrientation instead of BodyVelocity & BodyGyro
     function Features.setVertical(mode)
         if State.VerticalMode == mode then Features.stopVertical(); return end
         Features.stopVertical()
@@ -1029,7 +1050,6 @@ local function StartMainScript()
         GUI.setStatus(TRANSLATIONS.STATUS_READY[CONFIG.CurrentLang])
     end
 
-    -- Use AlignOrientation instead of BodyGyro
     function Features.smartMove(targetCFrame)
         local char, hrp, hum = Utils.getChar()
         if not char then return end
@@ -1321,10 +1341,16 @@ local function StartMainScript()
         for _, item in pairs(scrollFrame:GetChildren()) do if item:IsA("Frame") then item:Destroy() end end
         
         local playersList = Players:GetPlayers()
+        
+        -- 🌟 ทำการเรียงลำดับตาราง playersList ตามตัวอักษร A-Z โดยเทียบที่ DisplayName (ใช้ string.lower เพื่อให้เทียบได้แม่นยำ)
+        table.sort(playersList, function(a, b)
+            return string.lower(a.DisplayName) < string.lower(b.DisplayName)
+        end)
+        
         local TextService = game:GetService("TextService")
         local maxRowWidth = 280 
 
-        for _, p in pairs(playersList) do
+        for i, p in ipairs(playersList) do -- 🌟 เปลี่ยนมาใช้ ipairs แทน pairs เพื่อดึงลำดับ index (i) ออกมาใช้
             if p ~= LocalPlayer then
                 local nameSize = TextService:GetTextSize(p.DisplayName, 14, Enum.Font.GothamMedium, Vector2.new(9999, 40))
                 local baseWidth = 135
@@ -1337,6 +1363,7 @@ local function StartMainScript()
 
                 local pRow = Instance.new("Frame", scrollFrame)
                 pRow.Name = p.DisplayName 
+                pRow.LayoutOrder = i -- 🌟 กำหนดค่า LayoutOrder ตามลำดับ A-Z จากตารางที่จัดเรียงไว้แล้ว
                 pRow.Size = UDim2.new(0, math.max(280, currentRowWidth), 0, 40)
                 pRow.BackgroundTransparency = 0.5
                 pRow.BackgroundColor3 = THEME.ButtonOff
