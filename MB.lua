@@ -1,4 +1,4 @@
--- [[ PROJECT: VACUUM - ULTIMATE EDITION (v9.5: MOBILE & PC SUPPORTED + HYBRID STABLE) ]] --
+-- [[ PROJECT: VACUUM - ULTIMATE EDITION (v9.6: PERFECT MOBILE FLIGHT + HYBRID CHECK) ]] --
 
 ---------------------------------------------------------------------------------
 -- [[ 0. SECURITY & MAP LOCK ]] --
@@ -100,7 +100,7 @@ local function CreateKeyUI(onSuccess)
     local Title = Instance.new("TextLabel", Main)
     Title.Size = UDim2.new(1, 0, 0, 50)
     Title.BackgroundTransparency = 1
-    Title.Text = "VACUUM SECURITY (FAST)"
+    Title.Text = "VACUUM SECURITY"
     Title.TextColor3 = Color3.new(1,1,1)
     Title.Font = Enum.Font.GothamBold
     Title.TextSize = 18
@@ -259,7 +259,7 @@ local function StartMainScript()
         Flying = false, ESP = false, TracerTarget = nil, ClickTP = false, AutoFarm = false,
         Invisible = false, GhostMode = false, GhostClone = nil, RealCharacter = nil, 
         VerticalMode = "None", FarmInfo = { Count = 0, StartTime = 0, CurrentState = "Idle", Tween = nil },
-        CachedParts = {}, FarmThreads = {}, AvatarCache = {} 
+        CachedParts = {}, FarmThreads = {}, AvatarCache = {}, HoldingUp = false, HoldingDown = false
     }
 
     local Utils = {}
@@ -360,9 +360,39 @@ local function StartMainScript()
     Utils.addStroke(GUI.MobileToggleBtn, 0.2)
     Utils.makeDraggable(GUI.MobileToggleBtn)
 
+    -- [MOBILE FIX: Up/Down Buttons for Flight]
+    GUI.VerticalControls = Instance.new("Frame", GUI.Screen)
+    GUI.VerticalControls.Size = UDim2.new(0, 60, 0, 130)
+    GUI.VerticalControls.Position = UDim2.new(1, -80, 0.5, -65)
+    GUI.VerticalControls.BackgroundTransparency = 1
+    GUI.VerticalControls.Visible = false
+
+    GUI.BtnUP = Instance.new("TextButton", GUI.VerticalControls)
+    GUI.BtnUP.Size = UDim2.new(1, 0, 0, 60); GUI.BtnUP.Position = UDim2.new(0, 0, 0, 0)
+    GUI.BtnUP.BackgroundColor3 = THEME.ButtonOn_Start; GUI.BtnUP.TextColor3 = Color3.new(1,1,1)
+    GUI.BtnUP.Text = "▲"; GUI.BtnUP.Font = Enum.Font.GothamBlack; GUI.BtnUP.TextSize = 24
+    Utils.addCorner(GUI.BtnUP, 30); Utils.addStroke(GUI.BtnUP, 0.2)
+
+    GUI.BtnDOWN = Instance.new("TextButton", GUI.VerticalControls)
+    GUI.BtnDOWN.Size = UDim2.new(1, 0, 0, 60); GUI.BtnDOWN.Position = UDim2.new(0, 0, 0, 70)
+    GUI.BtnDOWN.BackgroundColor3 = THEME.ButtonOn_Start; GUI.BtnDOWN.TextColor3 = Color3.new(1,1,1)
+    GUI.BtnDOWN.Text = "▼"; GUI.BtnDOWN.Font = Enum.Font.GothamBlack; GUI.BtnDOWN.TextSize = 24
+    Utils.addCorner(GUI.BtnDOWN, 30); Utils.addStroke(GUI.BtnDOWN, 0.2)
+
+    local function bindHold(btn, stateKey)
+        btn.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then State[stateKey] = true end
+        end)
+        btn.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then State[stateKey] = false end
+        end)
+    end
+    bindHold(GUI.BtnUP, "HoldingUp")
+    bindHold(GUI.BtnDOWN, "HoldingDown")
+
     function GUI.createBtn(parent, textKey, sizeX)
         local container = Instance.new("Frame", parent)
-        container.Size = UDim2.new(0, sizeX, 0, 45) -- Changed to fixed width for scroll
+        container.Size = UDim2.new(0, sizeX, 0, 45)
         container.BackgroundTransparency = 1
         
         local btn = Instance.new("TextButton", container)
@@ -392,7 +422,7 @@ local function StartMainScript()
     GUI.MenuContainer = Instance.new("Frame", GUI.Screen)
     GUI.MenuContainer.Size = UDim2.new(1, 0, 1, 0)
     GUI.MenuContainer.BackgroundTransparency = 1
-    GUI.MenuContainer.Visible = false -- Hidden by default on Mobile
+    GUI.MenuContainer.Visible = false
 
     GUI.StatusFrame = Instance.new("Frame", GUI.Screen)
     GUI.StatusFrame.AutomaticSize = Enum.AutomaticSize.X
@@ -415,14 +445,13 @@ local function StartMainScript()
     GUI.StatusLabel.TextSize = 14
     GUI.StatusLabel.Text = TRANSLATIONS.STATUS_WAIT.EN
 
-    -- [MOBILE FIX: ScrollingFrame for MainBar to fit all screens]
     GUI.MainBar = Instance.new("ScrollingFrame", GUI.MenuContainer)
     GUI.MainBar.Size = UDim2.new(0.95, 0, 0, 75)
     GUI.MainBar.Position = UDim2.new(0.5, 0, 0.85, 0)
     GUI.MainBar.AnchorPoint = Vector2.new(0.5, 0.5)
     GUI.MainBar.BackgroundColor3 = THEME.Background
     GUI.MainBar.BackgroundTransparency = 0.1
-    GUI.MainBar.CanvasSize = UDim2.new(0, 1000, 0, 0) -- Scroll horizontally
+    GUI.MainBar.CanvasSize = UDim2.new(0, 1000, 0, 0) 
     GUI.MainBar.ScrollBarThickness = 3
     GUI.MainBar.ScrollBarImageColor3 = THEME.ButtonOn_Start
     Utils.addCorner(GUI.MainBar, 16)
@@ -433,11 +462,8 @@ local function StartMainScript()
     barLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
     barLayout.VerticalAlignment = Enum.VerticalAlignment.Center
     barLayout.Padding = UDim.new(0, 8)
-    
-    local barPad = Instance.new("UIPadding", GUI.MainBar)
-    barPad.PaddingLeft = UDim.new(0, 10)
+    local barPad = Instance.new("UIPadding", GUI.MainBar); barPad.PaddingLeft = UDim.new(0, 10)
 
-    -- Fixed widths for mobile scroll
     GUI.Buttons = {}
     GUI.Buttons.Fly = GUI.createBtn(GUI.MainBar, "FLY", 80)
     GUI.Buttons.ESP = GUI.createBtn(GUI.MainBar, "ESP", 80)
@@ -464,14 +490,12 @@ local function StartMainScript()
     Utils.addStroke(speedInput, 0.6)
     GUI.Buttons.Lang = GUI.createBtn(GUI.MainBar, "LANG_BTN", 80)
 
-    -- Update Canvas Size automatically
     barLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
         GUI.MainBar.CanvasSize = UDim2.new(0, barLayout.AbsoluteContentSize.X + 20, 0, 0)
     end)
 
-    -- [SIDE PANEL]
     GUI.SideFrame = Instance.new("Frame", GUI.MenuContainer)
-    GUI.SideFrame.Size = UDim2.new(0, 280, 0, 350) -- slightly smaller for mobile
+    GUI.SideFrame.Size = UDim2.new(0, 280, 0, 350)
     GUI.SideFrame.Position = UDim2.new(0.05, 0, 0.1, 0) 
     GUI.SideFrame.BackgroundColor3 = THEME.Background
     GUI.SideFrame.BackgroundTransparency = 0.1
@@ -509,14 +533,12 @@ local function StartMainScript()
     ContentFrame.BackgroundTransparency = 1
     ContentFrame.ClipsDescendants = true
 
-    -- PLAYER SCROLL
     local scrollFrame = Instance.new("ScrollingFrame", ContentFrame)
     scrollFrame.Name = "PlayerList"; scrollFrame.Size = UDim2.new(1, 0, 1, 0); scrollFrame.BackgroundTransparency = 1
     scrollFrame.BorderSizePixel = 0; scrollFrame.ScrollBarThickness = 3; scrollFrame.ScrollBarImageColor3 = THEME.ButtonOn_Start
     local listLayout = Instance.new("UIListLayout", scrollFrame)
     listLayout.SortOrder = Enum.SortOrder.LayoutOrder; listLayout.Padding = UDim.new(0, 6)
 
-    -- WARP SCROLL
     local warpScrollFrame = Instance.new("ScrollingFrame", ContentFrame)
     warpScrollFrame.Name = "WarpList"; warpScrollFrame.Size = UDim2.new(1, 0, 1, 0); warpScrollFrame.Position = UDim2.new(1, 0, 0, 0) 
     warpScrollFrame.Visible = false; warpScrollFrame.BackgroundTransparency = 1; warpScrollFrame.BorderSizePixel = 0
@@ -524,7 +546,6 @@ local function StartMainScript()
     local warpLayout = Instance.new("UIListLayout", warpScrollFrame)
     warpLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; warpLayout.SortOrder = Enum.SortOrder.LayoutOrder; warpLayout.Padding = UDim.new(0, 8)
 
-    -- CUSTOM WARP SCROLL
     local customContainer = Instance.new("Frame", ContentFrame)
     customContainer.Name = "CustomContainer"; customContainer.Size = UDim2.new(1, 0, 1, 0); customContainer.Position = UDim2.new(1, 0, 0, 0)
     customContainer.Visible = false; customContainer.BackgroundTransparency = 1
@@ -559,7 +580,6 @@ local function StartMainScript()
     Utils.addCorner(resetBtn, 8); Utils.addStroke(resetBtn, 0.5)
     GUI.Buttons.Reset = {Button = resetBtn, Key = "RESET", Gradient = Utils.addGradient(resetBtn)}
 
-    -- TAB LOGIC
     local function UpdateTabVisuals(selected)
         local isP, isW, isC = (selected=="Players"), (selected=="Warps"), (selected=="Custom")
         local function setStyle(btn, line, active)
@@ -577,7 +597,6 @@ local function StartMainScript()
     TabBtn_Warps.MouseButton1Click:Connect(function() UpdateTabVisuals("Warps") end)
     TabBtn_Custom.MouseButton1Click:Connect(function() UpdateTabVisuals("Custom") end)
 
-    -- CUSTOM WARP LOGIC
     local function refreshCustomList()
         for _, v in pairs(customScroll:GetChildren()) do if v:IsA("Frame") then v:Destroy() end end
         for i, warp in ipairs(CustomWaypoints) do
@@ -623,7 +642,6 @@ local function StartMainScript()
         end)
         table.insert(GUI.WarpButtons, {Button = btn, NameData = nameData})
     end
-
     if CONFIG.SpecialWarps then for _, warp in ipairs(CONFIG.SpecialWarps) do createWarpBtn(warp.Name, warp.Pos) end end
 
     ---------------------------------------------------------------------------------
@@ -719,7 +737,9 @@ local function StartMainScript()
             end
             ghost.Parent = workspace; State.GhostClone = ghost; Camera.CameraSubject = ghost:FindFirstChild("Humanoid")
             for _, v in pairs(char:GetDescendants()) do if (v:IsA("BasePart") or v:IsA("Decal")) and v.Name ~= "HumanoidRootPart" then v.LocalTransparencyModifier = 1 end end
-            GUI.toggleVisual(GUI.Buttons.Ghost, true); GUI.setStatus(TRANSLATIONS.GHOST_STATUS[CONFIG.CurrentLang])
+            GUI.toggleVisual(GUI.Buttons.Ghost, true)
+            GUI.VerticalControls.Visible = true -- เปิดปุ่มขึ้นลง
+            GUI.setStatus(TRANSLATIONS.GHOST_STATUS[CONFIG.CurrentLang])
         else
             if State.RealCharacter then
                 Camera.CameraSubject = State.RealCharacter:FindFirstChild("Humanoid")
@@ -731,7 +751,9 @@ local function StartMainScript()
             if State.GhostClone then State.GhostClone:Destroy() end
             State.GhostClone = nil; State.GhostMode = false
             if State.Flying then Features.toggleFly() end
-            Utils.restorePhysics(); GUI.toggleVisual(GUI.Buttons.Ghost, false); GUI.setStatus(TRANSLATIONS.STATUS_READY[CONFIG.CurrentLang])
+            Utils.restorePhysics(); GUI.toggleVisual(GUI.Buttons.Ghost, false)
+            GUI.VerticalControls.Visible = false -- ปิดปุ่มขึ้นลง
+            GUI.setStatus(TRANSLATIONS.STATUS_READY[CONFIG.CurrentLang])
         end
     end
 
@@ -768,7 +790,6 @@ local function StartMainScript()
         hrp.Velocity = Vector3.zero; if hum then hum:ChangeState(Enum.HumanoidStateType.Running) end
     end
 
-    -- [MOBILE FIX] AutoFarm Prompt interaction
     function Features.interactUntil(conditionFunc, maxTime)
         local elapsed = 0
         local overlap = OverlapParams.new(); overlap.FilterType = Enum.RaycastFilterType.Exclude
@@ -888,24 +909,24 @@ local function StartMainScript()
 
     function Features.toggleFly()
         State.Flying = not State.Flying; GUI.toggleVisual(GUI.Buttons.Fly, State.Flying)
-        if State.Flying then GUI.setStatus(TRANSLATIONS.FLY_ON[CONFIG.CurrentLang]) else Utils.restorePhysics(); GUI.setStatus(TRANSLATIONS.STATUS_READY[CONFIG.CurrentLang]) end
+        if State.Flying then 
+            GUI.VerticalControls.Visible = true -- เปิดปุ่มขึ้นลง
+            GUI.setStatus(TRANSLATIONS.FLY_ON[CONFIG.CurrentLang]) 
+        else 
+            GUI.VerticalControls.Visible = false -- ปิดปุ่มขึ้นลง
+            Utils.restorePhysics(); GUI.setStatus(TRANSLATIONS.STATUS_READY[CONFIG.CurrentLang]) 
+        end
     end
 
-    -- [MOBILE FIX] Teleport on any screen tap if ClickTP is enabled
     UserInputService.TouchTapInWorld:Connect(function(position, processedByUI)
         if processedByUI or not State.ClickTP then return end
         local char, hrp, _ = Utils.getChar()
         if char and hrp then
             local currentRotation = hrp.CFrame - hrp.CFrame.Position
-            hrp.AssemblyLinearVelocity = Vector3.zero
-            hrp.AssemblyAngularVelocity = Vector3.zero
-            
+            hrp.AssemblyLinearVelocity = Vector3.zero; hrp.AssemblyAngularVelocity = Vector3.zero
             local ray = Camera:ScreenPointToRay(position.X, position.Y)
-            local params = RaycastParams.new()
-            params.FilterDescendantsInstances = {char}
-            params.FilterType = Enum.RaycastFilterType.Exclude
+            local params = RaycastParams.new(); params.FilterDescendantsInstances = {char}; params.FilterType = Enum.RaycastFilterType.Exclude
             local result = workspace:Raycast(ray.Origin, ray.Direction * 1000, params)
-            
             if result then
                 local targetPos = result.Position + Vector3.new(0, 3.5, 0)
                 hrp.CFrame = CFrame.new(targetPos) * currentRotation
@@ -914,14 +935,12 @@ local function StartMainScript()
         end
     end)
     
-    -- PC Fallback for TP
     table.insert(_G.ProScript_Connections, Mouse.Button1Down:Connect(function()
         if State.ClickTP and (UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) or UserInputService.TouchEnabled == false) then
             local char, hrp, _ = Utils.getChar()
             if Mouse.Target and char then
                 local currentRotation = hrp.CFrame - hrp.CFrame.Position
-                hrp.AssemblyLinearVelocity = Vector3.zero
-                hrp.AssemblyAngularVelocity = Vector3.zero
+                hrp.AssemblyLinearVelocity = Vector3.zero; hrp.AssemblyAngularVelocity = Vector3.zero
                 local targetPos = Mouse.Hit.p + Vector3.new(0, 3.5, 0)
                 hrp.CFrame = CFrame.new(targetPos) * currentRotation
                 GUI.setStatus(TRANSLATIONS.WARPED[CONFIG.CurrentLang])
@@ -930,34 +949,52 @@ local function StartMainScript()
     end))
 
     ---------------------------------------------------------------------------------
-    -- 7. LOOPS & CONNECTS
+    -- 7. LOOPS & CONNECTS (PERFECT MOVEMENT)
     ---------------------------------------------------------------------------------
+    -- [ดึง Module สำหรับจอยสติ๊ก]
+    local controlModule = nil
+    pcall(function()
+        controlModule = require(LocalPlayer.PlayerScripts:WaitForChild("PlayerModule")):GetControls()
+    end)
+
     local runConn = RunService.Stepped:Connect(function()
-        local char, hrp, hum = Utils.getChar()
-        if not char then return end
         
-        -- [MOBILE FIX] Use Joystick movement for Ghost Mode
+        -- คำนวณทิศทางการเดิน 3 มิติ (รองรับทั้งจอยสติ๊ก และ WASD)
+        local moveVector = Vector3.zero
+        if controlModule then
+            local rawMove = controlModule:GetMoveVector()
+            moveVector = (Camera.CFrame.RightVector * rawMove.X) + (Camera.CFrame.LookVector * -rawMove.Z)
+        else
+            if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveVector = moveVector + Camera.CFrame.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveVector = moveVector - Camera.CFrame.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveVector = moveVector - Camera.CFrame.RightVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveVector = moveVector + Camera.CFrame.RightVector end
+        end
+
+        -- บวกลบความสูง (จากปุ่ม UI บนมือถือ หรือ Space/Ctrl บน PC)
+        local upDownVec = Vector3.zero
+        if State.HoldingUp or UserInputService:IsKeyDown(Enum.KeyCode.Space) then upDownVec = upDownVec + Vector3.new(0, 1, 0) end
+        if State.HoldingDown or UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then upDownVec = upDownVec - Vector3.new(0, 1, 0) end
+        moveVector = moveVector + upDownVec
+
+        -- [GHOST MODE MOVEMENT]
         if State.GhostMode and State.GhostClone then
             local ghostHRP = State.GhostClone:FindFirstChild("HumanoidRootPart")
             if ghostHRP then
-                local camCF = Camera.CFrame
-                local moveVector = hum.MoveDirection -- READS MOBILE JOYSTICK!
-                
-                -- Keyboard fallback
-                if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveVector = moveVector + Vector3.new(0, 1, 0) end
-                if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveVector = moveVector - Vector3.new(0, 1, 0) end
-                
                 if moveVector.Magnitude > 0 then
-                    moveVector = moveVector.Unit * (CONFIG.Speed * 2) 
-                    ghostHRP.CFrame = ghostHRP.CFrame + moveVector
+                    local moveDist = moveVector.Unit * (CONFIG.Speed * 2) 
+                    ghostHRP.CFrame = ghostHRP.CFrame + moveDist
                 end
-                ghostHRP.CFrame = CFrame.new(ghostHRP.Position, ghostHRP.Position + camCF.LookVector)
+                ghostHRP.CFrame = CFrame.new(ghostHRP.Position, ghostHRP.Position + Camera.CFrame.LookVector)
             end
         end
 
+        local char, hrp, hum = Utils.getChar()
+        if not char then return end
+
         if State.Flying or State.Invisible or State.VerticalMode ~= "None" or State.AutoFarm then Utils.noclip() end
         
-        -- [MOBILE FIX] Use Joystick movement for Fly Mode
+        -- [FLY MODE MOVEMENT]
         if State.Flying and not State.GhostMode then
             local lv = hrp:FindFirstChild("Elite_Movement")
             if not lv then 
@@ -967,11 +1004,7 @@ local function StartMainScript()
                 lv.Name = "Elite_Movement"; lv.Attachment0 = att; lv.MaxForce = math.huge
             end
             
-            local moveDir = hum.MoveDirection -- READS MOBILE JOYSTICK!
-            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir = moveDir + Vector3.new(0, 1, 0) end
-            if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveDir = moveDir - Vector3.new(0, 1, 0) end
-            
-            lv.VectorVelocity = moveDir.Magnitude > 0 and (moveDir.Unit * (CONFIG.Speed * 50)) or Vector3.zero
+            lv.VectorVelocity = moveVector.Magnitude > 0 and (moveVector.Unit * (CONFIG.Speed * 50)) or Vector3.zero
             hrp.AssemblyLinearVelocity = Vector3.zero
             hum:ChangeState(Enum.HumanoidStateType.Physics)
         end
