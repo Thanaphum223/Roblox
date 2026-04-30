@@ -1,4 +1,4 @@
--- [[ PROJECT: VACUUM - ULTIMATE EDITION (v9.5: OPTIMIZED PHYSICS + MEMORY LEAK FIX + PERFECT TP) ]] --
+-- [[ PROJECT: VACUUM - ULTIMATE EDITION (v9.6: NOCLIP UI ADDED) ]] --
 
 ---------------------------------------------------------------------------------
 -- [[ 0. SECURITY & MAP LOCK ]] --
@@ -264,6 +264,7 @@ local function StartMainScript()
         RISE_BTN = {EN = "RISE (K)", TH = "ลอยฟ้า (K)"},
         INVIS = {EN = "INVIS (Z)", TH = "ล่องหน (Z)"},
         GHOST = {EN = "GHOST (G)", TH = "ถอดจิต (G)"},
+        NOCLIP_BTN = {EN = "NOCLIP (N)", TH = "ทะลุกำแพง (N)"},
         TP = {EN = "CLICK TP (T)", TH = "วาร์ป (T)"},
         FARM = {EN = "AUTO FARM", TH = "ออโต้ฟาร์ม"},
         REJOIN = {EN = "REJOIN", TH = "เข้าใหม่"},
@@ -288,7 +289,9 @@ local function StartMainScript()
         CAM_RESET = {EN = "Cam Reset", TH = "รีเซ็ตกล้องเรียบร้อย"},
         REJOINING = {EN = "Rejoining Server...", TH = "กำลังเข้าเซิร์ฟเวอร์ใหม่..."},
         FARM_FMT = {EN = "Status: %s | Loop: %d", TH = "สถานะ: %s | รอบที่: %d"},
-        WARP_TITLE = {EN = "FAST WARP", TH = "จุดวาร์ปด่วน"}
+        WARP_TITLE = {EN = "FAST WARP", TH = "จุดวาร์ปด่วน"},
+        NOCLIP_ON = {EN = "Noclip: ON", TH = "ทะลุกำแพง: เปิด"},
+        NOCLIP_OFF = {EN = "Noclip: OFF", TH = "ทะลุกำแพง: ปิด"}
     }
 
     ---------------------------------------------------------------------------------
@@ -299,6 +302,7 @@ local function StartMainScript()
         ESP = false,
         TracerTarget = nil,
         ClickTP = false,
+        Noclip = false, -- Added Noclip State
         AutoFarm = false,
         Invisible = false,
         GhostMode = false,
@@ -505,8 +509,8 @@ local function StartMainScript()
     GUI.StatusLabel.Text = TRANSLATIONS.STATUS_WAIT.EN
 
     GUI.MainBar = Instance.new("Frame", GUI.MenuContainer)
-    GUI.MainBar.Size = UDim2.new(0, 1150, 0, 65)
-    GUI.MainBar.Position = UDim2.new(0.5, -575, 1.5, 0) 
+    GUI.MainBar.Size = UDim2.new(0, 1250, 0, 65) -- ขยายขนาดแถบเมนูขึ้นเล็กน้อยเพื่อเพิ่มปุ่ม Noclip
+    GUI.MainBar.Position = UDim2.new(0.5, -625, 1.5, 0) 
     GUI.MainBar.BackgroundColor3 = THEME.Background
     GUI.MainBar.BackgroundTransparency = 0.1
     Utils.addCorner(GUI.MainBar, 16)
@@ -518,16 +522,18 @@ local function StartMainScript()
     barLayout.VerticalAlignment = Enum.VerticalAlignment.Center
     barLayout.Padding = UDim.new(0, 4)
 
+    -- เพิ่ม Noclip เข้าไปในส่วนของ UI Buttons และปรับ scale นิดหน่อยให้พอดี
     GUI.Buttons = {}
-    GUI.Buttons.Fly = GUI.createBtn(GUI.MainBar, "FLY", 0.08)
-    GUI.Buttons.ESP = GUI.createBtn(GUI.MainBar, "ESP", 0.08)
-    GUI.Buttons.Sink = GUI.createBtn(GUI.MainBar, "SINK_BTN", 0.08)
-    GUI.Buttons.Rise = GUI.createBtn(GUI.MainBar, "RISE_BTN", 0.08)
-    GUI.Buttons.Invis = GUI.createBtn(GUI.MainBar, "INVIS", 0.09)
-    GUI.Buttons.Ghost = GUI.createBtn(GUI.MainBar, "GHOST", 0.09) 
-    GUI.Buttons.TP = GUI.createBtn(GUI.MainBar, "TP", 0.09)
-    GUI.Buttons.Farm = GUI.createBtn(GUI.MainBar, "FARM", 0.09)
-    GUI.Buttons.Rejoin = GUI.createBtn(GUI.MainBar, "REJOIN", 0.08)
+    GUI.Buttons.Fly = GUI.createBtn(GUI.MainBar, "FLY", 0.07)
+    GUI.Buttons.ESP = GUI.createBtn(GUI.MainBar, "ESP", 0.07)
+    GUI.Buttons.Sink = GUI.createBtn(GUI.MainBar, "SINK_BTN", 0.07)
+    GUI.Buttons.Rise = GUI.createBtn(GUI.MainBar, "RISE_BTN", 0.07)
+    GUI.Buttons.Invis = GUI.createBtn(GUI.MainBar, "INVIS", 0.08)
+    GUI.Buttons.Ghost = GUI.createBtn(GUI.MainBar, "GHOST", 0.08) 
+    GUI.Buttons.Noclip = GUI.createBtn(GUI.MainBar, "NOCLIP_BTN", 0.08) -- <--- ปุ่มใหม่มาแล้ว
+    GUI.Buttons.TP = GUI.createBtn(GUI.MainBar, "TP", 0.08)
+    GUI.Buttons.Farm = GUI.createBtn(GUI.MainBar, "FARM", 0.08)
+    GUI.Buttons.Rejoin = GUI.createBtn(GUI.MainBar, "REJOIN", 0.07)
 
     local speedContainer = Instance.new("Frame", GUI.MainBar)
     speedContainer.Size = UDim2.new(0.06, -5, 0, 45)
@@ -604,7 +610,7 @@ local function StartMainScript()
     scrollFrame.ScrollBarImageColor3 = THEME.ButtonOn_Start
     
     local listLayout = Instance.new("UIListLayout", scrollFrame)
-    listLayout.SortOrder = Enum.SortOrder.LayoutOrder -- 🌟 ปรับตรงนี้เพื่อใช้การเรียง A-Z ตาม LayoutOrder
+    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
     listLayout.Padding = UDim.new(0, 6)
 
     local warpScrollFrame = Instance.new("ScrollingFrame", ContentFrame)
@@ -821,7 +827,7 @@ local function StartMainScript()
     function GUI.toggleMenu()
         CONFIG.MenuVisible = not CONFIG.MenuVisible
         
-        local targetBarPos = CONFIG.MenuVisible and UDim2.new(0.5, -575, 0.85, 0) or UDim2.new(0.5, -575, 1.5, 0)
+        local targetBarPos = CONFIG.MenuVisible and UDim2.new(0.5, -625, 0.85, 0) or UDim2.new(0.5, -625, 1.5, 0)
         local targetSidePos = CONFIG.MenuVisible and UDim2.new(1, -300, 0.2, 0) or UDim2.new(1.5, 0, 0.2, 0)
         
         local animInfo = TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
@@ -835,18 +841,14 @@ local statusHideThread = nil
     function GUI.setStatus(text)
         GUI.StatusLabel.Text = text
         
-        -- 1. ทำให้กล่องแสดงขึ้นมา (Fade In)
         TweenService:Create(GUI.StatusFrame, TweenInfo.new(0.2), {BackgroundTransparency = 0.1}):Play()
         TweenService:Create(GUI.StatusLabel, TweenInfo.new(0.2), {TextTransparency = 0}):Play()
         
-        -- หาขอบ (Stroke) แล้วทำให้มันสว่างขึ้นมาด้วย
         local stroke = GUI.StatusFrame:FindFirstChildWhichIsA("UIStroke")
         if stroke then TweenService:Create(stroke, TweenInfo.new(0.2), {Transparency = 0.3}):Play() end
 
-        -- 2. ยกเลิกการซ่อนของเก่า (ถ้าเรากดปุ่มรัวๆ จะได้ไม่บัคกระพริบ)
         if statusHideThread then task.cancel(statusHideThread) end
         
-        -- 3. นับเวลา 3 วินาที แล้วทำให้จางหายไป (Fade Out)
         statusHideThread = task.spawn(function()
             task.wait(3)
             TweenService:Create(GUI.StatusFrame, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play()
@@ -1010,6 +1012,17 @@ local statusHideThread = nil
             Utils.restorePhysics()
             GUI.toggleVisual(GUI.Buttons.Ghost, false)
             GUI.setStatus(TRANSLATIONS.STATUS_READY[CONFIG.CurrentLang])
+        end
+    end
+
+    function Features.toggleNoclip()
+        State.Noclip = not State.Noclip
+        GUI.toggleVisual(GUI.Buttons.Noclip, State.Noclip)
+        if State.Noclip then
+            GUI.setStatus(TRANSLATIONS.NOCLIP_ON[CONFIG.CurrentLang])
+        else
+            Utils.restorePhysics()
+            GUI.setStatus(TRANSLATIONS.NOCLIP_OFF[CONFIG.CurrentLang])
         end
     end
 
@@ -1218,23 +1231,15 @@ local statusHideThread = nil
         if State.Flying then GUI.setStatus(TRANSLATIONS.FLY_ON[CONFIG.CurrentLang]) else Utils.restorePhysics(); GUI.setStatus(TRANSLATIONS.STATUS_READY[CONFIG.CurrentLang]) end
     end
 
-    -- [MODIFIED] Perfect Teleport Logic with Physics Clear and Rotation Maintain
     function Features.teleportClick()
         if State.ClickTP and UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
             local char, hrp, _ = Utils.getChar()
             if Mouse.Target and char then
-                -- 1. เก็บรักษาทิศทางหน้าของตัวละครปัจจุบันไว้
                 local currentRotation = hrp.CFrame - hrp.CFrame.Position
-                
-                -- 2. เคลียร์แรงเฉื่อยทั้งหมด (ป้องกันการกระเด็น/Fling)
                 hrp.AssemblyLinearVelocity = Vector3.zero
                 hrp.AssemblyAngularVelocity = Vector3.zero
-                
-                -- 3. วาร์ปไปยังจุดที่เมาส์ชี้ + ความสูง 3.5 studs และหันหน้าไปทางเดิม
                 local targetPos = Mouse.Hit.p + Vector3.new(0, 3.5, 0)
                 hrp.CFrame = CFrame.new(targetPos) * currentRotation
-                
-                -- 4. แจ้งเตือนสถานะ
                 GUI.setStatus(TRANSLATIONS.WARPED[CONFIG.CurrentLang])
             end
         end
@@ -1269,11 +1274,10 @@ local statusHideThread = nil
         local char, hrp, hum = Utils.getChar()
         if not char then return end
         
-        if State.Flying or State.Invisible or State.VerticalMode ~= "None" or State.AutoFarm then 
+        if State.Flying or State.Invisible or State.VerticalMode ~= "None" or State.AutoFarm or State.Noclip then 
             Utils.noclip() 
         end
         
-        -- Use LinearVelocity instead of BodyVelocity
         if State.Flying and not State.GhostMode then
             local lv = hrp:FindFirstChild("Elite_Movement")
             if not lv then 
@@ -1309,6 +1313,7 @@ local statusHideThread = nil
         elseif code == Enum.KeyCode.J then Features.setVertical("Sink")
         elseif code == Enum.KeyCode.K then Features.setVertical("Rise")
         elseif code == Enum.KeyCode.Z then Features.toggleInvis()
+        elseif code == Enum.KeyCode.N then Features.toggleNoclip()
         elseif code == Enum.KeyCode.G then 
             if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
                 if State.GhostMode then Features.toggleGhost(true) end 
@@ -1327,6 +1332,7 @@ local statusHideThread = nil
     GUI.Buttons.Rise.Button.MouseButton1Click:Connect(function() Features.setVertical("Rise") end)
     GUI.Buttons.Invis.Button.MouseButton1Click:Connect(Features.toggleInvis)
     GUI.Buttons.Ghost.Button.MouseButton1Click:Connect(function() Features.toggleGhost(false) end) 
+    GUI.Buttons.Noclip.Button.MouseButton1Click:Connect(Features.toggleNoclip) -- เชื่อมปุ่ม Noclip กับฟังก์ชัน
     GUI.Buttons.TP.Button.MouseButton1Click:Connect(function() State.ClickTP = not State.ClickTP; GUI.toggleVisual(GUI.Buttons.TP, State.ClickTP); GUI.setStatus(State.ClickTP and TRANSLATIONS.WARP_READY[CONFIG.CurrentLang] or TRANSLATIONS.WARP_OFF[CONFIG.CurrentLang]) end)
     GUI.Buttons.Farm.Button.MouseButton1Click:Connect(Features.toggleFarm)
     GUI.Buttons.Rejoin.Button.MouseButton1Click:Connect(Features.rejoinServer)
@@ -1342,7 +1348,6 @@ local statusHideThread = nil
         
         local playersList = Players:GetPlayers()
         
-        -- 🌟 ทำการเรียงลำดับตาราง playersList ตามตัวอักษร A-Z โดยเทียบที่ DisplayName (ใช้ string.lower เพื่อให้เทียบได้แม่นยำ)
         table.sort(playersList, function(a, b)
             return string.lower(a.DisplayName) < string.lower(b.DisplayName)
         end)
@@ -1350,7 +1355,7 @@ local statusHideThread = nil
         local TextService = game:GetService("TextService")
         local maxRowWidth = 280 
 
-        for i, p in ipairs(playersList) do -- 🌟 เปลี่ยนมาใช้ ipairs แทน pairs เพื่อดึงลำดับ index (i) ออกมาใช้
+        for i, p in ipairs(playersList) do 
             if p ~= LocalPlayer then
                 local nameSize = TextService:GetTextSize(p.DisplayName, 14, Enum.Font.GothamMedium, Vector2.new(9999, 40))
                 local baseWidth = 135
@@ -1363,7 +1368,7 @@ local statusHideThread = nil
 
                 local pRow = Instance.new("Frame", scrollFrame)
                 pRow.Name = p.DisplayName 
-                pRow.LayoutOrder = i -- 🌟 กำหนดค่า LayoutOrder ตามลำดับ A-Z จากตารางที่จัดเรียงไว้แล้ว
+                pRow.LayoutOrder = i 
                 pRow.Size = UDim2.new(0, math.max(280, currentRowWidth), 0, 40)
                 pRow.BackgroundTransparency = 0.5
                 pRow.BackgroundColor3 = THEME.ButtonOff
@@ -1380,7 +1385,6 @@ local statusHideThread = nil
                 local iconCorner = Instance.new("UICorner", headIcon)
                 iconCorner.CornerRadius = UDim.new(1, 0)
                 
-                -- Avatar Cache System
                 if State.AvatarCache[p.UserId] then
                     headIcon.Image = State.AvatarCache[p.UserId]
                     headIcon.BackgroundTransparency = 1
@@ -1498,7 +1502,7 @@ local statusHideThread = nil
 
     -- [[ INTRO SEQUENCE ]] --
     local function playIntro()
-        if LocalPlayer.UserId == 473092660 then return end -- Skip intro for dev
+        if LocalPlayer.UserId == 473092660 then return end
         local introGui = Instance.new("ScreenGui", LocalPlayer.PlayerGui)
         introGui.Name = "Intro_Vacuum_Cinematic"
         introGui.IgnoreGuiInset = true 
