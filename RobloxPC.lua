@@ -1,4 +1,4 @@
--- [[ PROJECT: VACUUM - ULTIMATE EDITION (v9.6: NOCLIP UI ADDED) ]] --
+-- [[ PROJECT: VACUUM - ULTIMATE EDITION (v9.8: REMOVED TRACK & CLEAN LAYOUT) ]] --
 
 ---------------------------------------------------------------------------------
 -- [[ 0. SECURITY & MAP LOCK ]] --
@@ -35,7 +35,6 @@ local SCRIPT_URL = "https://script.google.com/macros/s/AKfycby-eC0AM7hphYMKPiEmM
 local CSV_URL = "https://docs.google.com/spreadsheets/d/1plKekYjuDDNCXDh4GVT386F-E5IYT5dJzwJfhNkrlRY/export?format=csv"
 local KEY_FILE_NAME = "Vacuum_Key.txt"
 
--- ฟังก์ชันเช็ค Key แบบใหม่ (อ่านก่อนเขียน = ไว)
 local function CheckAndLock(inputKey)
     local success, result = pcall(function()
         return game:HttpGet(CSV_URL .. "&nocache=" .. tostring(os.time()))
@@ -138,7 +137,6 @@ local function CreateKeyUI(onSuccess)
         Btn.Active = false
         local key = Box.Text
         
-        -- ใช้ task.spawn เพื่อไม่ให้ UI ค้างระหว่างรอเน็ต
         task.spawn(function()
             local ok, msg = CheckAndLock(key)
             if ok then
@@ -248,6 +246,8 @@ local function StartMainScript()
         ButtonOn_Start = Color3.fromRGB(120, 0, 255),
         ButtonOn_End = Color3.fromRGB(50, 0, 150),
         ESP_Color = Color3.fromRGB(180, 100, 255),
+        ESP_Friend = Color3.fromRGB(50, 255, 100), 
+        ESP_Target = Color3.fromRGB(255, 50, 50),  
         Tracer_Color = Color3.fromRGB(255, 50, 50),
         Track_Color = Color3.fromRGB(255, 140, 0),
         Track_Active = Color3.fromRGB(50, 200, 50),
@@ -301,8 +301,9 @@ local function StartMainScript()
         Flying = false,
         ESP = false,
         TracerTarget = nil,
+        PlayerMarks = {}, 
         ClickTP = false,
-        Noclip = false, -- Added Noclip State
+        Noclip = false, 
         AutoFarm = false,
         Invisible = false,
         GhostMode = false,
@@ -312,9 +313,9 @@ local function StartMainScript()
         FarmInfo = { Count = 0, StartTime = 0, CurrentState = "Idle", Tween = nil },
         Connections = {},
         OldSpeed = nil,
-        CachedParts = {}, -- [OPTIMIZATION] เก็บข้อมูลอวัยวะตัวละครพร้อมค่าเดิม
-        FarmThreads = {}, -- [OPTIMIZATION] เก็บ Thread ป้องกัน loop ทับซ้อน
-        AvatarCache = {}  -- [OPTIMIZATION] เก็บรูป Avatar ป้องกัน Lag
+        CachedParts = {}, 
+        FarmThreads = {}, 
+        AvatarCache = {}  
     }
 
     ---------------------------------------------------------------------------------
@@ -380,7 +381,6 @@ local function StartMainScript()
         end)
     end
 
-    -- [OPTIMIZATION] แคชตัวละครล่วงหน้า พร้อมจำค่า CanCollide ดั้งเดิม
     function Utils.updateCharCache(char)
         State.CachedParts = {}
         if not char then return end
@@ -391,7 +391,6 @@ local function StartMainScript()
         end
     end
 
-    -- [OPTIMIZATION] ไม่ต้อง GetChildren() ทุกเฟรมอีกต่อไป และดึงจาก Cache
     function Utils.noclip()
         for i = 1, #State.CachedParts do
             local data = State.CachedParts[i]
@@ -401,7 +400,6 @@ local function StartMainScript()
         end
     end
 
-    -- [FIX] คืนค่า CanCollide กลับเป็นค่าดั้งเดิม และใช้ลบ Constraint แบบใหม่
     function Utils.restorePhysics()
         local char, hrp, hum = Utils.getChar()
         if not char then return end
@@ -509,7 +507,7 @@ local function StartMainScript()
     GUI.StatusLabel.Text = TRANSLATIONS.STATUS_WAIT.EN
 
     GUI.MainBar = Instance.new("Frame", GUI.MenuContainer)
-    GUI.MainBar.Size = UDim2.new(0, 1250, 0, 65) -- ขยายขนาดแถบเมนูขึ้นเล็กน้อยเพื่อเพิ่มปุ่ม Noclip
+    GUI.MainBar.Size = UDim2.new(0, 1250, 0, 65) 
     GUI.MainBar.Position = UDim2.new(0.5, -625, 1.5, 0) 
     GUI.MainBar.BackgroundColor3 = THEME.Background
     GUI.MainBar.BackgroundTransparency = 0.1
@@ -522,7 +520,6 @@ local function StartMainScript()
     barLayout.VerticalAlignment = Enum.VerticalAlignment.Center
     barLayout.Padding = UDim.new(0, 4)
 
-    -- เพิ่ม Noclip เข้าไปในส่วนของ UI Buttons และปรับ scale นิดหน่อยให้พอดี
     GUI.Buttons = {}
     GUI.Buttons.Fly = GUI.createBtn(GUI.MainBar, "FLY", 0.07)
     GUI.Buttons.ESP = GUI.createBtn(GUI.MainBar, "ESP", 0.07)
@@ -530,7 +527,7 @@ local function StartMainScript()
     GUI.Buttons.Rise = GUI.createBtn(GUI.MainBar, "RISE_BTN", 0.07)
     GUI.Buttons.Invis = GUI.createBtn(GUI.MainBar, "INVIS", 0.08)
     GUI.Buttons.Ghost = GUI.createBtn(GUI.MainBar, "GHOST", 0.08) 
-    GUI.Buttons.Noclip = GUI.createBtn(GUI.MainBar, "NOCLIP_BTN", 0.08) -- <--- ปุ่มใหม่มาแล้ว
+    GUI.Buttons.Noclip = GUI.createBtn(GUI.MainBar, "NOCLIP_BTN", 0.08) 
     GUI.Buttons.TP = GUI.createBtn(GUI.MainBar, "TP", 0.08)
     GUI.Buttons.Farm = GUI.createBtn(GUI.MainBar, "FARM", 0.08)
     GUI.Buttons.Rejoin = GUI.createBtn(GUI.MainBar, "REJOIN", 0.07)
@@ -551,8 +548,9 @@ local function StartMainScript()
     Utils.addStroke(speedInput, 0.6)
     GUI.Buttons.Lang = GUI.createBtn(GUI.MainBar, "LANG_BTN", 0.07)
 
+    -- [[ POINT 1: SIZE OF SIDEFRAME ]] --
     GUI.SideFrame = Instance.new("Frame", GUI.MenuContainer)
-    GUI.SideFrame.Size = UDim2.new(0, 300, 0, 450)
+    GUI.SideFrame.Size = UDim2.new(0, 320, 0, 450) -- ปรับเป็น 320px พอดีกับ 2 ปุ่มย่อยด้านขวา
     GUI.SideFrame.Position = UDim2.new(1.5, 0, 0.2, 0) 
     GUI.SideFrame.BackgroundColor3 = THEME.Background
     GUI.SideFrame.BackgroundTransparency = 0.1
@@ -824,11 +822,13 @@ local function StartMainScript()
     -- 6. FUNCTIONS & LOGIC
     ---------------------------------------------------------------------------------
 
+    -- [[ POINT 2: ANIMATION TARGET SIDE POSITION ]] --
     function GUI.toggleMenu()
         CONFIG.MenuVisible = not CONFIG.MenuVisible
         
         local targetBarPos = CONFIG.MenuVisible and UDim2.new(0.5, -625, 0.85, 0) or UDim2.new(0.5, -625, 1.5, 0)
-        local targetSidePos = CONFIG.MenuVisible and UDim2.new(1, -300, 0.2, 0) or UDim2.new(1.5, 0, 0.2, 0)
+        -- แก้เป็น -330 เพื่อความพอดีกับขอบหน้าจอคอมพิวเตอร์ของคุณเมื่อเปิดเมนู
+        local targetSidePos = CONFIG.MenuVisible and UDim2.new(1, -330, 0.2, 0) or UDim2.new(1.5, 0, 0.2, 0)
         
         local animInfo = TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
         
@@ -1122,7 +1122,6 @@ local statusHideThread = nil
         return false
     end
 
-    -- Thread Cleanup & Tracking
     function Features.toggleFarm()
         State.AutoFarm = not State.AutoFarm
         GUI.toggleVisual(GUI.Buttons.Farm, State.AutoFarm)
@@ -1181,11 +1180,21 @@ local statusHideThread = nil
             if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
                 local char = p.Character
                 
+                local markType = State.PlayerMarks[p.UserId] or 0
+                local currentESPColor = THEME.ESP_Color
+                if markType == 1 then currentESPColor = THEME.ESP_Friend
+                elseif markType == 2 then currentESPColor = THEME.ESP_Target end
+                
                 if State.ESP then
                     if not char:FindFirstChild("Elite_Highlight") then
-                        local hi = Instance.new("Highlight", char); hi.Name = "Elite_Highlight"; hi.FillTransparency = 1; hi.OutlineColor = THEME.ESP_Color
+                        local hi = Instance.new("Highlight", char); hi.Name = "Elite_Highlight"; hi.FillTransparency = 1; hi.OutlineColor = currentESPColor
                         local bg = Instance.new("BillboardGui", char); bg.Name = "Elite_Tag"; bg.Adornee = char.HumanoidRootPart; bg.Size = UDim2.new(0, 100, 0, 40); bg.StudsOffset = Vector3.new(0, 3.5, 0); bg.AlwaysOnTop = true
-                        local tl = Instance.new("TextLabel", bg); tl.BackgroundTransparency = 1; tl.Size = UDim2.new(1, 0, 1, 0); tl.Text = p.DisplayName; tl.TextColor3 = THEME.ESP_Color; tl.Font = Enum.Font.GothamBold; tl.TextSize = 14; tl.TextStrokeTransparency = 0.5
+                        local tl = Instance.new("TextLabel", bg); tl.BackgroundTransparency = 1; tl.Size = UDim2.new(1, 0, 1, 0); tl.Text = p.DisplayName; tl.TextColor3 = currentESPColor; tl.Font = Enum.Font.GothamBold; tl.TextSize = 14; tl.TextStrokeTransparency = 0.5
+                    else
+                        char.Elite_Highlight.OutlineColor = currentESPColor
+                        if char:FindFirstChild("Elite_Tag") then
+                            char.Elite_Tag:FindFirstChildWhichIsA("TextLabel").TextColor3 = currentESPColor
+                        end
                     end
                 else
                     if char:FindFirstChild("Elite_Highlight") then char.Elite_Highlight:Destroy() end
@@ -1332,7 +1341,7 @@ local statusHideThread = nil
     GUI.Buttons.Rise.Button.MouseButton1Click:Connect(function() Features.setVertical("Rise") end)
     GUI.Buttons.Invis.Button.MouseButton1Click:Connect(Features.toggleInvis)
     GUI.Buttons.Ghost.Button.MouseButton1Click:Connect(function() Features.toggleGhost(false) end) 
-    GUI.Buttons.Noclip.Button.MouseButton1Click:Connect(Features.toggleNoclip) -- เชื่อมปุ่ม Noclip กับฟังก์ชัน
+    GUI.Buttons.Noclip.Button.MouseButton1Click:Connect(Features.toggleNoclip)
     GUI.Buttons.TP.Button.MouseButton1Click:Connect(function() State.ClickTP = not State.ClickTP; GUI.toggleVisual(GUI.Buttons.TP, State.ClickTP); GUI.setStatus(State.ClickTP and TRANSLATIONS.WARP_READY[CONFIG.CurrentLang] or TRANSLATIONS.WARP_OFF[CONFIG.CurrentLang]) end)
     GUI.Buttons.Farm.Button.MouseButton1Click:Connect(Features.toggleFarm)
     GUI.Buttons.Rejoin.Button.MouseButton1Click:Connect(Features.rejoinServer)
@@ -1343,6 +1352,7 @@ local statusHideThread = nil
     table.insert(_G.ProScript_Connections, speedInput:GetPropertyChangedSignal("Text"):Connect(function() CONFIG.Speed = tonumber(speedInput.Text) or 1 end))
     table.insert(_G.ProScript_Connections, LocalPlayer.Idled:Connect(function() VirtualUser:CaptureController(); VirtualUser:ClickButton2(Vector2.new()); GUI.setStatus(TRANSLATIONS.AFK[CONFIG.CurrentLang]) end))
 
+    -- [[ POINT 3: PLAYER LIST GENERATION LOGIC ]] --
     local function updateList()
         for _, item in pairs(scrollFrame:GetChildren()) do if item:IsA("Frame") then item:Destroy() end end
         
@@ -1351,29 +1361,18 @@ local statusHideThread = nil
         table.sort(playersList, function(a, b)
             return string.lower(a.DisplayName) < string.lower(b.DisplayName)
         end)
-        
-        local TextService = game:GetService("TextService")
-        local maxRowWidth = 280 
 
         for i, p in ipairs(playersList) do 
             if p ~= LocalPlayer then
-                local nameSize = TextService:GetTextSize(p.DisplayName, 14, Enum.Font.GothamMedium, Vector2.new(9999, 40))
-                local baseWidth = 135
-                local dynamicWidth = math.max(baseWidth, nameSize.X + 10)
-
-                local currentRowWidth = 45 + dynamicWidth + 5 + 60 + 5 + 60 + 10 
-                if currentRowWidth > maxRowWidth then
-                    maxRowWidth = currentRowWidth
-                end
-
                 local pRow = Instance.new("Frame", scrollFrame)
                 pRow.Name = p.DisplayName 
                 pRow.LayoutOrder = i 
-                pRow.Size = UDim2.new(0, math.max(280, currentRowWidth), 0, 40)
+                pRow.Size = UDim2.new(1, -12, 0, 40) -- ใช้ความกว้างเต็มแถวหักลบ Scrollbar 12px
                 pRow.BackgroundTransparency = 0.5
                 pRow.BackgroundColor3 = THEME.ButtonOff
                 Utils.addCorner(pRow, 8)
 
+                -- Avatar Icon
                 local headIcon = Instance.new("ImageLabel", pRow)
                 headIcon.Name = "Avatar"
                 headIcon.Size = UDim2.new(0, 30, 0, 30)
@@ -1399,22 +1398,47 @@ local statusHideThread = nil
                     end)
                 end
                 
-                local tBtn = Instance.new("TextButton", pRow)
-                tBtn.Size = UDim2.new(0, dynamicWidth, 1, 0) 
-                tBtn.Position = UDim2.new(0, 45, 0, 0)
-                tBtn.Text = p.DisplayName
-                tBtn.TextXAlignment = Enum.TextXAlignment.Left
-                tBtn.BackgroundTransparency = 1
-                tBtn.TextColor3 = THEME.Text
-                tBtn.Font = Enum.Font.GothamMedium
-                tBtn.TextSize = 14
-                tBtn.ZIndex = 2
-                tBtn.TextTruncate = Enum.TextTruncate.AtEnd
-                tBtn.MouseButton1Click:Connect(function() if p.Character and p.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character then LocalPlayer.Character.HumanoidRootPart.CFrame = p.Character.HumanoidRootPart.CFrame * CFrame.new(0,0,3) end end)
+                -- ปุ่ม MARK (ขวาสุด)
+                local markBtn = Instance.new("TextButton", pRow)
+                markBtn.Size = UDim2.new(0, 55, 0.7, 0)
+                markBtn.AnchorPoint = Vector2.new(1, 0)
+                markBtn.Position = UDim2.new(1, -5, 0.15, 0) -- ชิดขวาเว้นระยะ 5px
                 
+                local currentMark = State.PlayerMarks[p.UserId] or 0
+                if currentMark == 1 then
+                    markBtn.Text = "FRIEND"
+                    markBtn.BackgroundColor3 = THEME.ESP_Friend
+                elseif currentMark == 2 then
+                    markBtn.Text = "TARGET"
+                    markBtn.BackgroundColor3 = THEME.ESP_Target
+                else
+                    markBtn.Text = "MARK"
+                    markBtn.BackgroundColor3 = THEME.ButtonOn_Start
+                end
+                
+                markBtn.TextColor3 = Color3.new(1,1,1)
+                markBtn.Font = Enum.Font.GothamBold
+                markBtn.TextSize = 9
+                markBtn.ZIndex = 2
+                Utils.addCorner(markBtn, 6)
+
+                markBtn.MouseButton1Click:Connect(function()
+                    local nextMark = (State.PlayerMarks[p.UserId] or 0) + 1
+                    if nextMark > 2 then nextMark = 0 end
+                    State.PlayerMarks[p.UserId] = nextMark
+                    
+                    if nextMark == 1 then GUI.setStatus("Marked Friend: " .. p.DisplayName)
+                    elseif nextMark == 2 then GUI.setStatus("Marked Target: " .. p.DisplayName)
+                    else GUI.setStatus("Unmarked: " .. p.DisplayName) end
+                    Features.updateESP() 
+                    updateList() 
+                end)
+
+                -- ปุ่ม VIEW (อยู่ถัดซ้ายมาจากปุ่ม MARK)
                 local sBtn = Instance.new("TextButton", pRow)
-                sBtn.Size = UDim2.new(0, 60, 0.7, 0)
-                sBtn.Position = UDim2.new(0, 45 + dynamicWidth + 5, 0.15, 0) 
+                sBtn.Size = UDim2.new(0, 45, 0.7, 0)
+                sBtn.AnchorPoint = Vector2.new(1, 0)
+                sBtn.Position = UDim2.new(1, -65, 0.15, 0) -- ขยับมาชิดปุ่ม MARK พอดี (-5px หักลบขนาดปุ่ม 55px และเว้นช่องไฟ 5px)
                 sBtn.Text = "VIEW"
                 sBtn.BackgroundColor3 = THEME.ButtonOn_Start
                 sBtn.TextColor3 = Color3.new(1,1,1)
@@ -1424,39 +1448,22 @@ local statusHideThread = nil
                 Utils.addCorner(sBtn, 6)
                 sBtn.MouseButton1Click:Connect(function() if p.Character and p.Character:FindFirstChild("Humanoid") then Camera.CameraSubject = p.Character.Humanoid end end)
 
-                local trackBtn = Instance.new("TextButton", pRow)
-                trackBtn.Size = UDim2.new(0, 60, 0.7, 0) 
-                trackBtn.Position = UDim2.new(0, 45 + dynamicWidth + 5 + 60 + 5, 0.15, 0)
-                trackBtn.Text = "TRACK"
-                trackBtn.Font = Enum.Font.GothamBold
-                trackBtn.TextSize = 9
-                trackBtn.ZIndex = 2
-                Utils.addCorner(trackBtn, 6)
-                
-                if State.TracerTarget == p then
-                    trackBtn.BackgroundColor3 = THEME.Track_Active
-                    trackBtn.TextColor3 = Color3.new(1,1,1)
-                else
-                    trackBtn.BackgroundColor3 = THEME.Track_Color
-                    trackBtn.TextColor3 = Color3.new(1,1,1)
-                end
-                
-                trackBtn.MouseButton1Click:Connect(function()
-                    if State.TracerTarget == p then
-                        State.TracerTarget = nil 
-                        GUI.setStatus("Tracker: OFF")
-                        trackBtn.BackgroundColor3 = THEME.Track_Color
-                    else
-                        State.TracerTarget = p 
-                        GUI.setStatus("Tracking: " .. p.DisplayName)
-                        trackBtn.BackgroundColor3 = THEME.Track_Active
-                    end
-                    Features.updateESP()
-                    updateList()
-                end)
+                -- ชื่อผู้เล่น (ขยายช่องให้กินพื้นที่ตรงกลางที่เหลือ)
+                local tBtn = Instance.new("TextButton", pRow)
+                tBtn.Size = UDim2.new(1, -120, 1, 0) -- ลบพื้นที่ปุ่มทางขวาทั้งหมดออกไป 120px ชื่อจะเหลือพื้นที่ยาวขึ้นมาก
+                tBtn.Position = UDim2.new(0, 42, 0, 0)
+                tBtn.Text = p.DisplayName
+                tBtn.TextXAlignment = Enum.TextXAlignment.Left
+                tBtn.BackgroundTransparency = 1
+                tBtn.TextColor3 = THEME.Text
+                tBtn.Font = Enum.Font.GothamMedium
+                tBtn.TextSize = 14
+                tBtn.ZIndex = 2
+                tBtn.TextTruncate = Enum.TextTruncate.AtEnd
+                tBtn.MouseButton1Click:Connect(function() if p.Character and p.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character then LocalPlayer.Character.HumanoidRootPart.CFrame = p.Character.HumanoidRootPart.CFrame * CFrame.new(0,0,3) end end)
             end
         end
-        scrollFrame.CanvasSize = UDim2.new(0, maxRowWidth, 0, listLayout.AbsoluteContentSize.Y + 10)
+        scrollFrame.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 10)
     end
 
     local function bindLocalCharacter(char)
