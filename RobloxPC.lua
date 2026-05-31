@@ -1,4 +1,4 @@
--- [[ PROJECT: VACUUM - ULTIMATE EDITION (v9.8: REMOVED TRACK & CLEAN LAYOUT) ]] --
+-- [[ PROJECT: VACUUM - ULTIMATE EDITION (v9.9: MARK FORCE ESP & THAI UI) ]] --
 
 ---------------------------------------------------------------------------------
 -- [[ 0. SECURITY & MAP LOCK ]] --
@@ -548,9 +548,8 @@ local function StartMainScript()
     Utils.addStroke(speedInput, 0.6)
     GUI.Buttons.Lang = GUI.createBtn(GUI.MainBar, "LANG_BTN", 0.07)
 
-    -- [[ POINT 1: SIZE OF SIDEFRAME ]] --
     GUI.SideFrame = Instance.new("Frame", GUI.MenuContainer)
-    GUI.SideFrame.Size = UDim2.new(0, 320, 0, 450) -- ปรับเป็น 320px พอดีกับ 2 ปุ่มย่อยด้านขวา
+    GUI.SideFrame.Size = UDim2.new(0, 320, 0, 450) 
     GUI.SideFrame.Position = UDim2.new(1.5, 0, 0.2, 0) 
     GUI.SideFrame.BackgroundColor3 = THEME.Background
     GUI.SideFrame.BackgroundTransparency = 0.1
@@ -822,12 +821,10 @@ local function StartMainScript()
     -- 6. FUNCTIONS & LOGIC
     ---------------------------------------------------------------------------------
 
-    -- [[ POINT 2: ANIMATION TARGET SIDE POSITION ]] --
     function GUI.toggleMenu()
         CONFIG.MenuVisible = not CONFIG.MenuVisible
         
         local targetBarPos = CONFIG.MenuVisible and UDim2.new(0.5, -625, 0.85, 0) or UDim2.new(0.5, -625, 1.5, 0)
-        -- แก้เป็น -330 เพื่อความพอดีกับขอบหน้าจอคอมพิวเตอร์ของคุณเมื่อเปิดเมนู
         local targetSidePos = CONFIG.MenuVisible and UDim2.new(1, -330, 0.2, 0) or UDim2.new(1.5, 0, 0.2, 0)
         
         local animInfo = TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
@@ -836,7 +833,7 @@ local function StartMainScript()
         TweenService:Create(GUI.SideFrame, animInfo, {Position = targetSidePos}):Play()
     end
 
-local statusHideThread = nil
+    local statusHideThread = nil
 
     function GUI.setStatus(text)
         GUI.StatusLabel.Text = text
@@ -1185,7 +1182,10 @@ local statusHideThread = nil
                 if markType == 1 then currentESPColor = THEME.ESP_Friend
                 elseif markType == 2 then currentESPColor = THEME.ESP_Target end
                 
-                if State.ESP then
+                -- [[ FORCE ESP FOR MARKED PLAYERS ]] --
+                local forceESP = (markType > 0)
+                
+                if State.ESP or forceESP then
                     if not char:FindFirstChild("Elite_Highlight") then
                         local hi = Instance.new("Highlight", char); hi.Name = "Elite_Highlight"; hi.FillTransparency = 1; hi.OutlineColor = currentESPColor
                         local bg = Instance.new("BillboardGui", char); bg.Name = "Elite_Tag"; bg.Adornee = char.HumanoidRootPart; bg.Size = UDim2.new(0, 100, 0, 40); bg.StudsOffset = Vector3.new(0, 3.5, 0); bg.AlwaysOnTop = true
@@ -1257,6 +1257,8 @@ local statusHideThread = nil
     ---------------------------------------------------------------------------------
     -- 7. LOOPS & CONNECTS
     ---------------------------------------------------------------------------------
+
+    local updateList -- Pre-declare function so language button can call it
 
     local runConn = RunService.Stepped:Connect(function()
         if State.GhostMode and State.GhostClone then
@@ -1346,14 +1348,18 @@ local statusHideThread = nil
     GUI.Buttons.Farm.Button.MouseButton1Click:Connect(Features.toggleFarm)
     GUI.Buttons.Rejoin.Button.MouseButton1Click:Connect(Features.rejoinServer)
     GUI.Buttons.Reset.Button.MouseButton1Click:Connect(function() local _, _, hum = Utils.getChar(); if hum then Camera.CameraSubject = hum; GUI.setStatus(TRANSLATIONS.CAM_RESET[CONFIG.CurrentLang]) end end)
-    GUI.Buttons.Lang.Button.MouseButton1Click:Connect(function() CONFIG.CurrentLang = (CONFIG.CurrentLang == "EN") and "TH" or "EN"; GUI.updateTexts() end)
+    
+    GUI.Buttons.Lang.Button.MouseButton1Click:Connect(function() 
+        CONFIG.CurrentLang = (CONFIG.CurrentLang == "EN") and "TH" or "EN"
+        GUI.updateTexts() 
+        if updateList then updateList() end -- Refresh list texts
+    end)
 
     table.insert(_G.ProScript_Connections, Mouse.Button1Down:Connect(Features.teleportClick))
     table.insert(_G.ProScript_Connections, speedInput:GetPropertyChangedSignal("Text"):Connect(function() CONFIG.Speed = tonumber(speedInput.Text) or 1 end))
     table.insert(_G.ProScript_Connections, LocalPlayer.Idled:Connect(function() VirtualUser:CaptureController(); VirtualUser:ClickButton2(Vector2.new()); GUI.setStatus(TRANSLATIONS.AFK[CONFIG.CurrentLang]) end))
 
-    -- [[ POINT 3: PLAYER LIST GENERATION LOGIC ]] --
-    local function updateList()
+    updateList = function()
         for _, item in pairs(scrollFrame:GetChildren()) do if item:IsA("Frame") then item:Destroy() end end
         
         local playersList = Players:GetPlayers()
@@ -1362,12 +1368,14 @@ local statusHideThread = nil
             return string.lower(a.DisplayName) < string.lower(b.DisplayName)
         end)
 
+        local lang = CONFIG.CurrentLang
+
         for i, p in ipairs(playersList) do 
             if p ~= LocalPlayer then
                 local pRow = Instance.new("Frame", scrollFrame)
                 pRow.Name = p.DisplayName 
                 pRow.LayoutOrder = i 
-                pRow.Size = UDim2.new(1, -12, 0, 40) -- ใช้ความกว้างเต็มแถวหักลบ Scrollbar 12px
+                pRow.Size = UDim2.new(1, -12, 0, 40) 
                 pRow.BackgroundTransparency = 0.5
                 pRow.BackgroundColor3 = THEME.ButtonOff
                 Utils.addCorner(pRow, 8)
@@ -1402,17 +1410,17 @@ local statusHideThread = nil
                 local markBtn = Instance.new("TextButton", pRow)
                 markBtn.Size = UDim2.new(0, 55, 0.7, 0)
                 markBtn.AnchorPoint = Vector2.new(1, 0)
-                markBtn.Position = UDim2.new(1, -5, 0.15, 0) -- ชิดขวาเว้นระยะ 5px
+                markBtn.Position = UDim2.new(1, -5, 0.15, 0) 
                 
                 local currentMark = State.PlayerMarks[p.UserId] or 0
                 if currentMark == 1 then
-                    markBtn.Text = "FRIEND"
+                    markBtn.Text = (lang == "TH") and "เพื่อน" or "FRIEND"
                     markBtn.BackgroundColor3 = THEME.ESP_Friend
                 elseif currentMark == 2 then
-                    markBtn.Text = "TARGET"
+                    markBtn.Text = (lang == "TH") and "เป้าหมาย" or "TARGET"
                     markBtn.BackgroundColor3 = THEME.ESP_Target
                 else
-                    markBtn.Text = "MARK"
+                    markBtn.Text = (lang == "TH") and "มาร์ค" or "MARK"
                     markBtn.BackgroundColor3 = THEME.ButtonOn_Start
                 end
                 
@@ -1438,8 +1446,11 @@ local statusHideThread = nil
                 local sBtn = Instance.new("TextButton", pRow)
                 sBtn.Size = UDim2.new(0, 45, 0.7, 0)
                 sBtn.AnchorPoint = Vector2.new(1, 0)
-                sBtn.Position = UDim2.new(1, -65, 0.15, 0) -- ขยับมาชิดปุ่ม MARK พอดี (-5px หักลบขนาดปุ่ม 55px และเว้นช่องไฟ 5px)
-                sBtn.Text = "VIEW"
+                sBtn.Position = UDim2.new(1, -65, 0.15, 0) 
+                
+                -- [[ ระบบแปลภาษาปุ่ม VIEW ]] --
+                sBtn.Text = (lang == "TH") and "ส่อง" or "VIEW"
+                
                 sBtn.BackgroundColor3 = THEME.ButtonOn_Start
                 sBtn.TextColor3 = Color3.new(1,1,1)
                 sBtn.Font = Enum.Font.GothamBold
@@ -1448,9 +1459,9 @@ local statusHideThread = nil
                 Utils.addCorner(sBtn, 6)
                 sBtn.MouseButton1Click:Connect(function() if p.Character and p.Character:FindFirstChild("Humanoid") then Camera.CameraSubject = p.Character.Humanoid end end)
 
-                -- ชื่อผู้เล่น (ขยายช่องให้กินพื้นที่ตรงกลางที่เหลือ)
+                -- ชื่อผู้เล่น
                 local tBtn = Instance.new("TextButton", pRow)
-                tBtn.Size = UDim2.new(1, -120, 1, 0) -- ลบพื้นที่ปุ่มทางขวาทั้งหมดออกไป 120px ชื่อจะเหลือพื้นที่ยาวขึ้นมาก
+                tBtn.Size = UDim2.new(1, -120, 1, 0) 
                 tBtn.Position = UDim2.new(0, 42, 0, 0)
                 tBtn.Text = p.DisplayName
                 tBtn.TextXAlignment = Enum.TextXAlignment.Left
@@ -1487,7 +1498,7 @@ local statusHideThread = nil
                 waited = waited + task.wait(0.1)
             end
             
-            if State.ESP or State.TracerTarget == p then
+            if State.ESP or State.TracerTarget == p or (State.PlayerMarks[p.UserId] and State.PlayerMarks[p.UserId] > 0) then
                 Features.updateESP()
             end
         end)
@@ -1496,7 +1507,7 @@ local statusHideThread = nil
 
     for _, p in pairs(Players:GetPlayers()) do 
         bindPlayerEvents(p) 
-        if p.Character and State.ESP then Features.updateESP() end
+        if p.Character and (State.ESP or (State.PlayerMarks[p.UserId] and State.PlayerMarks[p.UserId] > 0)) then Features.updateESP() end
     end
 
     table.insert(_G.ProScript_Connections, Players.PlayerAdded:Connect(function(p) 
