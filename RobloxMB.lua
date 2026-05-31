@@ -1,4 +1,4 @@
--- [[ PROJECT: VACUUM - ULTIMATE EDITION (v9.7: OPTIMIZED + MOBILE FIXES) ]] --
+-- [[ PROJECT: VACUUM - MOBILE EDITION (v10.0: FIXED UI OVERLAP & FORCE ESP) ]] --
 
 ---------------------------------------------------------------------------------
 -- [[ 0. SECURITY & MAP LOCK ]] --
@@ -219,8 +219,8 @@ local function StartMainScript()
         SpecialWarps = {
             {Name = {EN = "Spawn",        TH = "จุดเกิด"},        Pos = CFrame.new(7.92047453, 2.40828323, 100.69519)},
             {Name = {EN = "Color Point", TH = "จุดชื่อสี"},       Pos = CFrame.new(14.6551895, -53.0000038, 16.1253815)},
-            {Name = {EN = "Und. Shop",   TH = "ร้านใต้ดิน"},     Pos = CFrame.new(1183.3916, -226.482635, -537.569092)},
-            {Name = {EN = "Pavilion",    TH = "ศาลาน้ำ"},       Pos = CFrame.new(-546.928711, -93.0000076, 381.976349)}
+            {Name = {EN = "Und. Shop",   TH = "ร้านใต้ดิน"},      Pos = CFrame.new(1183.3916, -226.482635, -537.569092)},
+            {Name = {EN = "Pavilion",    TH = "ศาลาน้ำ"},        Pos = CFrame.new(-546.928711, -93.0000076, 381.976349)}
         }
     }
 
@@ -228,8 +228,9 @@ local function StartMainScript()
     local THEME = {
         Background = Color3.fromRGB(5, 5, 10), ButtonOff = Color3.fromRGB(20, 20, 25),
         ButtonOn_Start = Color3.fromRGB(120, 0, 255), ButtonOn_End = Color3.fromRGB(50, 0, 150),
-        ESP_Color = Color3.fromRGB(180, 100, 255), Tracer_Color = Color3.fromRGB(255, 50, 50),
-        Track_Color = Color3.fromRGB(255, 140, 0), Track_Active = Color3.fromRGB(50, 200, 50),
+        ESP_Color = Color3.fromRGB(180, 100, 255), 
+        ESP_Friend = Color3.fromRGB(50, 255, 100), 
+        ESP_Target = Color3.fromRGB(255, 50, 50),
         Text = Color3.fromRGB(240, 240, 255), TextDim = Color3.fromRGB(100, 100, 120),
         Stroke = Color3.fromRGB(60, 30, 90), Delete = Color3.fromRGB(200, 50, 50)
     }
@@ -260,7 +261,7 @@ local function StartMainScript()
     }
 
     local State = {
-        Flying = false, ESP = false, TracerTarget = nil, ClickTP = false, Noclip = false, AutoFarm = false,
+        Flying = false, ESP = false, PlayerMarks = {}, ClickTP = false, Noclip = false, AutoFarm = false,
         Invisible = false, GhostMode = false, GhostClone = nil, RealCharacter = nil, 
         VerticalMode = "None", FarmInfo = { Count = 0, StartTime = 0, CurrentState = "Idle", Tween = nil },
         CachedParts = {}, FarmThreads = {}, AvatarCache = {}, HoldingUp = false, HoldingDown = false
@@ -388,7 +389,6 @@ local function StartMainScript()
         btn.InputEnded:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then State[stateKey] = false end
         end)
-        -- [FIX] ป้องกันการลากนิ้วออกจากปุ่มแล้วค้าง
         btn.MouseLeave:Connect(function()
             State[stateKey] = false
         end)
@@ -504,7 +504,7 @@ local function StartMainScript()
     end)
 
     GUI.SideFrame = Instance.new("Frame", GUI.MenuContainer)
-    GUI.SideFrame.Size = UDim2.new(0, 280, 0, 350) 
+    GUI.SideFrame.Size = UDim2.new(0, 320, 0, 350) -- ปรับความกว้างให้รองรับปุ่มย่อยแบบใหม่
     GUI.SideFrame.Position = UDim2.new(0.05, 0, 0.1, 0) 
     GUI.SideFrame.BackgroundColor3 = THEME.Background
     GUI.SideFrame.BackgroundTransparency = 0.1
@@ -690,6 +690,8 @@ local function StartMainScript()
         end
     end
 
+    local updateList -- Pre-declare
+
     function GUI.updateTexts()
         local lang = CONFIG.CurrentLang; local dynamicTextSize = (lang == "TH") and 13 or 10
         for _, item in pairs(GUI.Buttons) do item.Button.Text = TRANSLATIONS[item.Key][lang]; item.Button.TextSize = dynamicTextSize end
@@ -810,7 +812,6 @@ local function StartMainScript()
         hrp.Velocity = Vector3.zero; if hum then hum:ChangeState(Enum.HumanoidStateType.Running) end
     end
 
-    -- [OPTIMIZED] บังคับใช้ fireproximityprompt สำหรับพับหน้าจอ
     function Features.interactUntil(conditionFunc, maxTime)
         local elapsed = 0
         local overlap = OverlapParams.new(); overlap.FilterType = Enum.RaycastFilterType.Exclude
@@ -827,7 +828,6 @@ local function StartMainScript()
                         if fireproximityprompt then
                             fireproximityprompt(prompt)
                         else
-                            -- Fallback 
                             prompt:InputHoldBegin()
                             task.spawn(function()
                                 VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game); task.wait(0.05)
@@ -893,33 +893,28 @@ local function StartMainScript()
         for _, p in pairs(Players:GetPlayers()) do
             if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
                 local char = p.Character
-                if State.ESP then
+                
+                local markType = State.PlayerMarks[p.UserId] or 0
+                local currentESPColor = THEME.ESP_Color
+                if markType == 1 then currentESPColor = THEME.ESP_Friend
+                elseif markType == 2 then currentESPColor = THEME.ESP_Target end
+                
+                local forceESP = (markType > 0)
+                
+                if State.ESP or forceESP then
                     if not char:FindFirstChild("Elite_Highlight") then
-                        local hi = Instance.new("Highlight", char); hi.Name = "Elite_Highlight"; hi.FillTransparency = 1; hi.OutlineColor = THEME.ESP_Color
+                        local hi = Instance.new("Highlight", char); hi.Name = "Elite_Highlight"; hi.FillTransparency = 1; hi.OutlineColor = currentESPColor
                         local bg = Instance.new("BillboardGui", char); bg.Name = "Elite_Tag"; bg.Adornee = char.HumanoidRootPart; bg.Size = UDim2.new(0, 100, 0, 40); bg.StudsOffset = Vector3.new(0, 3.5, 0); bg.AlwaysOnTop = true
-                        local tl = Instance.new("TextLabel", bg); tl.BackgroundTransparency = 1; tl.Size = UDim2.new(1, 0, 1, 0); tl.Text = p.DisplayName; tl.TextColor3 = THEME.ESP_Color; tl.Font = Enum.Font.GothamBold; tl.TextSize = 14; tl.TextStrokeTransparency = 0.5
+                        local tl = Instance.new("TextLabel", bg); tl.BackgroundTransparency = 1; tl.Size = UDim2.new(1, 0, 1, 0); tl.Text = p.DisplayName; tl.TextColor3 = currentESPColor; tl.Font = Enum.Font.GothamBold; tl.TextSize = 14; tl.TextStrokeTransparency = 0.5
+                    else
+                        char.Elite_Highlight.OutlineColor = currentESPColor
+                        if char:FindFirstChild("Elite_Tag") then
+                            char.Elite_Tag:FindFirstChildWhichIsA("TextLabel").TextColor3 = currentESPColor
+                        end
                     end
                 else
                     if char:FindFirstChild("Elite_Highlight") then char.Elite_Highlight:Destroy() end
                     if char:FindFirstChild("Elite_Tag") then char.Elite_Tag:Destroy() end
-                end
-
-                local shouldDrawBeam = (State.TracerTarget == p) 
-                if shouldDrawBeam then
-                    local myChar = LocalPlayer.Character
-                    if myChar and myChar:FindFirstChild("HumanoidRootPart") then
-                        local myAtt = myChar.HumanoidRootPart:FindFirstChild("MyTracerAtt")
-                        if not myAtt then myAtt = Instance.new("Attachment", myChar.HumanoidRootPart); myAtt.Name = "MyTracerAtt" end
-                        local targetAtt = char.HumanoidRootPart:FindFirstChild("TargetTracerAtt")
-                        if not targetAtt then targetAtt = Instance.new("Attachment", char.HumanoidRootPart); targetAtt.Name = "TargetTracerAtt" end
-                        if not char:FindFirstChild("Elite_Beam") then
-                            local beam = Instance.new("Beam", char); beam.Name = "Elite_Beam"; beam.Attachment0 = myAtt; beam.Attachment1 = targetAtt; beam.FaceCamera = true; beam.Width0 = 0.1; beam.Width1 = 0.1; beam.Color = ColorSequence.new(THEME.Tracer_Color)
-                        else
-                            char.Elite_Beam.Attachment0 = myAtt
-                        end
-                    end
-                else
-                    if char:FindFirstChild("Elite_Beam") then char.Elite_Beam:Destroy() end
                 end
             end
         end
@@ -1053,27 +1048,27 @@ local function StartMainScript()
     GUI.Buttons.Farm.Button.MouseButton1Click:Connect(Features.toggleFarm)
     GUI.Buttons.Rejoin.Button.MouseButton1Click:Connect(Features.rejoinServer)
     GUI.Buttons.Reset.Button.MouseButton1Click:Connect(function() local _, _, hum = Utils.getChar(); if hum then Camera.CameraSubject = hum; GUI.setStatus(TRANSLATIONS.CAM_RESET[CONFIG.CurrentLang]) end end)
-    GUI.Buttons.Lang.Button.MouseButton1Click:Connect(function() CONFIG.CurrentLang = (CONFIG.CurrentLang == "EN") and "TH" or "EN"; GUI.updateTexts() end)
+    
+    GUI.Buttons.Lang.Button.MouseButton1Click:Connect(function() 
+        CONFIG.CurrentLang = (CONFIG.CurrentLang == "EN") and "TH" or "EN"
+        GUI.updateTexts() 
+        if updateList then updateList() end 
+    end)
 
     table.insert(_G.ProScript_Connections, speedInput:GetPropertyChangedSignal("Text"):Connect(function() CONFIG.Speed = tonumber(speedInput.Text) or 1 end))
     table.insert(_G.ProScript_Connections, LocalPlayer.Idled:Connect(function() VirtualUser:CaptureController(); VirtualUser:ClickButton2(Vector2.new()); GUI.setStatus(TRANSLATIONS.AFK[CONFIG.CurrentLang]) end))
 
-    local function updateList()
+    updateList = function()
         for _, item in pairs(scrollFrame:GetChildren()) do if item:IsA("Frame") then item:Destroy() end end
         local playersList = Players:GetPlayers()
         table.sort(playersList, function(a, b) return string.lower(a.DisplayName) < string.lower(b.DisplayName) end)
-        local TextService = game:GetService("TextService")
-        local maxRowWidth = 280 
+        
+        local lang = CONFIG.CurrentLang
 
         for i, p in ipairs(playersList) do
             if p ~= LocalPlayer then
-                local nameSize = TextService:GetTextSize(p.DisplayName, 14, Enum.Font.GothamMedium, Vector2.new(9999, 40))
-                local dynamicWidth = math.max(135, nameSize.X + 10)
-                local currentRowWidth = 45 + dynamicWidth + 5 + 60 + 5 + 60 + 10 
-                if currentRowWidth > maxRowWidth then maxRowWidth = currentRowWidth end
-
                 local pRow = Instance.new("Frame", scrollFrame); pRow.Name = p.DisplayName; pRow.LayoutOrder = i
-                pRow.Size = UDim2.new(0, math.max(280, currentRowWidth), 0, 40); pRow.BackgroundTransparency = 0.5
+                pRow.Size = UDim2.new(1, -12, 0, 40); pRow.BackgroundTransparency = 0.5
                 pRow.BackgroundColor3 = THEME.ButtonOff; Utils.addCorner(pRow, 8)
 
                 local headIcon = Instance.new("ImageLabel", pRow); headIcon.Name = "Avatar"; headIcon.Size = UDim2.new(0, 30, 0, 30); headIcon.Position = UDim2.new(0, 6, 0.5, -15)
@@ -1088,34 +1083,75 @@ local function StartMainScript()
                         if success and content then State.AvatarCache[p.UserId] = content; headIcon.Image = content; headIcon.BackgroundTransparency = 1 end 
                     end)
                 end
+
+                -- ปุ่ม MARK (ขวาสุด)
+                local markBtn = Instance.new("TextButton", pRow)
+                markBtn.Size = UDim2.new(0, 55, 0.7, 0)
+                markBtn.AnchorPoint = Vector2.new(1, 0)
+                markBtn.Position = UDim2.new(1, -5, 0.15, 0) 
                 
-                local tBtn = Instance.new("TextButton", pRow); tBtn.Size = UDim2.new(0, dynamicWidth, 1, 0); tBtn.Position = UDim2.new(0, 45, 0, 0)
-                tBtn.Text = p.DisplayName; tBtn.TextXAlignment = Enum.TextXAlignment.Left; tBtn.BackgroundTransparency = 1; tBtn.TextColor3 = THEME.Text
-                tBtn.Font = Enum.Font.GothamMedium; tBtn.TextSize = 14; tBtn.ZIndex = 2; tBtn.TextTruncate = Enum.TextTruncate.AtEnd
-                tBtn.MouseButton1Click:Connect(function() if p.Character and p.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character then LocalPlayer.Character.HumanoidRootPart.CFrame = p.Character.HumanoidRootPart.CFrame * CFrame.new(0,0,3) end end)
+                local currentMark = State.PlayerMarks[p.UserId] or 0
+                if currentMark == 1 then
+                    markBtn.Text = (lang == "TH") and "เพื่อน" or "FRIEND"
+                    markBtn.BackgroundColor3 = THEME.ESP_Friend
+                elseif currentMark == 2 then
+                    markBtn.Text = (lang == "TH") and "เป้าหมาย" or "TARGET"
+                    markBtn.BackgroundColor3 = THEME.ESP_Target
+                else
+                    markBtn.Text = (lang == "TH") and "มาร์ค" or "MARK"
+                    markBtn.BackgroundColor3 = THEME.ButtonOn_Start
+                end
                 
-                local sBtn = Instance.new("TextButton", pRow); sBtn.Size = UDim2.new(0, 60, 0.7, 0); sBtn.Position = UDim2.new(0, 45 + dynamicWidth + 5, 0.15, 0) 
-                sBtn.Text = "VIEW"; sBtn.BackgroundColor3 = THEME.ButtonOn_Start; sBtn.TextColor3 = Color3.new(1,1,1)
-                sBtn.Font = Enum.Font.GothamBold; sBtn.TextSize = 10; sBtn.ZIndex = 2; Utils.addCorner(sBtn, 6)
+                markBtn.TextColor3 = Color3.new(1,1,1)
+                markBtn.Font = Enum.Font.GothamBold
+                markBtn.TextSize = 9
+                markBtn.ZIndex = 3
+                Utils.addCorner(markBtn, 6)
+
+                markBtn.MouseButton1Click:Connect(function()
+                    local nextMark = (State.PlayerMarks[p.UserId] or 0) + 1
+                    if nextMark > 2 then nextMark = 0 end
+                    State.PlayerMarks[p.UserId] = nextMark
+                    
+                    if nextMark == 1 then GUI.setStatus("Marked Friend: " .. p.DisplayName)
+                    elseif nextMark == 2 then GUI.setStatus("Marked Target: " .. p.DisplayName)
+                    else GUI.setStatus("Unmarked: " .. p.DisplayName) end
+                    Features.updateESP() 
+                    updateList() 
+                end)
+
+                -- ปุ่ม VIEW (อยู่ถัดซ้ายมาจากปุ่ม MARK)
+                local sBtn = Instance.new("TextButton", pRow)
+                sBtn.Size = UDim2.new(0, 45, 0.7, 0)
+                sBtn.AnchorPoint = Vector2.new(1, 0)
+                sBtn.Position = UDim2.new(1, -65, 0.15, 0) 
+                sBtn.Text = (lang == "TH") and "ส่อง" or "VIEW"
+                sBtn.BackgroundColor3 = THEME.ButtonOn_Start
+                sBtn.TextColor3 = Color3.new(1,1,1)
+                sBtn.Font = Enum.Font.GothamBold
+                sBtn.TextSize = 10
+                sBtn.ZIndex = 3
+                Utils.addCorner(sBtn, 6)
                 sBtn.MouseButton1Click:Connect(function() if p.Character and p.Character:FindFirstChild("Humanoid") then Camera.CameraSubject = p.Character.Humanoid end end)
 
-                local trackBtn = Instance.new("TextButton", pRow); trackBtn.Size = UDim2.new(0, 60, 0.7, 0); trackBtn.Position = UDim2.new(0, 45 + dynamicWidth + 5 + 60 + 5, 0.15, 0)
-                trackBtn.Text = "TRACK"; trackBtn.Font = Enum.Font.GothamBold; trackBtn.TextSize = 9; trackBtn.ZIndex = 2; Utils.addCorner(trackBtn, 6)
-                
-                if State.TracerTarget == p then trackBtn.BackgroundColor3 = THEME.Track_Active; trackBtn.TextColor3 = Color3.new(1,1,1)
-                else trackBtn.BackgroundColor3 = THEME.Track_Color; trackBtn.TextColor3 = Color3.new(1,1,1) end
-                
-                trackBtn.MouseButton1Click:Connect(function()
-                    if State.TracerTarget == p then State.TracerTarget = nil; GUI.setStatus("Tracker: OFF"); trackBtn.BackgroundColor3 = THEME.Track_Color
-                    else State.TracerTarget = p; GUI.setStatus("Tracking: " .. p.DisplayName); trackBtn.BackgroundColor3 = THEME.Track_Active end
-                    Features.updateESP(); updateList()
-                end)
+                -- ชื่อผู้เล่น (ลดความกว้าง ไม่ทับปุ่ม)
+                local tBtn = Instance.new("TextButton", pRow)
+                tBtn.Size = UDim2.new(1, -155, 1, 0) 
+                tBtn.Position = UDim2.new(0, 42, 0, 0)
+                tBtn.Text = p.DisplayName
+                tBtn.TextXAlignment = Enum.TextXAlignment.Left
+                tBtn.BackgroundTransparency = 1
+                tBtn.TextColor3 = THEME.Text
+                tBtn.Font = Enum.Font.GothamMedium
+                tBtn.TextSize = 14
+                tBtn.ZIndex = 2
+                tBtn.TextTruncate = Enum.TextTruncate.AtEnd
+                tBtn.MouseButton1Click:Connect(function() if p.Character and p.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character then LocalPlayer.Character.HumanoidRootPart.CFrame = p.Character.HumanoidRootPart.CFrame * CFrame.new(0,0,3) end end)
             end
         end
-        scrollFrame.CanvasSize = UDim2.new(0, maxRowWidth, 0, listLayout.AbsoluteContentSize.Y + 10)
+        scrollFrame.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 10)
     end
 
-    -- [OPTIMIZED] แก้ไข Memory Leak ถอดการยัด Event ลง _G
     local function bindLocalCharacter(char)
         Utils.updateCharCache(char)
         char.DescendantAdded:Connect(function(descendant)
@@ -1130,11 +1166,15 @@ local function StartMainScript()
         p.CharacterAdded:Connect(function(char)
             local waited = 0
             while waited < 3 and not char:FindFirstChild("HumanoidRootPart") do waited = waited + task.wait(0.1) end
-            if State.ESP or State.TracerTarget == p then Features.updateESP() end
+            if State.ESP or (State.PlayerMarks[p.UserId] and State.PlayerMarks[p.UserId] > 0) then Features.updateESP() end
         end)
     end
 
-    for _, p in pairs(Players:GetPlayers()) do bindPlayerEvents(p); if p.Character and State.ESP then Features.updateESP() end end
+    for _, p in pairs(Players:GetPlayers()) do 
+        bindPlayerEvents(p) 
+        if p.Character and (State.ESP or (State.PlayerMarks[p.UserId] and State.PlayerMarks[p.UserId] > 0)) then Features.updateESP() end 
+    end
+    
     table.insert(_G.ProScript_Connections, Players.PlayerAdded:Connect(function(p) bindPlayerEvents(p); updateList() end))
     table.insert(_G.ProScript_Connections, Players.PlayerRemoving:Connect(updateList))
     updateList()
