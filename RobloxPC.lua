@@ -1,4 +1,4 @@
--- [[ PROJECT: VACUUM - ULTIMATE EDITION (v9.9: MARK FORCE ESP & THAI UI) ]] --
+-- [[ PROJECT: VACUUM - ULTIMATE EDITION (v10.0: FIXED UI OVERLAP & FORCE ESP) ]] --
 
 ---------------------------------------------------------------------------------
 -- [[ 0. SECURITY & MAP LOCK ]] --
@@ -1182,7 +1182,6 @@ local function StartMainScript()
                 if markType == 1 then currentESPColor = THEME.ESP_Friend
                 elseif markType == 2 then currentESPColor = THEME.ESP_Target end
                 
-                -- [[ FORCE ESP FOR MARKED PLAYERS ]] --
                 local forceESP = (markType > 0)
                 
                 if State.ESP or forceESP then
@@ -1258,7 +1257,7 @@ local function StartMainScript()
     -- 7. LOOPS & CONNECTS
     ---------------------------------------------------------------------------------
 
-    local updateList -- Pre-declare function so language button can call it
+    local updateList 
 
     local runConn = RunService.Stepped:Connect(function()
         if State.GhostMode and State.GhostClone then
@@ -1352,7 +1351,7 @@ local function StartMainScript()
     GUI.Buttons.Lang.Button.MouseButton1Click:Connect(function() 
         CONFIG.CurrentLang = (CONFIG.CurrentLang == "EN") and "TH" or "EN"
         GUI.updateTexts() 
-        if updateList then updateList() end -- Refresh list texts
+        if updateList then updateList() end 
     end)
 
     table.insert(_G.ProScript_Connections, Mouse.Button1Down:Connect(Features.teleportClick))
@@ -1427,7 +1426,7 @@ local function StartMainScript()
                 markBtn.TextColor3 = Color3.new(1,1,1)
                 markBtn.Font = Enum.Font.GothamBold
                 markBtn.TextSize = 9
-                markBtn.ZIndex = 2
+                markBtn.ZIndex = 3
                 Utils.addCorner(markBtn, 6)
 
                 markBtn.MouseButton1Click:Connect(function()
@@ -1447,21 +1446,18 @@ local function StartMainScript()
                 sBtn.Size = UDim2.new(0, 45, 0.7, 0)
                 sBtn.AnchorPoint = Vector2.new(1, 0)
                 sBtn.Position = UDim2.new(1, -65, 0.15, 0) 
-                
-                -- [[ ระบบแปลภาษาปุ่ม VIEW ]] --
                 sBtn.Text = (lang == "TH") and "ส่อง" or "VIEW"
-                
                 sBtn.BackgroundColor3 = THEME.ButtonOn_Start
                 sBtn.TextColor3 = Color3.new(1,1,1)
                 sBtn.Font = Enum.Font.GothamBold
                 sBtn.TextSize = 10
-                sBtn.ZIndex = 2
+                sBtn.ZIndex = 3
                 Utils.addCorner(sBtn, 6)
                 sBtn.MouseButton1Click:Connect(function() if p.Character and p.Character:FindFirstChild("Humanoid") then Camera.CameraSubject = p.Character.Humanoid end end)
 
-                -- ชื่อผู้เล่น
+                -- ชื่อผู้เล่น (ลดความกว้างลง เพื่อไม่ให้กล่องไปทับปุ่มฝั่งขวา)
                 local tBtn = Instance.new("TextButton", pRow)
-                tBtn.Size = UDim2.new(1, -120, 1, 0) 
+                tBtn.Size = UDim2.new(1, -155, 1, 0) -- [[ แก้ไขขนาดกล่องที่นี่ ไม่ให้ไปทับปุ่ม VIEW (ส่อง) ]]
                 tBtn.Position = UDim2.new(0, 42, 0, 0)
                 tBtn.Text = p.DisplayName
                 tBtn.TextXAlignment = Enum.TextXAlignment.Left
