@@ -26,7 +26,7 @@ local SETTINGS = {
     Key_Aimbot = Enum.KeyCode.X,
     Key_Fullbright = Enum.KeyCode.K, 
     Key_Rejoin = Enum.KeyCode.L,
-    Key_Help = Enum.KeyCode.Z,
+    Key_Help = Enum.KeyCode.Z, -- [เพิ่มปุ่ม Z สำหรับเรียกดู Help Menu]
     
     ESP_Enabled = false,              
     Noclip_Enabled = false,
@@ -117,26 +117,13 @@ end
 
 CleanVisuals()
 
--- [อัปเดต] ระบบคัดกรอง Role แยกคน, ฆาตกร และคนดู(Spectator)
 local function GetPlayerRole(plr)
-    if not plr or not plr.Character then return "Spectator" end
-    local char = plr.Character
-    local humanoid = char:FindFirstChild("Humanoid")
-    
-    -- ถ้าไม่มีตัวละคร หรือเลือดหมด = คนดู
-    if not char:FindFirstChild("HumanoidRootPart") or not humanoid or humanoid.Health <= 0 then 
-        return "Spectator" 
-    end
-
-    -- 1. เช็คจากชื่อ Team ก่อน
+    if not plr or not plr.Character then return "Unknown" end
     local success, teamName = pcall(function() return plr.Team.Name:lower() end)
     if success and teamName then
         if teamName:match("kill") or teamName:match("murder") then return "Killer" end
         if teamName:match("surviv") or teamName:match("innocent") then return "Survivor" end
-        if teamName:match("lobby") or teamName:match("spec") or teamName:match("dead") then return "Spectator" end
     end
-    
-    -- 2. เช็คจากไอเทมในตัว (เผื่อกรณีไม่มี Team)
     local function CheckItems(container)
         for _, item in pairs(container:GetChildren()) do
             if item:IsA("Tool") then
@@ -147,47 +134,20 @@ local function GetPlayerRole(plr)
         end
         return nil
     end
-    
-    local role = CheckItems(char)
+    local role = CheckItems(plr.Character)
     if not role and plr:FindFirstChild("Backpack") then role = CheckItems(plr.Backpack) end
-    
-    -- 3. เช็คจากค่าพลัง (เกมแนวนี้ฆาตกรมักจะถึกกว่าคนปกติ หรือหลอดเลือดต่างกัน)
-    if not role and humanoid.MaxHealth > 100 then
-        return "Killer"
-    end
-    
-    return role or "Suspect" -- ถ้ายังหาไม่เจอให้ขึ้นสีส้มไปก่อน
+    return role or "Suspect"
 end
 
--- [อัปเดต] บังคับ AlwaysOnTop ให้มองทะลุกำแพงตลอดเวลา และแก้สีเพี้ยน
 local function CreatePlayerESP(target, text, color)
     if not target or not target.Parent then return end
     local char = target.Parent
-    
     local hi = char:FindFirstChild("RoleESP_Highlight") or Instance.new("Highlight", char)
-    hi.Name = "RoleESP_Highlight"
-    hi.FillColor = color
-    hi.OutlineColor = color
-    hi.FillTransparency = 0.8
-    hi.OutlineTransparency = 0
-    hi.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop -- บังคับให้ทะลุกำแพงตลอดเวลา
-    
+    hi.Name, hi.FillColor, hi.OutlineColor, hi.FillTransparency, hi.OutlineTransparency = "RoleESP_Highlight", color, color, 1, 0
     local bg = target:FindFirstChild("RoleESP_Tag") or Instance.new("BillboardGui", target)
-    bg.Name = "RoleESP_Tag"
-    bg.Size = UDim2.new(0, 200, 0, 50)
-    bg.AlwaysOnTop = true
-    bg.StudsOffset = Vector3.new(0, 3.5, 0)
-    
+    bg.Name, bg.Size, bg.AlwaysOnTop, bg.StudsOffset = "RoleESP_Tag", UDim2.new(0, 200, 0, 50), true, Vector3.new(0, 3.5, 0)
     local tl = bg:FindFirstChild("Label") or Instance.new("TextLabel", bg)
-    tl.Name = "Label"
-    tl.BackgroundTransparency = 1
-    tl.Size = UDim2.new(1, 0, 1, 0)
-    tl.Font = Enum.Font.GothamBold
-    tl.TextSize = 13
-    tl.Text = text
-    tl.TextColor3 = color
-    tl.TextStrokeTransparency = 0
-    tl.TextStrokeColor3 = Color3.new(0,0,0)
+    tl.Name, tl.BackgroundTransparency, tl.Size, tl.Font, tl.TextSize, tl.Text, tl.TextColor3, tl.TextStrokeTransparency, tl.TextStrokeColor3 = "Label", 1, UDim2.new(1, 0, 1, 0), Enum.Font.GothamBold, 13, text, color, 0, Color3.new(0,0,0)
 end
 
 local function UpdatePlayerESP()
@@ -199,16 +159,6 @@ local function UpdatePlayerESP()
                 local char = p.Character
                 local humanoid = char:FindFirstChild("Humanoid")
                 local role = GetPlayerRole(p)
-                
-                -- ซ่อน ESP คนดู จะได้ไม่รกจอ
-                if role == "Spectator" then
-                    local hi = char:FindFirstChild("RoleESP_Highlight")
-                    local tag = char:FindFirstChild("RoleESP_Tag", true)
-                    if hi then hi:Destroy() end
-                    if tag then tag:Destroy() end
-                    return
-                end
-
                 local dist = (myPos - char.HumanoidRootPart.Position).Magnitude
                 local hpText = ""
                 if humanoid and role == "Survivor" then
@@ -216,10 +166,8 @@ local function UpdatePlayerESP()
                     local maxHp = math.floor(humanoid.MaxHealth)
                     hpText = hp < maxHp and string.format(" [HP:%d%%]", (hp/maxHp)*100) or " [FULL]"
                 end
-                
                 local color = (role == "Killer" and SETTINGS.KillerColor) or (role == "Suspect" and SETTINGS.SuspectColor) or SETTINGS.SurvivorColor
                 local prefix = (role == "Killer" and "[KILLER] ") or (role == "Suspect" and "[?] ") or "[+] "
-                
                 CreatePlayerESP(char.HumanoidRootPart, prefix .. p.Name .. hpText .. string.format("\n[%d m]", math.floor(dist)), color)
             end)
         end
@@ -267,7 +215,6 @@ local function UpdateWorldESP()
                 else 
                     local hi = v:FindFirstChild("GenESP_Highlight") or Instance.new("Highlight", v)
                     hi.Name, hi.FillColor, hi.OutlineColor, hi.FillTransparency = "GenESP_Highlight", SETTINGS.GenColor, SETTINGS.GenColor, 0.4
-					hi.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
                     local centerPart = v.PrimaryPart or v:FindFirstChild("HitBox") or v:FindFirstChildWhichIsA("BasePart")
                     if centerPart then
                         local bg = centerPart:FindFirstChild("GenESP_Tag") or Instance.new("BillboardGui", centerPart)
@@ -461,6 +408,7 @@ local function SendNotify(titleText, descText) pcall(function() StarterGui:SetCo
 UserInputService.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     
+    -- [ระบบเช็คปุ่ม Z เพื่อเปิด Help Menu]
     if input.KeyCode == SETTINGS.Key_Help then
         pcall(function() 
             StarterGui:SetCore("SendNotification", { 
