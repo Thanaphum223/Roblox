@@ -1,4 +1,4 @@
--- [[ PROJECT: VACUUM - ULTIMATE EDITION (v10.0: FIXED UI OVERLAP & FORCE ESP) ]] --
+-- [[ PROJECT: VACUUM - ULTIMATE EDITION (v10.1: OPTIMIZED & DEBOUNCED) ]] --
 
 ---------------------------------------------------------------------------------
 -- [[ 0. SECURITY & MAP LOCK ]] --
@@ -61,8 +61,14 @@ local function CheckAndLock(inputKey)
         return true, "Verified"
         
     elseif storedHWID == "" or storedHWID == nil then
+        -- [UPDATE 4: Safe HTTP Request]
+        local successEncode, body = pcall(function()
+            return HttpService:JSONEncode({ key = inputKey, hwid = MyHWID })
+        end)
+        
+        if not successEncode then return false, "ระบบมีปัญหาในการอ่านข้อมูลเครื่อง" end
+
         task.spawn(function()
-            local body = HttpService:JSONEncode({ key = inputKey, hwid = MyHWID })
             local httpRequest = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
             if httpRequest then
                 pcall(function()
@@ -86,11 +92,12 @@ end
 local function CreateKeyUI(onSuccess)
     if LocalPlayer.PlayerGui:FindFirstChild("SecureAuth") then LocalPlayer.PlayerGui.SecureAuth:Destroy() end
     
-    local ScreenGui = Instance.new("ScreenGui", LocalPlayer.PlayerGui)
+    -- [UPDATE 1: UI Creation Optimization (Parenting last)]
+    local ScreenGui = Instance.new("ScreenGui")
     ScreenGui.Name = "SecureAuth"
     ScreenGui.ResetOnSpawn = false
 
-    local Main = Instance.new("Frame", ScreenGui)
+    local Main = Instance.new("Frame")
     Main.Size = UDim2.new(0, 350, 0, 180)
     Main.Position = UDim2.new(0.5, -175, 0.5, -90)
     Main.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
@@ -132,7 +139,16 @@ local function CreateKeyUI(onSuccess)
     Status.Font = Enum.Font.Gotham
     Status.TextSize = 12
 
+    Main.Parent = ScreenGui
+    ScreenGui.Parent = LocalPlayer.PlayerGui
+
+    -- [UPDATE 2: Key System Debounce]
+    local isChecking = false
+
     Btn.MouseButton1Click:Connect(function()
+        if isChecking then return end
+        isChecking = true
+        
         Btn.Text = "CHECKING..."
         Btn.Active = false
         local key = Box.Text
@@ -154,6 +170,7 @@ local function CreateKeyUI(onSuccess)
                 Status.Text = msg
                 Btn.Text = "VERIFY"
                 Btn.Active = true
+                isChecking = false
             end
         end)
     end)
@@ -451,11 +468,12 @@ local function StartMainScript()
     GUI.Screen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
     function GUI.createBtn(parent, textKey, sizeScale)
-        local container = Instance.new("Frame", parent)
+        -- [UPDATE 1: UI Creation Optimization (Parenting last)]
+        local container = Instance.new("Frame")
         container.Size = UDim2.new(sizeScale, -8, 0, 45)
         container.BackgroundTransparency = 1
         
-        local btn = Instance.new("TextButton", container)
+        local btn = Instance.new("TextButton")
         btn.Size = UDim2.new(1, 0, 1, 0)
         btn.Text = TRANSLATIONS[textKey][CONFIG.CurrentLang]
         btn.BackgroundColor3 = THEME.ButtonOff
@@ -466,6 +484,10 @@ local function StartMainScript()
         Utils.addCorner(btn, 10)
         
         local grad = Utils.addGradient(btn)
+        
+        btn.Parent = container
+        container.Parent = parent
+        
         return {Button = btn, Gradient = grad, Key = textKey}
     end
 
@@ -906,7 +928,12 @@ local function StartMainScript()
     end
     Features.setupInstantPrompts()
 
+    -- [UPDATE 2: Rejoin Debounce]
+    local isRejoining = false
     function Features.rejoinServer()
+        if isRejoining then return end
+        isRejoining = true
+        
         GUI.setStatus(TRANSLATIONS.REJOINING[CONFIG.CurrentLang])
         if #Players:GetPlayers() <= 1 then
             LocalPlayer:Kick("\nRejoining...")
@@ -1172,6 +1199,7 @@ local function StartMainScript()
         end
     end
 
+    -- [ESP RETAINED AS ORIGINAL]
     function Features.updateESP()
         for _, p in pairs(Players:GetPlayers()) do
             if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
@@ -1455,9 +1483,9 @@ local function StartMainScript()
                 Utils.addCorner(sBtn, 6)
                 sBtn.MouseButton1Click:Connect(function() if p.Character and p.Character:FindFirstChild("Humanoid") then Camera.CameraSubject = p.Character.Humanoid end end)
 
-                -- ชื่อผู้เล่น (ลดความกว้างลง เพื่อไม่ให้กล่องไปทับปุ่มฝั่งขวา)
+                -- ชื่อผู้เล่น
                 local tBtn = Instance.new("TextButton", pRow)
-                tBtn.Size = UDim2.new(1, -155, 1, 0) -- [[ แก้ไขขนาดกล่องที่นี่ ไม่ให้ไปทับปุ่ม VIEW (ส่อง) ]]
+                tBtn.Size = UDim2.new(1, -155, 1, 0)
                 tBtn.Position = UDim2.new(0, 42, 0, 0)
                 tBtn.Text = p.DisplayName
                 tBtn.TextXAlignment = Enum.TextXAlignment.Left
