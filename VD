@@ -1,4 +1,4 @@
--- [[ PROJECT: VIOLENCE DISTRICT - INSTANT V8.6 (PERFORMANCE + FULLBRIGHT + NO RED BALL + HELP MENU) ]] --
+-- [[ PROJECT: VIOLENCE DISTRICT - INSTANT V8.6 (PERFORMANCE + FULLBRIGHT + NO RED BALL + HELP MENU + NO FOG) ]] --
 if _G.ViolenceDistrict_Loaded then
     pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", { Title = "System", Text = "Script is already loaded!", Duration = 3 }) end)
     return
@@ -25,8 +25,9 @@ local SETTINGS = {
     Key_AutoParry = Enum.KeyCode.V, 
     Key_Aimbot = Enum.KeyCode.X,
     Key_Fullbright = Enum.KeyCode.K, 
+    Key_NoFog = Enum.KeyCode.P, -- [เพิ่มปุ่ม P สำหรับลบหมอก]
     Key_Rejoin = Enum.KeyCode.L,
-    Key_Help = Enum.KeyCode.Z, -- [เพิ่มปุ่ม Z สำหรับเรียกดู Help Menu]
+    Key_Help = Enum.KeyCode.Z, 
     
     ESP_Enabled = false,              
     Noclip_Enabled = false,
@@ -34,6 +35,7 @@ local SETTINGS = {
     AutoParry_Enabled = false,
     Aimbot_Enabled = false,        
     Fullbright_Enabled = false, 
+    NoFog_Enabled = false, -- [สถานะเปิด/ปิด ลบหมอก]
     
     Parry_Key = "RightClick", 
     Parry_MaxRange = 12, 
@@ -76,8 +78,10 @@ local origLighting = {
     OutdoorAmbient = Lighting.OutdoorAmbient,
     Brightness = Lighting.Brightness,
     FogEnd = Lighting.FogEnd,
+    FogStart = Lighting.FogStart,
     GlobalShadows = Lighting.GlobalShadows,
-    ClockTime = Lighting.ClockTime
+    ClockTime = Lighting.ClockTime,
+    AtmDensity = nil
 }
 
 local function CacheNoclipParts(char)
@@ -408,12 +412,11 @@ local function SendNotify(titleText, descText) pcall(function() StarterGui:SetCo
 UserInputService.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     
-    -- [ระบบเช็คปุ่ม Z เพื่อเปิด Help Menu]
     if input.KeyCode == SETTINGS.Key_Help then
         pcall(function() 
             StarterGui:SetCore("SendNotification", { 
                 Title = "📜 รายการปุ่มกด (Help)", 
-                Text = "E = ESP | R = Noclip\nG = AutoSkill | V = AutoParry\nX = Aimbot | K = Fullbright\nL = Rejoin | Z = ช่วยเหลือ", 
+                Text = "E = ESP | R = Noclip\nG = AutoSkill | V = AutoParry\nX = Aimbot | K = Fullbright\nP = No Fog | L = Rejoin\nZ = ช่วยเหลือ", 
                 Duration = 5 
             }) 
         end)
@@ -470,6 +473,31 @@ UserInputService.InputBegan:Connect(function(input, gpe)
             Lighting.ClockTime = origLighting.ClockTime
             SendNotify("Fullbright", "OFF")
         end
+    elseif input.KeyCode == SETTINGS.Key_NoFog then -- [โค้ดฟังก์ชันลบหมอกปุ่ม P]
+        SETTINGS.NoFog_Enabled = not SETTINGS.NoFog_Enabled
+        if SETTINGS.NoFog_Enabled then
+            origLighting.FogEnd = Lighting.FogEnd
+            origLighting.FogStart = Lighting.FogStart
+            
+            Lighting.FogStart = 0
+            Lighting.FogEnd = 999999
+            
+            local atm = Lighting:FindFirstChildWhichIsA("Atmosphere")
+            if atm then
+                origLighting.AtmDensity = atm.Density
+                atm.Density = 0
+            end
+            SendNotify("No Fog", "ON")
+        else
+            Lighting.FogStart = origLighting.FogStart or 0
+            Lighting.FogEnd = origLighting.FogEnd or 100000
+            
+            local atm = Lighting:FindFirstChildWhichIsA("Atmosphere")
+            if atm and origLighting.AtmDensity then
+                atm.Density = origLighting.AtmDensity
+            end
+            SendNotify("No Fog", "OFF")
+        end
     elseif input.KeyCode == SETTINGS.Key_Rejoin then
         SendNotify("Rejoining", "Please wait... Teleporting back to server.")
         task.wait(0.5)
@@ -485,4 +513,4 @@ LocalPlayer.CharacterAdded:Connect(function(char)
     end
 end)
 
-SendNotify("V8.6 + FPS BOOST + FULLBRIGHT", "Loaded! (Press Z for Keybinds)")
+SendNotify("V8.6 + FPS BOOST + NO FOG", "Loaded! (Press Z for Keybinds)")
