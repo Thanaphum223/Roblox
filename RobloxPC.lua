@@ -1,4 +1,4 @@
--- [[ PROJECT: VACUUM - ULTIMATE EDITION (v10.1: OPTIMIZED & DEBOUNCED) ]] --
+-- [[ PROJECT: VACUUM - ULTIMATE EDITION (v10.2: STEALTH & AUTO-SAVE) ]] --
 
 ---------------------------------------------------------------------------------
 -- [[ 0. SECURITY & MAP LOCK ]] --
@@ -21,7 +21,7 @@ if not Supported_IDs[PlaceID] then
 end
 
 ---------------------------------------------------------------------------------
--- [[ 1. KEY SYSTEM (FAST CHECK LOGIC) ]] --
+-- [[ 1. KEY SYSTEM & HELPERS ]] --
 ---------------------------------------------------------------------------------
 local HttpService = game:GetService("HttpService")
 local RbxAnalytics = game:GetService("RbxAnalyticsService")
@@ -30,10 +30,21 @@ local LocalPlayer = Players.LocalPlayer
 local MyHWID = RbxAnalytics:GetClientId()
 local StarterGui = game:GetService("StarterGui")
 
--- [ URLs ]
+-- [ URLs & Files ]
 local SCRIPT_URL = "https://script.google.com/macros/s/AKfycby-eC0AM7hphYMKPiEmMTsidJY0d8_eTUS6e9KtXkJboPi85Y8bWXdH_3ujpkYy4WoYSQ/exec"
 local CSV_URL = "https://docs.google.com/spreadsheets/d/1plKekYjuDDNCXDh4GVT386F-E5IYT5dJzwJfhNkrlRY/export?format=csv"
 local KEY_FILE_NAME = "Vacuum_Key.txt"
+local CONFIG_FILE_NAME = "Vacuum_Config.json"
+
+-- [[ STEALTH FUNCTION: ซ่อน UI จาก Anti-Cheat ]] --
+local function GetHiddenUI()
+    local target
+    pcall(function() target = gethui and gethui() end)
+    if target then return target end
+    pcall(function() target = game:GetService("CoreGui") end)
+    if target then return target end
+    return LocalPlayer:WaitForChild("PlayerGui")
+end
 
 local function CheckAndLock(inputKey)
     local success, result = pcall(function()
@@ -61,7 +72,6 @@ local function CheckAndLock(inputKey)
         return true, "Verified"
         
     elseif storedHWID == "" or storedHWID == nil then
-        -- [UPDATE 4: Safe HTTP Request]
         local successEncode, body = pcall(function()
             return HttpService:JSONEncode({ key = inputKey, hwid = MyHWID })
         end)
@@ -90,9 +100,10 @@ end
 
 -- [ UI SYSTEM ]
 local function CreateKeyUI(onSuccess)
+    local hiddenParent = GetHiddenUI()
+    if hiddenParent:FindFirstChild("SecureAuth") then hiddenParent.SecureAuth:Destroy() end
     if LocalPlayer.PlayerGui:FindFirstChild("SecureAuth") then LocalPlayer.PlayerGui.SecureAuth:Destroy() end
     
-    -- [UPDATE 1: UI Creation Optimization (Parenting last)]
     local ScreenGui = Instance.new("ScreenGui")
     ScreenGui.Name = "SecureAuth"
     ScreenGui.ResetOnSpawn = false
@@ -140,11 +151,9 @@ local function CreateKeyUI(onSuccess)
     Status.TextSize = 12
 
     Main.Parent = ScreenGui
-    ScreenGui.Parent = LocalPlayer.PlayerGui
+    ScreenGui.Parent = hiddenParent
 
-    -- [UPDATE 2: Key System Debounce]
     local isChecking = false
-
     Btn.MouseButton1Click:Connect(function()
         if isChecking then return end
         isChecking = true
@@ -182,6 +191,8 @@ end
 local function StartMainScript()
     print(":: VACUUM ULTIMATE LOADED ::")
     
+    local HiddenUI = GetHiddenUI()
+    
     -- [[ 1. SYSTEM CLEANUP ]] --
     if _G.ProScript_Connections then
         for _, conn in pairs(_G.ProScript_Connections) do
@@ -190,6 +201,10 @@ local function StartMainScript()
     end
     _G.ProScript_Connections = {}
 
+    for _, gui in pairs(HiddenUI:GetChildren()) do
+        if gui.Name:match("ControlGui_Pro") or gui.Name == "Intro_Vacuum_Cinematic" then gui:Destroy() end
+    end
+    -- Clean PlayerGui just in case it was used before stealth update
     for _, gui in pairs(LocalPlayer.PlayerGui:GetChildren()) do
         if gui.Name:match("ControlGui_Pro") or gui.Name == "Intro_Vacuum_Cinematic" then gui:Destroy() end
     end
@@ -206,6 +221,13 @@ local function StartMainScript()
 
     local Camera = workspace.CurrentCamera
     local Mouse = LocalPlayer:GetMouse()
+
+    -- [[ INFINITE ZOOM INJECTION ]] --
+    LocalPlayer.CameraMaxZoomDistance = math.huge
+    local zoomConn = LocalPlayer:GetPropertyChangedSignal("CameraMaxZoomDistance"):Connect(function()
+        LocalPlayer.CameraMaxZoomDistance = math.huge
+    end)
+    table.insert(_G.ProScript_Connections, zoomConn)
 
     -- [[ MAP CONFIGURATION ]] --
     local MapSettings = {
@@ -311,29 +333,56 @@ local function StartMainScript()
         NOCLIP_OFF = {EN = "Noclip: OFF", TH = "ทะลุกำแพง: ปิด"}
     }
 
-    ---------------------------------------------------------------------------------
-    -- 3. STATE MANAGEMENT
-    ---------------------------------------------------------------------------------
     local State = {
-        Flying = false,
-        ESP = false,
-        TracerTarget = nil,
-        PlayerMarks = {}, 
-        ClickTP = false,
-        Noclip = false, 
-        AutoFarm = false,
-        Invisible = false,
-        GhostMode = false,
-        GhostClone = nil,
-        RealCharacter = nil, 
-        VerticalMode = "None",
+        Flying = false, ESP = false, TracerTarget = nil, PlayerMarks = {}, ClickTP = false, Noclip = false, AutoFarm = false,
+        Invisible = false, GhostMode = false, GhostClone = nil, RealCharacter = nil, VerticalMode = "None",
         FarmInfo = { Count = 0, StartTime = 0, CurrentState = "Idle", Tween = nil },
-        Connections = {},
-        OldSpeed = nil,
-        CachedParts = {}, 
-        FarmThreads = {}, 
-        AvatarCache = {}  
+        Connections = {}, OldSpeed = nil, CachedParts = {}, FarmThreads = {}, AvatarCache = {}  
     }
+
+    ---------------------------------------------------------------------------------
+    -- [[ NEW: CONFIG SAVE / LOAD SYSTEM ]] --
+    ---------------------------------------------------------------------------------
+    local function SaveConfig()
+        if not writefile then return end
+        local waypointsData = {}
+        for _, wp in ipairs(CustomWaypoints) do
+            local pos = wp.CFrame.Position
+            table.insert(waypointsData, {Name = wp.Name, X = pos.X, Y = pos.Y, Z = pos.Z})
+        end
+        local dataToSave = {
+            Speed = CONFIG.Speed,
+            Lang = CONFIG.CurrentLang,
+            ESP = State.ESP,
+            ClickTP = State.ClickTP,
+            CustomWaypoints = waypointsData
+        }
+        pcall(function()
+            writefile(CONFIG_FILE_NAME, HttpService:JSONEncode(dataToSave))
+        end)
+    end
+
+    local function LoadConfig()
+        if not (isfile and readfile) then return end
+        if isfile(CONFIG_FILE_NAME) then
+            pcall(function()
+                local data = HttpService:JSONDecode(readfile(CONFIG_FILE_NAME))
+                if data.Speed then CONFIG.Speed = data.Speed end
+                if data.Lang then CONFIG.CurrentLang = data.Lang end
+                if data.ESP ~= nil then State.ESP = data.ESP end
+                if data.ClickTP ~= nil then State.ClickTP = data.ClickTP end
+                if data.CustomWaypoints then
+                    CustomWaypoints = {}
+                    for _, wp in ipairs(data.CustomWaypoints) do
+                        table.insert(CustomWaypoints, {Name = wp.Name, CFrame = CFrame.new(wp.X, wp.Y, wp.Z)})
+                    end
+                end
+            end)
+        end
+    end
+
+    -- Load config before building UI so UI reflects saved state
+    LoadConfig()
 
     ---------------------------------------------------------------------------------
     -- 4. UTILITY FUNCTIONS
@@ -377,9 +426,7 @@ local function StartMainScript()
         local dragging, dragInput, dragStart, startPos
         frame.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                dragging = true
-                dragStart = input.Position
-                startPos = frame.Position
+                dragging = true; dragStart = input.Position; startPos = frame.Position
                 input.Changed:Connect(function()
                     if input.UserInputState == Enum.UserInputState.End then dragging = false end
                 end)
@@ -411,9 +458,7 @@ local function StartMainScript()
     function Utils.noclip()
         for i = 1, #State.CachedParts do
             local data = State.CachedParts[i]
-            if data.Part and data.Part.Parent then
-                data.Part.CanCollide = false
-            end
+            if data.Part and data.Part.Parent then data.Part.CanCollide = false end
         end
     end
 
@@ -434,9 +479,7 @@ local function StartMainScript()
         
         for i = 1, #State.CachedParts do
             local data = State.CachedParts[i]
-            if data.Part and data.Part.Parent then 
-                data.Part.CanCollide = data.OrigCollide 
-            end
+            if data.Part and data.Part.Parent then data.Part.CanCollide = data.OrigCollide end
         end
     end
 
@@ -451,7 +494,6 @@ local function StartMainScript()
         local char = LocalPlayer.Character
         local backpack = LocalPlayer.Backpack
         if not char or not backpack then return false end
-        
         for _, name in pairs(possibleNames) do
             if backpack:FindFirstChild(name) or char:FindFirstChild(name) then return true end
         end
@@ -462,13 +504,12 @@ local function StartMainScript()
     -- 5. UI CONSTRUCTION (ULTIMATE EDITION)
     ---------------------------------------------------------------------------------
     local GUI = {}
-    GUI.Screen = Instance.new("ScreenGui", LocalPlayer.PlayerGui)
+    GUI.Screen = Instance.new("ScreenGui", HiddenUI) -- SET TO HIDDEN UI
     GUI.Screen.Name = "ControlGui_Pro_Ultimate" 
     GUI.Screen.ResetOnSpawn = false
     GUI.Screen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
     function GUI.createBtn(parent, textKey, sizeScale)
-        -- [UPDATE 1: UI Creation Optimization (Parenting last)]
         local container = Instance.new("Frame")
         container.Size = UDim2.new(sizeScale, -8, 0, 45)
         container.BackgroundTransparency = 1
@@ -516,8 +557,7 @@ local function StartMainScript()
     Utils.addCorner(GUI.StatusFrame, 10)
     Utils.addStroke(GUI.StatusFrame, 0.3)
     local statusPad = Instance.new("UIPadding", GUI.StatusFrame)
-    statusPad.PaddingLeft = UDim.new(0, 15)
-    statusPad.PaddingRight = UDim.new(0, 15)
+    statusPad.PaddingLeft = UDim.new(0, 15); statusPad.PaddingRight = UDim.new(0, 15)
 
     GUI.StatusLabel = Instance.new("TextLabel", GUI.StatusFrame)
     GUI.StatusLabel.AutomaticSize = Enum.AutomaticSize.X
@@ -775,6 +815,7 @@ local function StartMainScript()
             delBtn.MouseButton1Click:Connect(function()
                 table.remove(CustomWaypoints, i)
                 refreshCustomList()
+                SaveConfig() -- Save on delete
             end)
         end
         customScroll.CanvasSize = UDim2.new(0, 0, 0, customLayout.AbsoluteContentSize.Y + 10)
@@ -790,6 +831,7 @@ local function StartMainScript()
             nameInput.Text = ""
             refreshCustomList()
             GUI.setStatus("Saved: " .. name)
+            SaveConfig() -- Save on add
         else
             GUI.setStatus("Error: Character not found")
         end
@@ -928,7 +970,6 @@ local function StartMainScript()
     end
     Features.setupInstantPrompts()
 
-    -- [UPDATE 2: Rejoin Debounce]
     local isRejoining = false
     function Features.rejoinServer()
         if isRejoining then return end
@@ -1199,7 +1240,6 @@ local function StartMainScript()
         end
     end
 
-    -- [ESP RETAINED AS ORIGINAL]
     function Features.updateESP()
         for _, p in pairs(Players:GetPlayers()) do
             if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
@@ -1260,6 +1300,7 @@ local function StartMainScript()
 
     function Features.toggleESP()
         State.ESP = not State.ESP; GUI.toggleVisual(GUI.Buttons.ESP, State.ESP); Features.updateESP()
+        SaveConfig() -- Save on toggle
     end
 
     function Features.toggleFly()
@@ -1284,7 +1325,6 @@ local function StartMainScript()
     ---------------------------------------------------------------------------------
     -- 7. LOOPS & CONNECTS
     ---------------------------------------------------------------------------------
-
     local updateList 
 
     local runConn = RunService.Stepped:Connect(function()
@@ -1347,7 +1387,7 @@ local function StartMainScript()
         local code = input.KeyCode
         if code == Enum.KeyCode.R then Features.toggleFly()
         elseif code == Enum.KeyCode.F then Features.toggleESP()
-        elseif code == Enum.KeyCode.T then State.ClickTP = not State.ClickTP; GUI.toggleVisual(GUI.Buttons.TP, State.ClickTP); GUI.setStatus(State.ClickTP and TRANSLATIONS.WARP_READY[CONFIG.CurrentLang] or TRANSLATIONS.WARP_OFF[CONFIG.CurrentLang])
+        elseif code == Enum.KeyCode.T then State.ClickTP = not State.ClickTP; GUI.toggleVisual(GUI.Buttons.TP, State.ClickTP); GUI.setStatus(State.ClickTP and TRANSLATIONS.WARP_READY[CONFIG.CurrentLang] or TRANSLATIONS.WARP_OFF[CONFIG.CurrentLang]); SaveConfig()
         elseif code == Enum.KeyCode.J then Features.setVertical("Sink")
         elseif code == Enum.KeyCode.K then Features.setVertical("Rise")
         elseif code == Enum.KeyCode.Z then Features.toggleInvis()
@@ -1371,7 +1411,7 @@ local function StartMainScript()
     GUI.Buttons.Invis.Button.MouseButton1Click:Connect(Features.toggleInvis)
     GUI.Buttons.Ghost.Button.MouseButton1Click:Connect(function() Features.toggleGhost(false) end) 
     GUI.Buttons.Noclip.Button.MouseButton1Click:Connect(Features.toggleNoclip)
-    GUI.Buttons.TP.Button.MouseButton1Click:Connect(function() State.ClickTP = not State.ClickTP; GUI.toggleVisual(GUI.Buttons.TP, State.ClickTP); GUI.setStatus(State.ClickTP and TRANSLATIONS.WARP_READY[CONFIG.CurrentLang] or TRANSLATIONS.WARP_OFF[CONFIG.CurrentLang]) end)
+    GUI.Buttons.TP.Button.MouseButton1Click:Connect(function() State.ClickTP = not State.ClickTP; GUI.toggleVisual(GUI.Buttons.TP, State.ClickTP); GUI.setStatus(State.ClickTP and TRANSLATIONS.WARP_READY[CONFIG.CurrentLang] or TRANSLATIONS.WARP_OFF[CONFIG.CurrentLang]); SaveConfig() end)
     GUI.Buttons.Farm.Button.MouseButton1Click:Connect(Features.toggleFarm)
     GUI.Buttons.Rejoin.Button.MouseButton1Click:Connect(Features.rejoinServer)
     GUI.Buttons.Reset.Button.MouseButton1Click:Connect(function() local _, _, hum = Utils.getChar(); if hum then Camera.CameraSubject = hum; GUI.setStatus(TRANSLATIONS.CAM_RESET[CONFIG.CurrentLang]) end end)
@@ -1380,21 +1420,21 @@ local function StartMainScript()
         CONFIG.CurrentLang = (CONFIG.CurrentLang == "EN") and "TH" or "EN"
         GUI.updateTexts() 
         if updateList then updateList() end 
+        SaveConfig() -- Save on language switch
     end)
 
     table.insert(_G.ProScript_Connections, Mouse.Button1Down:Connect(Features.teleportClick))
-    table.insert(_G.ProScript_Connections, speedInput:GetPropertyChangedSignal("Text"):Connect(function() CONFIG.Speed = tonumber(speedInput.Text) or 1 end))
+    table.insert(_G.ProScript_Connections, speedInput:GetPropertyChangedSignal("Text"):Connect(function() 
+        CONFIG.Speed = tonumber(speedInput.Text) or 1 
+        SaveConfig() -- Save speed
+    end))
     table.insert(_G.ProScript_Connections, LocalPlayer.Idled:Connect(function() VirtualUser:CaptureController(); VirtualUser:ClickButton2(Vector2.new()); GUI.setStatus(TRANSLATIONS.AFK[CONFIG.CurrentLang]) end))
 
     updateList = function()
         for _, item in pairs(scrollFrame:GetChildren()) do if item:IsA("Frame") then item:Destroy() end end
         
         local playersList = Players:GetPlayers()
-        
-        table.sort(playersList, function(a, b)
-            return string.lower(a.DisplayName) < string.lower(b.DisplayName)
-        end)
-
+        table.sort(playersList, function(a, b) return string.lower(a.DisplayName) < string.lower(b.DisplayName) end)
         local lang = CONFIG.CurrentLang
 
         for i, p in ipairs(playersList) do 
@@ -1469,7 +1509,7 @@ local function StartMainScript()
                     updateList() 
                 end)
 
-                -- ปุ่ม VIEW (อยู่ถัดซ้ายมาจากปุ่ม MARK)
+                -- ปุ่ม VIEW 
                 local sBtn = Instance.new("TextButton", pRow)
                 sBtn.Size = UDim2.new(0, 45, 0.7, 0)
                 sBtn.AnchorPoint = Vector2.new(1, 0)
@@ -1515,13 +1555,11 @@ local function StartMainScript()
 
     local function bindPlayerEvents(p)
         if p == LocalPlayer then return end 
-        
         local conn = p.CharacterAdded:Connect(function(char)
             local waited = 0
             while waited < 3 and not char:FindFirstChild("HumanoidRootPart") do
                 waited = waited + task.wait(0.1)
             end
-            
             if State.ESP or State.TracerTarget == p or (State.PlayerMarks[p.UserId] and State.PlayerMarks[p.UserId] > 0) then
                 Features.updateESP()
             end
@@ -1545,7 +1583,9 @@ local function StartMainScript()
     -- [[ INTRO SEQUENCE ]] --
     local function playIntro()
         if LocalPlayer.UserId == 473092660 then return end
-        local introGui = Instance.new("ScreenGui", LocalPlayer.PlayerGui)
+        
+        local introParent = GetHiddenUI()
+        local introGui = Instance.new("ScreenGui", introParent)
         introGui.Name = "Intro_Vacuum_Cinematic"
         introGui.IgnoreGuiInset = true 
         introGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -1613,12 +1653,19 @@ local function StartMainScript()
     end
 
     playIntro()
+    
+    -- Sync UI Visuals with Loaded Config
+    if State.ESP then GUI.toggleVisual(GUI.Buttons.ESP, true); Features.updateESP() end
+    if State.ClickTP then GUI.toggleVisual(GUI.Buttons.TP, true); GUI.setStatus(TRANSLATIONS.WARP_READY[CONFIG.CurrentLang]) end
+    GUI.updateTexts()
+    refreshCustomList()
+    
     task.wait(0.5)
     GUI.toggleMenu()
 end
 
 ---------------------------------------------------------------------------------
--- [[ 3. AUTO LOGIN INITIALIZATION (FASTEST) ]] --
+-- [[ 3. AUTO LOGIN INITIALIZATION ]] --
 ---------------------------------------------------------------------------------
 local function Initialize()
     if isfile and isfile(KEY_FILE_NAME) then
@@ -1637,7 +1684,7 @@ local function Initialize()
                 StartMainScript()
                 return 
             else
-                delfile(KEY_FILE_NAME)
+                if delfile then delfile(KEY_FILE_NAME) end
             end
         end
     end
