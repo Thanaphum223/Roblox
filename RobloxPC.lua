@@ -1,4 +1,4 @@
--- [[ PROJECT: VACUUM - ULTIMATE EDITION (v10.2: STEALTH & AUTO-SAVE) ]] --
+-- [[ PROJECT: VACUUM - ULTIMATE EDITION (v10.3: MULTI-COLOR MARK) ]] --
 
 ---------------------------------------------------------------------------------
 -- [[ 0. SECURITY & MAP LOCK ]] --
@@ -285,8 +285,10 @@ local function StartMainScript()
         ButtonOn_Start = Color3.fromRGB(120, 0, 255),
         ButtonOn_End = Color3.fromRGB(50, 0, 150),
         ESP_Color = Color3.fromRGB(180, 100, 255),
-        ESP_Friend = Color3.fromRGB(50, 255, 100), 
-        ESP_Target = Color3.fromRGB(255, 50, 50),  
+        ESP_Friend = Color3.fromRGB(50, 255, 100), -- Green
+        ESP_Target = Color3.fromRGB(255, 50, 50),  -- Red
+        ESP_Watch = Color3.fromRGB(50, 150, 255),  -- Blue (NEW)
+        ESP_Neutral = Color3.fromRGB(255, 200, 50),-- Yellow (NEW)
         Tracer_Color = Color3.fromRGB(255, 50, 50),
         Track_Color = Color3.fromRGB(255, 140, 0),
         Track_Active = Color3.fromRGB(50, 200, 50),
@@ -1248,7 +1250,10 @@ local function StartMainScript()
                 local markType = State.PlayerMarks[p.UserId] or 0
                 local currentESPColor = THEME.ESP_Color
                 if markType == 1 then currentESPColor = THEME.ESP_Friend
-                elseif markType == 2 then currentESPColor = THEME.ESP_Target end
+                elseif markType == 2 then currentESPColor = THEME.ESP_Target
+                elseif markType == 3 then currentESPColor = THEME.ESP_Watch  -- BLUE
+                elseif markType == 4 then currentESPColor = THEME.ESP_Neutral -- YELLOW
+                end
                 
                 local forceESP = (markType > 0)
                 
@@ -1486,6 +1491,12 @@ local function StartMainScript()
                 elseif currentMark == 2 then
                     markBtn.Text = (lang == "TH") and "เป้าหมาย" or "TARGET"
                     markBtn.BackgroundColor3 = THEME.ESP_Target
+                elseif currentMark == 3 then
+                    markBtn.Text = (lang == "TH") and "จับตา" or "WATCH"
+                    markBtn.BackgroundColor3 = THEME.ESP_Watch
+                elseif currentMark == 4 then
+                    markBtn.Text = (lang == "TH") and "ระวัง" or "WARN"
+                    markBtn.BackgroundColor3 = THEME.ESP_Neutral
                 else
                     markBtn.Text = (lang == "TH") and "มาร์ค" or "MARK"
                     markBtn.BackgroundColor3 = THEME.ButtonOn_Start
@@ -1499,12 +1510,15 @@ local function StartMainScript()
 
                 markBtn.MouseButton1Click:Connect(function()
                     local nextMark = (State.PlayerMarks[p.UserId] or 0) + 1
-                    if nextMark > 2 then nextMark = 0 end
+                    if nextMark > 4 then nextMark = 0 end
                     State.PlayerMarks[p.UserId] = nextMark
                     
                     if nextMark == 1 then GUI.setStatus("Marked Friend: " .. p.DisplayName)
                     elseif nextMark == 2 then GUI.setStatus("Marked Target: " .. p.DisplayName)
+                    elseif nextMark == 3 then GUI.setStatus("Marked Watch (Blue): " .. p.DisplayName)
+                    elseif nextMark == 4 then GUI.setStatus("Marked Warn (Yellow): " .. p.DisplayName)
                     else GUI.setStatus("Unmarked: " .. p.DisplayName) end
+                    
                     Features.updateESP() 
                     updateList() 
                 end)
