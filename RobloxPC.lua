@@ -1,4 +1,4 @@
--- [[ PROJECT: VACUUM - ULTIMATE EDITION (v10.4: FULL MOVEMENT ADVANCE) ]] --
+-- [[ PROJECT: VACUUM - ULTIMATE EDITION (v10.5: UI REWORK & FULL SAVE) ]] --
 
 ---------------------------------------------------------------------------------
 -- [[ 0. SECURITY & MAP LOCK ]] --
@@ -116,7 +116,7 @@ local function CreateKeyUI(onSuccess)
     local Title = Instance.new("TextLabel", Main)
     Title.Size = UDim2.new(1, 0, 0, 50)
     Title.BackgroundTransparency = 1
-    Title.Text = "VACUUM SECURITY (FAST)"
+    Title.Text = "VACUUM SECURITY"
     Title.TextColor3 = Color3.new(1,1,1)
     Title.Font = Enum.Font.GothamBold
     Title.TextSize = 18
@@ -246,7 +246,7 @@ local function StartMainScript()
 
     local CONFIG = {
         Speed = 3,
-        WalkSpeedValue = 100, -- [NEW]
+        WalkSpeedValue = 100,
         CurrentLang = "EN",
         MenuVisible = false,
         InvisPos = CurrentMapData.InvisPos,
@@ -276,6 +276,7 @@ local function StartMainScript()
     local THEME = {
         Background = Color3.fromRGB(5, 5, 10),
         ButtonOff = Color3.fromRGB(20, 20, 25),
+        ButtonHover = Color3.fromRGB(35, 35, 45), -- [NEW HOVER COLOR]
         ButtonOn_Start = Color3.fromRGB(120, 0, 255),
         ButtonOn_End = Color3.fromRGB(50, 0, 150),
         ESP_Color = Color3.fromRGB(180, 100, 255),
@@ -284,8 +285,6 @@ local function StartMainScript()
         ESP_Watch = Color3.fromRGB(50, 150, 255), 
         ESP_Neutral = Color3.fromRGB(255, 200, 50),
         Tracer_Color = Color3.fromRGB(255, 50, 50),
-        Track_Color = Color3.fromRGB(255, 140, 0),
-        Track_Active = Color3.fromRGB(50, 200, 50),
         Text = Color3.fromRGB(240, 240, 255),
         TextDim = Color3.fromRGB(100, 100, 120),
         Stroke = Color3.fromRGB(60, 30, 90),
@@ -293,22 +292,20 @@ local function StartMainScript()
     }
 
     local TRANSLATIONS = {
-        FLY = {EN = "FLY (R)", TH = "บิน (R)"},
-        ESP = {EN = "ESP (F)", TH = "มองทะลุ (F)"},
-        SINK_BTN = {EN = "SINK (J)", TH = "จมดิน (J)"},
-        RISE_BTN = {EN = "RISE (K)", TH = "ลอยฟ้า (K)"},
-        INVIS = {EN = "INVIS (Z)", TH = "ล่องหน (Z)"},
-        GHOST = {EN = "GHOST (G)", TH = "ถอดจิต (G)"},
-        NOCLIP_BTN = {EN = "NOCLIP (N)", TH = "ทะลุ (N)"},
-        TP = {EN = "CLICK TP (T)", TH = "วาร์ป (T)"},
-        WS_BTN = {EN = "SPEED (V)", TH = "วิ่งไว (V)"}, -- [NEW]
-        STOP_BTN = {EN = "NO-SLIP (B)", TH = "เบรกกึก (B)"}, -- [NEW]
-        FARM = {EN = "AUTO FARM", TH = "ออโต้ฟาร์ม"},
-        REJOIN = {EN = "REJOIN", TH = "เข้าใหม่"},
-        RESET = {EN = "RESET CAM (C)", TH = "รีเซ็ตกล้อง (C)"}, 
-        LIST = {EN = "Player LIST", TH = "รายชื่อผู้เล่น"},
-        HINT = {EN = "[X] TOGGLE MENU", TH = "[X] เปิด/ปิด เมนู"},
-        LANG_BTN = {EN = "LANG: EN", TH = "ภาษา: TH"},
+        FLY = {EN = "🕊️ FLY (R)", TH = "🕊️ บิน (R)"},
+        ESP = {EN = "👁️ ESP (F)", TH = "👁️ มองทะลุ (F)"},
+        SINK_BTN = {EN = "⬇️ SINK (J)", TH = "⬇️ จมดิน (J)"},
+        RISE_BTN = {EN = "⬆️ RISE (K)", TH = "⬆️ ลอยฟ้า (K)"},
+        INVIS = {EN = "👻 INVIS (Z)", TH = "👻 ล่องหน (Z)"},
+        GHOST = {EN = "🧟 GHOST (G)", TH = "🧟 ถอดจิต (G)"},
+        NOCLIP_BTN = {EN = "🚪 NOCLIP (N)", TH = "🚪 ทะลุ (N)"},
+        TP = {EN = "🖱️ CLICK TP (T)", TH = "🖱️ วาร์ป (T)"},
+        WS_BTN = {EN = "⚡ SPEED (V)", TH = "⚡ วิ่งไว (V)"}, 
+        STOP_BTN = {EN = "🛑 NO-SLIP (B)", TH = "🛑 เบรกกึก (B)"}, 
+        FARM = {EN = "🚜 AUTO FARM", TH = "🚜 ออโต้ฟาร์ม"},
+        REJOIN = {EN = "🔄 REJOIN", TH = "🔄 เข้าใหม่"},
+        RESET = {EN = "📸 RESET CAM (C)", TH = "📸 รีเซ็ตกล้อง (C)"}, 
+        LANG_BTN = {EN = "🌐 LANG: EN", TH = "🌐 ภาษา: TH"},
         STATUS_WAIT = {EN = "Vacuum: Waiting...", TH = "Vacuum: รอคำสั่ง..."},
         STATUS_READY = {EN = "Vacuum: Ready", TH = "สถานะ: พร้อมใช้งาน"},
         AFK = {EN = "System: Anti-AFK", TH = "ระบบ: กัน AFK ทำงาน"},
@@ -317,34 +314,31 @@ local function StartMainScript()
         INVIS_STATUS = {EN = "Invis: ACTIVE", TH = "สถานะ: กำลังล่องหน (ซ่อนตัว)"},
         GHOST_STATUS = {EN = "Ghost: ACTIVE", TH = "สถานะ: กำลังถอดจิต (W,A,S,D)"},
         ABORT = {EN = "Aborted.", TH = "ยกเลิกคำสั่งแล้ว"},
-        VISUAL_ON = {EN = "Visuals: ON", TH = "การมองเห็น: เปิด"},
-        VISUAL_OFF = {EN = "Visuals: OFF", TH = "การมองเห็น: ปิด"},
         WARP_READY = {EN = "Warp: READY", TH = "วาร์ป: พร้อม (กด Ctrl+คลิก)"},
         WARP_OFF = {EN = "Warp: OFF", TH = "วาร์ป: ปิด"},
         WARPED = {EN = "Warped.", TH = "วาร์ปสำเร็จ!"},
         FLY_ON = {EN = "Flight Enabled", TH = "โหมดการบิน: เปิด"},
         CAM_RESET = {EN = "Cam Reset", TH = "รีเซ็ตกล้องเรียบร้อย"},
         REJOINING = {EN = "Rejoining Server...", TH = "กำลังเข้าเซิร์ฟเวอร์ใหม่..."},
-        FARM_FMT = {EN = "Status: %s | Loop: %d", TH = "สถานะ: %s | รอบที่: %d"},
-        WARP_TITLE = {EN = "FAST WARP", TH = "จุดวาร์ปด่วน"},
         NOCLIP_ON = {EN = "Noclip: ON", TH = "ทะลุกำแพง: เปิด"},
         NOCLIP_OFF = {EN = "Noclip: OFF", TH = "ทะลุกำแพง: ปิด"},
-        WS_ON = {EN = "WalkSpeed: ON", TH = "ความเร็วเดิน: เปิด"}, -- [NEW]
-        WS_OFF = {EN = "WalkSpeed: OFF", TH = "ความเร็วเดิน: ปิด"}, -- [NEW]
-        STOP_ON = {EN = "Instant Stop: ON", TH = "เบรกกึก: เปิด"}, -- [NEW]
-        STOP_OFF = {EN = "Instant Stop: OFF", TH = "เบรกกึก: ปิด"} -- [NEW]
+        WS_ON = {EN = "WalkSpeed: ON", TH = "ความเร็วเดิน: เปิด"}, 
+        WS_OFF = {EN = "WalkSpeed: OFF", TH = "ความเร็วเดิน: ปิด"}, 
+        STOP_ON = {EN = "Instant Stop: ON", TH = "เบรกกึก: เปิด"}, 
+        STOP_OFF = {EN = "Instant Stop: OFF", TH = "เบรกกึก: ปิด"},
+        HINT = {EN = "[X] TOGGLE MENU", TH = "[X] เปิด/ปิด เมนู"}
     }
 
     local State = {
         Flying = false, ESP = false, TracerTarget = nil, PlayerMarks = {}, ClickTP = false, Noclip = false, AutoFarm = false,
         Invisible = false, GhostMode = false, GhostClone = nil, RealCharacter = nil, VerticalMode = "None",
-        WalkSpeed = false, InstaStop = false, -- [NEW]
+        WalkSpeed = false, InstaStop = false, 
         FarmInfo = { Count = 0, StartTime = 0, CurrentState = "Idle", Tween = nil },
         Connections = {}, OldSpeed = nil, CachedParts = {}, FarmThreads = {}, AvatarCache = {}  
     }
 
     ---------------------------------------------------------------------------------
-    -- [[ NEW: CONFIG SAVE / LOAD SYSTEM ]] --
+    -- [[ 3. FULL SAVE/LOAD SYSTEM ]] --
     ---------------------------------------------------------------------------------
     local function SaveConfig()
         if not writefile then return end
@@ -355,10 +349,14 @@ local function StartMainScript()
         end
         local dataToSave = {
             Speed = CONFIG.Speed,
-            WalkSpeedValue = CONFIG.WalkSpeedValue, -- [NEW]
+            WalkSpeedValue = CONFIG.WalkSpeedValue, 
             Lang = CONFIG.CurrentLang,
             ESP = State.ESP,
             ClickTP = State.ClickTP,
+            Noclip = State.Noclip,
+            WalkSpeed = State.WalkSpeed,
+            InstaStop = State.InstaStop,
+            AutoFarm = State.AutoFarm,
             CustomWaypoints = waypointsData
         }
         pcall(function()
@@ -372,10 +370,14 @@ local function StartMainScript()
             pcall(function()
                 local data = HttpService:JSONDecode(readfile(CONFIG_FILE_NAME))
                 if data.Speed then CONFIG.Speed = data.Speed end
-                if data.WalkSpeedValue then CONFIG.WalkSpeedValue = data.WalkSpeedValue end -- [NEW]
+                if data.WalkSpeedValue then CONFIG.WalkSpeedValue = data.WalkSpeedValue end
                 if data.Lang then CONFIG.CurrentLang = data.Lang end
                 if data.ESP ~= nil then State.ESP = data.ESP end
                 if data.ClickTP ~= nil then State.ClickTP = data.ClickTP end
+                if data.Noclip ~= nil then State.Noclip = data.Noclip end
+                if data.WalkSpeed ~= nil then State.WalkSpeed = data.WalkSpeed end
+                if data.InstaStop ~= nil then State.InstaStop = data.InstaStop end
+                if data.AutoFarm ~= nil then State.AutoFarm = data.AutoFarm end
                 if data.CustomWaypoints then
                     CustomWaypoints = {}
                     for _, wp in ipairs(data.CustomWaypoints) do
@@ -505,7 +507,7 @@ local function StartMainScript()
     end
 
     ---------------------------------------------------------------------------------
-    -- 5. UI CONSTRUCTION (ULTIMATE EDITION)
+    -- 5. UI CONSTRUCTION (GRID + HOVER TWEENS)
     ---------------------------------------------------------------------------------
     local GUI = {}
     GUI.Screen = Instance.new("ScreenGui", HiddenUI)
@@ -513,25 +515,35 @@ local function StartMainScript()
     GUI.Screen.ResetOnSpawn = false
     GUI.Screen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
-    function GUI.createBtn(parent, textKey, sizeScale)
-        local container = Instance.new("Frame")
-        container.Size = UDim2.new(sizeScale, -8, 0, 45)
-        container.BackgroundTransparency = 1
-        
+    -- [NEW] Hover Animation Setup
+    local function addHoverEffect(btn)
+        btn.MouseEnter:Connect(function()
+            if not btn:GetAttribute("IsToggled") then
+                TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = THEME.ButtonHover}):Play()
+            end
+        end)
+        btn.MouseLeave:Connect(function()
+            if not btn:GetAttribute("IsToggled") then
+                TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = THEME.ButtonOff}):Play()
+            end
+        end)
+    end
+
+    function GUI.createBtn(parent, textKey)
         local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(1, 0, 1, 0)
         btn.Text = TRANSLATIONS[textKey][CONFIG.CurrentLang]
         btn.BackgroundColor3 = THEME.ButtonOff
         btn.TextColor3 = THEME.Text
         btn.Font = Enum.Font.GothamBold
         btn.TextSize = 11
         btn.AutoButtonColor = false
+        btn:SetAttribute("IsToggled", false)
         Utils.addCorner(btn, 10)
         
-        local grad = Utils.addGradient(btn)
+        addHoverEffect(btn)
         
-        btn.Parent = container
-        container.Parent = parent
+        local grad = Utils.addGradient(btn)
+        btn.Parent = parent
         
         return {Button = btn, Gradient = grad, Key = textKey}
     end
@@ -572,70 +584,66 @@ local function StartMainScript()
     GUI.StatusLabel.TextSize = 16
     GUI.StatusLabel.Text = TRANSLATIONS.STATUS_WAIT.EN
 
-    -- ขยายเมนูบาร์ให้กว้างขึ้นเพื่อรองรับปุ่ม WalkSpeed + Instant Stop
+    -- [NEW] MainBar with UIGridLayout
     GUI.MainBar = Instance.new("Frame", GUI.MenuContainer)
-    GUI.MainBar.Size = UDim2.new(0, 1400, 0, 65) 
-    GUI.MainBar.Position = UDim2.new(0.5, -700, 1.5, 0) 
+    GUI.MainBar.Size = UDim2.new(0, 780, 0, 110) -- ปรับให้เล็กลงแต่สูงขึ้นสำหรับ 2 แถว
+    GUI.MainBar.Position = UDim2.new(0.5, -390, 1.5, 0) 
     GUI.MainBar.BackgroundColor3 = THEME.Background
     GUI.MainBar.BackgroundTransparency = 0.1
     Utils.addCorner(GUI.MainBar, 16)
     Utils.addStroke(GUI.MainBar, 0.3)
     Utils.makeDraggable(GUI.MainBar)
-    local barLayout = Instance.new("UIListLayout", GUI.MainBar)
-    barLayout.FillDirection = Enum.FillDirection.Horizontal
-    barLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-    barLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-    barLayout.Padding = UDim.new(0, 4)
+    
+    local padMain = Instance.new("UIPadding", GUI.MainBar)
+    padMain.PaddingTop = UDim.new(0, 10)
+    padMain.PaddingBottom = UDim.new(0, 10)
+    padMain.PaddingLeft = UDim.new(0, 10)
+    padMain.PaddingRight = UDim.new(0, 10)
+
+    local gridLayout = Instance.new("UIGridLayout", GUI.MainBar)
+    gridLayout.CellSize = UDim2.new(0, 100, 0, 40)
+    gridLayout.CellPadding = UDim2.new(0, 8, 0, 10)
+    gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
     GUI.Buttons = {}
-    GUI.Buttons.Fly = GUI.createBtn(GUI.MainBar, "FLY", 0.055)
-    GUI.Buttons.ESP = GUI.createBtn(GUI.MainBar, "ESP", 0.055)
-    GUI.Buttons.Sink = GUI.createBtn(GUI.MainBar, "SINK_BTN", 0.055)
-    GUI.Buttons.Rise = GUI.createBtn(GUI.MainBar, "RISE_BTN", 0.055)
-    GUI.Buttons.Invis = GUI.createBtn(GUI.MainBar, "INVIS", 0.055)
-    GUI.Buttons.Ghost = GUI.createBtn(GUI.MainBar, "GHOST", 0.06) 
-    GUI.Buttons.Noclip = GUI.createBtn(GUI.MainBar, "NOCLIP_BTN", 0.06) 
-    GUI.Buttons.TP = GUI.createBtn(GUI.MainBar, "TP", 0.06)
+    GUI.Buttons.Fly = GUI.createBtn(GUI.MainBar, "FLY")
+    GUI.Buttons.ESP = GUI.createBtn(GUI.MainBar, "ESP")
+    GUI.Buttons.Sink = GUI.createBtn(GUI.MainBar, "SINK_BTN")
+    GUI.Buttons.Rise = GUI.createBtn(GUI.MainBar, "RISE_BTN")
+    GUI.Buttons.Invis = GUI.createBtn(GUI.MainBar, "INVIS")
+    GUI.Buttons.Ghost = GUI.createBtn(GUI.MainBar, "GHOST") 
+    GUI.Buttons.Noclip = GUI.createBtn(GUI.MainBar, "NOCLIP_BTN") 
 
-    -- [NEW BUTTONS]
-    GUI.Buttons.WalkSpeed = GUI.createBtn(GUI.MainBar, "WS_BTN", 0.06)
-    local wsContainer = Instance.new("Frame", GUI.MainBar)
-    wsContainer.Size = UDim2.new(0.04, -5, 0, 45)
-    wsContainer.BackgroundTransparency = 1
-    Utils.addCorner(wsContainer, 10)
-    local wsInput = Instance.new("TextBox", wsContainer)
-    wsInput.Size = UDim2.new(1, 0, 1, 0)
+    -- แถวที่ 2 เริ่มตรงนี้
+    GUI.Buttons.TP = GUI.createBtn(GUI.MainBar, "TP")
+    GUI.Buttons.WalkSpeed = GUI.createBtn(GUI.MainBar, "WS_BTN")
+    GUI.Buttons.Stop = GUI.createBtn(GUI.MainBar, "STOP_BTN")
+    GUI.Buttons.Farm = GUI.createBtn(GUI.MainBar, "FARM")
+    GUI.Buttons.Rejoin = GUI.createBtn(GUI.MainBar, "REJOIN")
+    GUI.Buttons.Lang = GUI.createBtn(GUI.MainBar, "LANG_BTN")
+
+    -- Input สำหรับ WalkSpeed (ย้ายมาไว้ข้างล่างปุ่ม)
+    local wsInput = Instance.new("TextBox", GUI.MainBar)
     wsInput.Text = tostring(CONFIG.WalkSpeedValue)
     wsInput.BackgroundColor3 = THEME.ButtonOff
     wsInput.TextColor3 = THEME.ButtonOn_Start
     wsInput.Font = Enum.Font.GothamBold
     wsInput.TextSize = 14
-    wsInput.PlaceholderText = "WS"
+    wsInput.PlaceholderText = "WS Input"
     Utils.addCorner(wsInput, 10)
     Utils.addStroke(wsInput, 0.6)
 
-    GUI.Buttons.Stop = GUI.createBtn(GUI.MainBar, "STOP_BTN", 0.06)
-    -- [END NEW BUTTONS]
-
-    GUI.Buttons.Farm = GUI.createBtn(GUI.MainBar, "FARM", 0.065)
-    GUI.Buttons.Rejoin = GUI.createBtn(GUI.MainBar, "REJOIN", 0.06)
-
-    local speedContainer = Instance.new("Frame", GUI.MainBar)
-    speedContainer.Size = UDim2.new(0.04, -5, 0, 45)
-    speedContainer.BackgroundTransparency = 1
-    Utils.addCorner(speedContainer, 10)
-    local speedInput = Instance.new("TextBox", speedContainer)
-    speedInput.Size = UDim2.new(1, 0, 1, 0)
+    -- Input สำหรับ Speed
+    local speedInput = Instance.new("TextBox", GUI.MainBar)
     speedInput.Text = tostring(CONFIG.Speed)
     speedInput.BackgroundColor3 = THEME.ButtonOff
     speedInput.TextColor3 = THEME.ButtonOn_Start
     speedInput.Font = Enum.Font.GothamBold
     speedInput.TextSize = 14
-    speedInput.PlaceholderText = "SPD"
+    speedInput.PlaceholderText = "SPD Input"
     Utils.addCorner(speedInput, 10)
     Utils.addStroke(speedInput, 0.6)
-    
-    GUI.Buttons.Lang = GUI.createBtn(GUI.MainBar, "LANG_BTN", 0.055)
 
     GUI.SideFrame = Instance.new("Frame", GUI.MenuContainer)
     GUI.SideFrame.Size = UDim2.new(0, 320, 0, 450) 
@@ -772,6 +780,7 @@ local function StartMainScript()
     resetBtn.AutoButtonColor = false
     Utils.addCorner(resetBtn, 8)
     Utils.addStroke(resetBtn, 0.5)
+    addHoverEffect(resetBtn)
 
     GUI.Buttons.Reset = {Button = resetBtn, Key = "RESET", Gradient = Utils.addGradient(resetBtn)}
 
@@ -820,6 +829,8 @@ local function StartMainScript()
             btn.TextTruncate = Enum.TextTruncate.AtEnd
             Utils.addCorner(btn, 10)
             Utils.addStroke(btn, 0.5)
+            addHoverEffect(btn)
+            
             btn.MouseButton1Click:Connect(function()
                 local _, hrp, _ = Utils.getChar()
                 if hrp then
@@ -941,8 +952,7 @@ local function StartMainScript()
             end
         end)
         
-        btn.MouseEnter:Connect(function() TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = THEME.ButtonOn_Start}):Play() end)
-        btn.MouseLeave:Connect(function() TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = THEME.ButtonOff}):Play() end)
+        addHoverEffect(btn)
         
         table.insert(GUI.WarpButtons, {Button = btn, NameData = nameData})
     end
@@ -960,7 +970,7 @@ local function StartMainScript()
     function GUI.toggleMenu()
         CONFIG.MenuVisible = not CONFIG.MenuVisible
         
-        local targetBarPos = CONFIG.MenuVisible and UDim2.new(0.5, -700, 0.85, 0) or UDim2.new(0.5, -700, 1.5, 0)
+        local targetBarPos = CONFIG.MenuVisible and UDim2.new(0.5, -390, 0.82, 0) or UDim2.new(0.5, -390, 1.5, 0)
         local targetSidePos = CONFIG.MenuVisible and UDim2.new(1, -330, 0.2, 0) or UDim2.new(1.5, 0, 0.2, 0)
         
         local animInfo = TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
@@ -991,6 +1001,7 @@ local function StartMainScript()
     end
 
     function GUI.toggleVisual(btnStruct, isOn)
+        btnStruct.Button:SetAttribute("IsToggled", isOn)
         if isOn then
             btnStruct.Gradient.Enabled = true
             btnStruct.Button.TextColor3 = Color3.new(1, 1, 1)
@@ -1004,7 +1015,7 @@ local function StartMainScript()
 
     function GUI.updateTexts()
         local lang = CONFIG.CurrentLang
-        local dynamicTextSize = (lang == "TH") and 15 or 11
+        local dynamicTextSize = (lang == "TH") and 13 or 11
         
         for _, item in pairs(GUI.Buttons) do
             item.Button.Text = TRANSLATIONS[item.Key][lang]
@@ -1161,6 +1172,7 @@ local function StartMainScript()
             Utils.restorePhysics()
             GUI.setStatus(TRANSLATIONS.NOCLIP_OFF[CONFIG.CurrentLang])
         end
+        SaveConfig()
     end
 
     function Features.setVertical(mode)
@@ -1310,6 +1322,7 @@ local function StartMainScript()
             if State.OldSpeed then CONFIG.Speed = State.OldSpeed; if speedInput then speedInput.Text = tostring(CONFIG.Speed) end end
             if State.FarmInfo.Tween then State.FarmInfo.Tween:Cancel() end; Utils.restorePhysics(); GUI.setStatus(TRANSLATIONS.ABORT[CONFIG.CurrentLang]); GUI.moveStatus(false)
         end
+        SaveConfig()
     end
 
     function Features.updateESP()
@@ -1383,7 +1396,6 @@ local function StartMainScript()
         if State.Flying then GUI.setStatus(TRANSLATIONS.FLY_ON[CONFIG.CurrentLang]) else Utils.restorePhysics(); GUI.setStatus(TRANSLATIONS.STATUS_READY[CONFIG.CurrentLang]) end
     end
 
-    -- [NEW: Click TP โผล่หลังคน]
     function Features.teleportClick()
         if State.ClickTP and UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
             local char, hrp, _ = Utils.getChar()
@@ -1408,18 +1420,18 @@ local function StartMainScript()
         end
     end
 
-    -- [NEW: WalkSpeed Override]
     function Features.toggleWalkSpeed()
         State.WalkSpeed = not State.WalkSpeed
         GUI.toggleVisual(GUI.Buttons.WalkSpeed, State.WalkSpeed)
         GUI.setStatus(State.WalkSpeed and TRANSLATIONS.WS_ON[CONFIG.CurrentLang] or TRANSLATIONS.WS_OFF[CONFIG.CurrentLang])
+        SaveConfig()
     end
 
-    -- [NEW: Instant Stop]
     function Features.toggleInstaStop()
         State.InstaStop = not State.InstaStop
         GUI.toggleVisual(GUI.Buttons.Stop, State.InstaStop)
         GUI.setStatus(State.InstaStop and TRANSLATIONS.STOP_ON[CONFIG.CurrentLang] or TRANSLATIONS.STOP_OFF[CONFIG.CurrentLang])
+        SaveConfig()
     end
 
     ---------------------------------------------------------------------------------
@@ -1430,7 +1442,6 @@ local function StartMainScript()
     local runConn = RunService.Stepped:Connect(function()
         local char, hrp, hum = Utils.getChar()
 
-        -- [NEW]: Logic สำหรับ Walkspeed และ เบรกกึก
         if State.WalkSpeed then
             if hum then hum.WalkSpeed = CONFIG.WalkSpeedValue end
         else
@@ -1502,8 +1513,8 @@ local function StartMainScript()
         if code == Enum.KeyCode.R then Features.toggleFly()
         elseif code == Enum.KeyCode.F then Features.toggleESP()
         elseif code == Enum.KeyCode.T then State.ClickTP = not State.ClickTP; GUI.toggleVisual(GUI.Buttons.TP, State.ClickTP); GUI.setStatus(State.ClickTP and TRANSLATIONS.WARP_READY[CONFIG.CurrentLang] or TRANSLATIONS.WARP_OFF[CONFIG.CurrentLang]); SaveConfig()
-        elseif code == Enum.KeyCode.V then Features.toggleWalkSpeed() -- [NEW]
-        elseif code == Enum.KeyCode.B then Features.toggleInstaStop() -- [NEW]
+        elseif code == Enum.KeyCode.V then Features.toggleWalkSpeed() 
+        elseif code == Enum.KeyCode.B then Features.toggleInstaStop() 
         elseif code == Enum.KeyCode.J then Features.setVertical("Sink")
         elseif code == Enum.KeyCode.K then Features.setVertical("Rise")
         elseif code == Enum.KeyCode.Z then Features.toggleInvis()
@@ -1530,8 +1541,8 @@ local function StartMainScript()
     GUI.Buttons.TP.Button.MouseButton1Click:Connect(function() State.ClickTP = not State.ClickTP; GUI.toggleVisual(GUI.Buttons.TP, State.ClickTP); GUI.setStatus(State.ClickTP and TRANSLATIONS.WARP_READY[CONFIG.CurrentLang] or TRANSLATIONS.WARP_OFF[CONFIG.CurrentLang]); SaveConfig() end)
     GUI.Buttons.Farm.Button.MouseButton1Click:Connect(Features.toggleFarm)
     GUI.Buttons.Rejoin.Button.MouseButton1Click:Connect(Features.rejoinServer)
-    GUI.Buttons.WalkSpeed.Button.MouseButton1Click:Connect(Features.toggleWalkSpeed) -- [NEW]
-    GUI.Buttons.Stop.Button.MouseButton1Click:Connect(Features.toggleInstaStop) -- [NEW]
+    GUI.Buttons.WalkSpeed.Button.MouseButton1Click:Connect(Features.toggleWalkSpeed) 
+    GUI.Buttons.Stop.Button.MouseButton1Click:Connect(Features.toggleInstaStop) 
     GUI.Buttons.Reset.Button.MouseButton1Click:Connect(function() local _, _, hum = Utils.getChar(); if hum then Camera.CameraSubject = hum; GUI.setStatus(TRANSLATIONS.CAM_RESET[CONFIG.CurrentLang]) end end)
     
     GUI.Buttons.Lang.Button.MouseButton1Click:Connect(function() 
@@ -1546,7 +1557,7 @@ local function StartMainScript()
         CONFIG.Speed = tonumber(speedInput.Text) or 1 
         SaveConfig() 
     end))
-    table.insert(_G.ProScript_Connections, wsInput:GetPropertyChangedSignal("Text"):Connect(function() -- [NEW]
+    table.insert(_G.ProScript_Connections, wsInput:GetPropertyChangedSignal("Text"):Connect(function() 
         CONFIG.WalkSpeedValue = tonumber(wsInput.Text) or 16 
         SaveConfig() 
     end))
@@ -1569,7 +1580,6 @@ local function StartMainScript()
                 pRow.BackgroundColor3 = THEME.ButtonOff
                 Utils.addCorner(pRow, 8)
 
-                -- Avatar Icon
                 local headIcon = Instance.new("ImageLabel", pRow)
                 headIcon.Name = "Avatar"
                 headIcon.Size = UDim2.new(0, 30, 0, 30)
@@ -1595,7 +1605,6 @@ local function StartMainScript()
                     end)
                 end
                 
-                -- ปุ่ม MARK (ขวาสุด)
                 local markBtn = Instance.new("TextButton", pRow)
                 markBtn.Size = UDim2.new(0, 55, 0.7, 0)
                 markBtn.AnchorPoint = Vector2.new(1, 0)
@@ -1640,7 +1649,6 @@ local function StartMainScript()
                     updateList() 
                 end)
 
-                -- ปุ่ม VIEW 
                 local sBtn = Instance.new("TextButton", pRow)
                 sBtn.Size = UDim2.new(0, 45, 0.7, 0)
                 sBtn.AnchorPoint = Vector2.new(1, 0)
@@ -1654,7 +1662,6 @@ local function StartMainScript()
                 Utils.addCorner(sBtn, 6)
                 sBtn.MouseButton1Click:Connect(function() if p.Character and p.Character:FindFirstChild("Humanoid") then Camera.CameraSubject = p.Character.Humanoid end end)
 
-                -- ชื่อผู้เล่น
                 local tBtn = Instance.new("TextButton", pRow)
                 tBtn.Size = UDim2.new(1, -155, 1, 0)
                 tBtn.Position = UDim2.new(0, 42, 0, 0)
@@ -1788,6 +1795,11 @@ local function StartMainScript()
     -- Sync UI Visuals with Loaded Config
     if State.ESP then GUI.toggleVisual(GUI.Buttons.ESP, true); Features.updateESP() end
     if State.ClickTP then GUI.toggleVisual(GUI.Buttons.TP, true); GUI.setStatus(TRANSLATIONS.WARP_READY[CONFIG.CurrentLang]) end
+    if State.Noclip then GUI.toggleVisual(GUI.Buttons.Noclip, true) end
+    if State.WalkSpeed then GUI.toggleVisual(GUI.Buttons.WalkSpeed, true) end
+    if State.InstaStop then GUI.toggleVisual(GUI.Buttons.Stop, true) end
+    if State.AutoFarm then Features.toggleFarm() end -- จะสั่งเริ่มฟาร์มถ้าเซฟไว้
+    
     GUI.updateTexts()
     refreshCustomList()
     
