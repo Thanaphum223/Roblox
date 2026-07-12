@@ -1,4 +1,4 @@
--- [[ PROJECT: VACUUM - ULTIMATE EDITION (v10.5: UI REWORK & FULL SAVE) ]] --
+-- [[ PROJECT: VACUUM - ULTIMATE EDITION (v10.7: HORIZONTAL UI + EMOJIS + FULL SAVE) ]] --
 
 ---------------------------------------------------------------------------------
 -- [[ 0. SECURITY & MAP LOCK ]] --
@@ -276,7 +276,7 @@ local function StartMainScript()
     local THEME = {
         Background = Color3.fromRGB(5, 5, 10),
         ButtonOff = Color3.fromRGB(20, 20, 25),
-        ButtonHover = Color3.fromRGB(35, 35, 45), -- [NEW HOVER COLOR]
+        ButtonHover = Color3.fromRGB(35, 35, 45),
         ButtonOn_Start = Color3.fromRGB(120, 0, 255),
         ButtonOn_End = Color3.fromRGB(50, 0, 150),
         ESP_Color = Color3.fromRGB(180, 100, 255),
@@ -507,7 +507,7 @@ local function StartMainScript()
     end
 
     ---------------------------------------------------------------------------------
-    -- 5. UI CONSTRUCTION (GRID + HOVER TWEENS)
+    -- 5. UI CONSTRUCTION (CLEAN HORIZONTAL + HOVER TWEENS + EMOJIS)
     ---------------------------------------------------------------------------------
     local GUI = {}
     GUI.Screen = Instance.new("ScreenGui", HiddenUI)
@@ -515,7 +515,6 @@ local function StartMainScript()
     GUI.Screen.ResetOnSpawn = false
     GUI.Screen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
-    -- [NEW] Hover Animation Setup
     local function addHoverEffect(btn)
         btn.MouseEnter:Connect(function()
             if not btn:GetAttribute("IsToggled") then
@@ -529,13 +528,18 @@ local function StartMainScript()
         end)
     end
 
-    function GUI.createBtn(parent, textKey)
+    function GUI.createBtn(parent, textKey, sizeScale)
+        local container = Instance.new("Frame")
+        container.Size = UDim2.new(sizeScale, -8, 0, 45)
+        container.BackgroundTransparency = 1
+        
         local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(1, 0, 1, 0)
         btn.Text = TRANSLATIONS[textKey][CONFIG.CurrentLang]
         btn.BackgroundColor3 = THEME.ButtonOff
         btn.TextColor3 = THEME.Text
         btn.Font = Enum.Font.GothamBold
-        btn.TextSize = 11
+        btn.TextSize = 10
         btn.AutoButtonColor = false
         btn:SetAttribute("IsToggled", false)
         Utils.addCorner(btn, 10)
@@ -543,7 +547,9 @@ local function StartMainScript()
         addHoverEffect(btn)
         
         local grad = Utils.addGradient(btn)
-        btn.Parent = parent
+        
+        btn.Parent = container
+        container.Parent = parent
         
         return {Button = btn, Gradient = grad, Key = textKey}
     end
@@ -584,66 +590,67 @@ local function StartMainScript()
     GUI.StatusLabel.TextSize = 16
     GUI.StatusLabel.Text = TRANSLATIONS.STATUS_WAIT.EN
 
-    -- [NEW] MainBar with UIGridLayout
     GUI.MainBar = Instance.new("Frame", GUI.MenuContainer)
-    GUI.MainBar.Size = UDim2.new(0, 780, 0, 110) -- ปรับให้เล็กลงแต่สูงขึ้นสำหรับ 2 แถว
-    GUI.MainBar.Position = UDim2.new(0.5, -390, 1.5, 0) 
+    GUI.MainBar.Size = UDim2.new(0, 1400, 0, 65) 
+    GUI.MainBar.Position = UDim2.new(0.5, -700, 1.5, 0) 
     GUI.MainBar.BackgroundColor3 = THEME.Background
     GUI.MainBar.BackgroundTransparency = 0.1
     Utils.addCorner(GUI.MainBar, 16)
     Utils.addStroke(GUI.MainBar, 0.3)
     Utils.makeDraggable(GUI.MainBar)
     
-    local padMain = Instance.new("UIPadding", GUI.MainBar)
-    padMain.PaddingTop = UDim.new(0, 10)
-    padMain.PaddingBottom = UDim.new(0, 10)
-    padMain.PaddingLeft = UDim.new(0, 10)
-    padMain.PaddingRight = UDim.new(0, 10)
-
-    local gridLayout = Instance.new("UIGridLayout", GUI.MainBar)
-    gridLayout.CellSize = UDim2.new(0, 100, 0, 40)
-    gridLayout.CellPadding = UDim2.new(0, 8, 0, 10)
-    gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-    gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    local barLayout = Instance.new("UIListLayout", GUI.MainBar)
+    barLayout.FillDirection = Enum.FillDirection.Horizontal
+    barLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    barLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+    barLayout.Padding = UDim.new(0, 4)
 
     GUI.Buttons = {}
-    GUI.Buttons.Fly = GUI.createBtn(GUI.MainBar, "FLY")
-    GUI.Buttons.ESP = GUI.createBtn(GUI.MainBar, "ESP")
-    GUI.Buttons.Sink = GUI.createBtn(GUI.MainBar, "SINK_BTN")
-    GUI.Buttons.Rise = GUI.createBtn(GUI.MainBar, "RISE_BTN")
-    GUI.Buttons.Invis = GUI.createBtn(GUI.MainBar, "INVIS")
-    GUI.Buttons.Ghost = GUI.createBtn(GUI.MainBar, "GHOST") 
-    GUI.Buttons.Noclip = GUI.createBtn(GUI.MainBar, "NOCLIP_BTN") 
+    GUI.Buttons.Fly = GUI.createBtn(GUI.MainBar, "FLY", 0.055)
+    GUI.Buttons.ESP = GUI.createBtn(GUI.MainBar, "ESP", 0.055)
+    GUI.Buttons.Sink = GUI.createBtn(GUI.MainBar, "SINK_BTN", 0.055)
+    GUI.Buttons.Rise = GUI.createBtn(GUI.MainBar, "RISE_BTN", 0.055)
+    GUI.Buttons.Invis = GUI.createBtn(GUI.MainBar, "INVIS", 0.055)
+    GUI.Buttons.Ghost = GUI.createBtn(GUI.MainBar, "GHOST", 0.06) 
+    GUI.Buttons.Noclip = GUI.createBtn(GUI.MainBar, "NOCLIP_BTN", 0.06) 
+    GUI.Buttons.TP = GUI.createBtn(GUI.MainBar, "TP", 0.06)
+    GUI.Buttons.WalkSpeed = GUI.createBtn(GUI.MainBar, "WS_BTN", 0.06)
 
-    -- แถวที่ 2 เริ่มตรงนี้
-    GUI.Buttons.TP = GUI.createBtn(GUI.MainBar, "TP")
-    GUI.Buttons.WalkSpeed = GUI.createBtn(GUI.MainBar, "WS_BTN")
-    GUI.Buttons.Stop = GUI.createBtn(GUI.MainBar, "STOP_BTN")
-    GUI.Buttons.Farm = GUI.createBtn(GUI.MainBar, "FARM")
-    GUI.Buttons.Rejoin = GUI.createBtn(GUI.MainBar, "REJOIN")
-    GUI.Buttons.Lang = GUI.createBtn(GUI.MainBar, "LANG_BTN")
-
-    -- Input สำหรับ WalkSpeed (ย้ายมาไว้ข้างล่างปุ่ม)
-    local wsInput = Instance.new("TextBox", GUI.MainBar)
+    local wsContainer = Instance.new("Frame", GUI.MainBar)
+    wsContainer.Size = UDim2.new(0.04, -5, 0, 45)
+    wsContainer.BackgroundTransparency = 1
+    Utils.addCorner(wsContainer, 10)
+    local wsInput = Instance.new("TextBox", wsContainer)
+    wsInput.Size = UDim2.new(1, 0, 1, 0)
     wsInput.Text = tostring(CONFIG.WalkSpeedValue)
     wsInput.BackgroundColor3 = THEME.ButtonOff
     wsInput.TextColor3 = THEME.ButtonOn_Start
     wsInput.Font = Enum.Font.GothamBold
     wsInput.TextSize = 14
-    wsInput.PlaceholderText = "WS Input"
+    wsInput.PlaceholderText = "WS"
     Utils.addCorner(wsInput, 10)
     Utils.addStroke(wsInput, 0.6)
 
-    -- Input สำหรับ Speed
-    local speedInput = Instance.new("TextBox", GUI.MainBar)
+    GUI.Buttons.Stop = GUI.createBtn(GUI.MainBar, "STOP_BTN", 0.06)
+    GUI.Buttons.Farm = GUI.createBtn(GUI.MainBar, "FARM", 0.065)
+    GUI.Buttons.Rejoin = GUI.createBtn(GUI.MainBar, "REJOIN", 0.06)
+
+    local speedContainer = Instance.new("Frame", GUI.MainBar)
+    speedContainer.Size = UDim2.new(0.04, -5, 0, 45)
+    speedContainer.BackgroundTransparency = 1
+    Utils.addCorner(speedContainer, 10)
+    local speedInput = Instance.new("TextBox", speedContainer)
+    speedInput.Size = UDim2.new(1, 0, 1, 0)
     speedInput.Text = tostring(CONFIG.Speed)
     speedInput.BackgroundColor3 = THEME.ButtonOff
     speedInput.TextColor3 = THEME.ButtonOn_Start
     speedInput.Font = Enum.Font.GothamBold
     speedInput.TextSize = 14
-    speedInput.PlaceholderText = "SPD Input"
+    speedInput.PlaceholderText = "SPD"
     Utils.addCorner(speedInput, 10)
     Utils.addStroke(speedInput, 0.6)
+    
+    GUI.Buttons.Lang = GUI.createBtn(GUI.MainBar, "LANG_BTN", 0.055)
 
     GUI.SideFrame = Instance.new("Frame", GUI.MenuContainer)
     GUI.SideFrame.Size = UDim2.new(0, 320, 0, 450) 
@@ -970,7 +977,7 @@ local function StartMainScript()
     function GUI.toggleMenu()
         CONFIG.MenuVisible = not CONFIG.MenuVisible
         
-        local targetBarPos = CONFIG.MenuVisible and UDim2.new(0.5, -390, 0.82, 0) or UDim2.new(0.5, -390, 1.5, 0)
+        local targetBarPos = CONFIG.MenuVisible and UDim2.new(0.5, -700, 0.85, 0) or UDim2.new(0.5, -700, 1.5, 0)
         local targetSidePos = CONFIG.MenuVisible and UDim2.new(1, -330, 0.2, 0) or UDim2.new(1.5, 0, 0.2, 0)
         
         local animInfo = TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
@@ -1015,7 +1022,8 @@ local function StartMainScript()
 
     function GUI.updateTexts()
         local lang = CONFIG.CurrentLang
-        local dynamicTextSize = (lang == "TH") and 13 or 11
+        -- ปรับขนาดฟอนต์ให้เล็กลงนิดหน่อยเพื่อให้ Emoji ไม่เบียดกับข้อความเกินไป
+        local dynamicTextSize = (lang == "TH") and 12 or 10 
         
         for _, item in pairs(GUI.Buttons) do
             item.Button.Text = TRANSLATIONS[item.Key][lang]
@@ -1798,7 +1806,7 @@ local function StartMainScript()
     if State.Noclip then GUI.toggleVisual(GUI.Buttons.Noclip, true) end
     if State.WalkSpeed then GUI.toggleVisual(GUI.Buttons.WalkSpeed, true) end
     if State.InstaStop then GUI.toggleVisual(GUI.Buttons.Stop, true) end
-    if State.AutoFarm then Features.toggleFarm() end -- จะสั่งเริ่มฟาร์มถ้าเซฟไว้
+    if State.AutoFarm then Features.toggleFarm() end
     
     GUI.updateTexts()
     refreshCustomList()
