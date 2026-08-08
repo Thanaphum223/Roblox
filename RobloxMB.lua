@@ -1,4 +1,4 @@
--- [[ PROJECT: VACUUM - MOBILE EDITION (v10.0: FIXED UI OVERLAP & FORCE ESP) ]] --
+-- [[ PROJECT: VACUUM - MOBILE EDITION (v10.8: EMOJIS + FULL SAVE + ANTI-LEAK) ]] --
 
 ---------------------------------------------------------------------------------
 -- [[ 0. SECURITY & MAP LOCK ]] --
@@ -34,144 +34,82 @@ local StarterGui = game:GetService("StarterGui")
 local SCRIPT_URL = "https://script.google.com/macros/s/AKfycby-eC0AM7hphYMKPiEmMTsidJY0d8_eTUS6e9KtXkJboPi85Y8bWXdH_3ujpkYy4WoYSQ/exec"
 local CSV_URL = "https://docs.google.com/spreadsheets/d/1plKekYjuDDNCXDh4GVT386F-E5IYT5dJzwJfhNkrlRY/export?format=csv"
 local KEY_FILE_NAME = "Vacuum_Key.txt"
+local CONFIG_FILE_NAME = "Vacuum_MobileConfig.json"
 
 local function CheckAndLock(inputKey)
-    local success, result = pcall(function()
-        return game:HttpGet(CSV_URL .. "&nocache=" .. tostring(os.time()))
-    end)
-
+    local success, result = pcall(function() return game:HttpGet(CSV_URL .. "&nocache=" .. tostring(os.time())) end)
     if not success then return false, "เช็คเน็ตไม่ได้ (CSV Error)" end
 
-    local foundKey = false
-    local storedHWID = nil
-
+    local foundKey = false; local storedHWID = nil
     for line in result:gmatch("[^\r\n]+") do
         local key, hwid = line:match("([^,]+),([^,]*)")
         if key == inputKey then
-            foundKey = true
-            storedHWID = hwid
-            if storedHWID then storedHWID = storedHWID:gsub("%s+", "") end
+            foundKey = true; storedHWID = hwid; if storedHWID then storedHWID = storedHWID:gsub("%s+", "") end
             break
         end
     end
-
     if not foundKey then return false, "ไม่พบ Key นี้ในระบบ!" end
-
-    if storedHWID == MyHWID then
-        return true, "Verified"
-        
+    if storedHWID == MyHWID then return true, "Verified"
     elseif storedHWID == "" or storedHWID == nil then
         task.spawn(function()
             local body = HttpService:JSONEncode({ key = inputKey, hwid = MyHWID })
             local httpRequest = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
-            if httpRequest then
-                pcall(function()
-                    httpRequest({
-                        Url = SCRIPT_URL,
-                        Method = "POST",
-                        Headers = {["Content-Type"] = "application/json"},
-                        Body = body
-                    })
-                end)
-            end
+            if httpRequest then pcall(function() httpRequest({Url = SCRIPT_URL, Method = "POST", Headers = {["Content-Type"] = "application/json"}, Body = body}) end) end
         end)
         return false, "กำลังบันทึกเครื่อง... กรุณากดปุ่มเดิมอีกครั้ง"
-        
-    else
-        return false, "Key นี้ติดเครื่องอื่นไปแล้ว!"
-    end
+    else return false, "Key นี้ติดเครื่องอื่นไปแล้ว!" end
 end
 
 -- [ UI SYSTEM ]
 local function CreateKeyUI(onSuccess)
     if LocalPlayer.PlayerGui:FindFirstChild("SecureAuth") then LocalPlayer.PlayerGui.SecureAuth:Destroy() end
-    
-    local ScreenGui = Instance.new("ScreenGui", LocalPlayer.PlayerGui)
-    ScreenGui.Name = "SecureAuth"
-    ScreenGui.ResetOnSpawn = false
-
-    local Main = Instance.new("Frame", ScreenGui)
-    Main.Size = UDim2.new(0, 350, 0, 180)
-    Main.Position = UDim2.new(0.5, -175, 0.5, -90)
-    Main.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-    local Corner = Instance.new("UICorner", Main); Corner.CornerRadius = UDim.new(0, 12)
-    local Stroke = Instance.new("UIStroke", Main); Stroke.Color = Color3.fromRGB(70, 70, 90); Stroke.Thickness = 2
-
-    local Title = Instance.new("TextLabel", Main)
-    Title.Size = UDim2.new(1, 0, 0, 50)
-    Title.BackgroundTransparency = 1
-    Title.Text = "VACUUM SECURITY (FAST)"
-    Title.TextColor3 = Color3.new(1,1,1)
-    Title.Font = Enum.Font.GothamBold
-    Title.TextSize = 18
-
-    local Box = Instance.new("TextBox", Main)
-    Box.Size = UDim2.new(0.8, 0, 0, 40)
-    Box.Position = UDim2.new(0.1, 0, 0.35, 0)
-    Box.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
-    Box.TextColor3 = Color3.new(1,1,1)
-    Box.PlaceholderText = "Paste Key..."
-    Box.Text = ""
+    local ScreenGui = Instance.new("ScreenGui", LocalPlayer.PlayerGui); ScreenGui.Name = "SecureAuth"; ScreenGui.ResetOnSpawn = false
+    local Main = Instance.new("Frame", ScreenGui); Main.Size = UDim2.new(0, 350, 0, 180); Main.Position = UDim2.new(0.5, -175, 0.5, -90); Main.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+    local Corner = Instance.new("UICorner", Main); Corner.CornerRadius = UDim.new(0, 12); local Stroke = Instance.new("UIStroke", Main); Stroke.Color = Color3.fromRGB(70, 70, 90); Stroke.Thickness = 2
+    local Title = Instance.new("TextLabel", Main); Title.Size = UDim2.new(1, 0, 0, 50); Title.BackgroundTransparency = 1; Title.Text = "VACUUM SECURITY (MOBILE)"; Title.TextColor3 = Color3.new(1,1,1); Title.Font = Enum.Font.GothamBold; Title.TextSize = 18
+    local Box = Instance.new("TextBox", Main); Box.Size = UDim2.new(0.8, 0, 0, 40); Box.Position = UDim2.new(0.1, 0, 0.35, 0); Box.BackgroundColor3 = Color3.fromRGB(40, 40, 45); Box.TextColor3 = Color3.new(1,1,1); Box.PlaceholderText = "Paste Key..."; Box.Text = ""
     local BCorner = Instance.new("UICorner", Box); BCorner.CornerRadius = UDim.new(0,8)
-
-    local Btn = Instance.new("TextButton", Main)
-    Btn.Size = UDim2.new(0.5, 0, 0, 35)
-    Btn.Position = UDim2.new(0.25, 0, 0.65, 0)
-    Btn.Text = "VERIFY"
-    Btn.BackgroundColor3 = Color3.fromRGB(0, 140, 255)
-    Btn.TextColor3 = Color3.new(1,1,1)
-    Btn.Font = Enum.Font.GothamBold
-    local BtCorner = Instance.new("UICorner", Btn); BtCorner.CornerRadius = UDim.new(0,8)
-
-    local Status = Instance.new("TextLabel", Main)
-    Status.Size = UDim2.new(1, 0, 0, 20)
-    Status.Position = UDim2.new(0, 0, 0.88, 0)
-    Status.BackgroundTransparency = 1
-    Status.Text = "Please enter your key."
-    Status.TextColor3 = Color3.fromRGB(150, 150, 170)
-    Status.Font = Enum.Font.Gotham
-    Status.TextSize = 12
+    local Btn = Instance.new("TextButton", Main); Btn.Size = UDim2.new(0.5, 0, 0, 35); Btn.Position = UDim2.new(0.25, 0, 0.65, 0); Btn.Text = "VERIFY"; Btn.BackgroundColor3 = Color3.fromRGB(0, 140, 255); Btn.TextColor3 = Color3.new(1,1,1); Btn.Font = Enum.Font.GothamBold; local BtCorner = Instance.new("UICorner", Btn); BtCorner.CornerRadius = UDim.new(0,8)
+    local Status = Instance.new("TextLabel", Main); Status.Size = UDim2.new(1, 0, 0, 20); Status.Position = UDim2.new(0, 0, 0.88, 0); Status.BackgroundTransparency = 1; Status.Text = "Please enter your key."; Status.TextColor3 = Color3.fromRGB(150, 150, 170); Status.Font = Enum.Font.Gotham; Status.TextSize = 12
 
     Btn.MouseButton1Click:Connect(function()
-        Btn.Text = "CHECKING..."
-        Btn.Active = false
+        Btn.Text = "CHECKING..."; Btn.Active = false
         local key = Box.Text
-        
         task.spawn(function()
             local ok, msg = CheckAndLock(key)
             if ok then
-                Status.TextColor3 = Color3.fromRGB(100, 255, 100)
-                Status.Text = "Access Granted!"
-                Btn.Text = "DONE"
-                
+                Status.TextColor3 = Color3.fromRGB(100, 255, 100); Status.Text = "Access Granted!"; Btn.Text = "DONE"
                 if writefile then writefile(KEY_FILE_NAME, key) end
-                
-                task.wait(0.5)
-                ScreenGui:Destroy()
-                onSuccess()
-            else
-                Status.TextColor3 = Color3.fromRGB(255, 100, 100)
-                Status.Text = msg
-                Btn.Text = "VERIFY"
-                Btn.Active = true
-            end
+                task.wait(0.5); ScreenGui:Destroy(); onSuccess()
+            else Status.TextColor3 = Color3.fromRGB(255, 100, 100); Status.Text = msg; Btn.Text = "VERIFY"; Btn.Active = true end
         end)
     end)
 end
 
 ---------------------------------------------------------------------------------
+-- [[ 1.5. CONNECTION MANAGER (ANTI-MEMORY LEAK) ]] --
+---------------------------------------------------------------------------------
+local ConnectionManager = { _connections = {}, _unnamed = {} }
+function ConnectionManager:Add(name, conn)
+    if self._connections[name] then self._connections[name]:Disconnect() end
+    self._connections[name] = conn
+end
+function ConnectionManager:AddUnnamed(conn) table.insert(self._unnamed, conn) end
+function ConnectionManager:Clean()
+    for _, conn in pairs(self._connections) do if conn then conn:Disconnect() end end
+    for _, conn in pairs(self._unnamed) do if conn then conn:Disconnect() end end
+    self._connections = {}; self._unnamed = {}
+end
+
+if _G.Vacuum_ConnManager then _G.Vacuum_ConnManager:Clean() end
+_G.Vacuum_ConnManager = ConnectionManager
+
+---------------------------------------------------------------------------------
 -- [[ 2. MAIN VACUUM PROJECT LOADER ]] --
 ---------------------------------------------------------------------------------
 local function StartMainScript()
-    print(":: VACUUM ULTIMATE LOADED ::")
+    print(":: VACUUM MOBILE ULTIMATE LOADED ::")
     
-    if _G.ProScript_Connections then
-        for _, conn in pairs(_G.ProScript_Connections) do
-            if conn then conn:Disconnect() end
-        end
-    end
-    _G.ProScript_Connections = {}
-
     for _, gui in pairs(LocalPlayer.PlayerGui:GetChildren()) do
         if gui.Name:match("ControlGui_Pro") or gui.Name == "Intro_Vacuum_Cinematic" then gui:Destroy() end
     end
@@ -202,7 +140,7 @@ local function StartMainScript()
     local CurrentMapData = MapSettings[PlaceID] or MapSettings[8391915840]
 
     local CONFIG = {
-        Speed = 3, CurrentLang = "EN", MenuVisible = false,
+        Speed = 3, WalkSpeedValue = 100, CurrentLang = "EN", MenuVisible = false,
         InvisPos = CurrentMapData.InvisPos, Locations = CurrentMapData.Locations,
         SomtumLocs = {
             Step1_Papaya = CFrame.new(-507.922882, -93.6820526, 348.588898),
@@ -228,105 +166,126 @@ local function StartMainScript()
     local THEME = {
         Background = Color3.fromRGB(5, 5, 10), ButtonOff = Color3.fromRGB(20, 20, 25),
         ButtonOn_Start = Color3.fromRGB(120, 0, 255), ButtonOn_End = Color3.fromRGB(50, 0, 150),
-        ESP_Color = Color3.fromRGB(180, 100, 255), 
-        ESP_Friend = Color3.fromRGB(50, 255, 100), 
-        ESP_Target = Color3.fromRGB(255, 50, 50),
-        Text = Color3.fromRGB(240, 240, 255), TextDim = Color3.fromRGB(100, 100, 120),
-        Stroke = Color3.fromRGB(60, 30, 90), Delete = Color3.fromRGB(200, 50, 50)
+        ESP_Color = Color3.fromRGB(180, 100, 255), ESP_Friend = Color3.fromRGB(50, 255, 100), ESP_Target = Color3.fromRGB(255, 50, 50),
+        Text = Color3.fromRGB(240, 240, 255), TextDim = Color3.fromRGB(100, 100, 120), Stroke = Color3.fromRGB(60, 30, 90), Delete = Color3.fromRGB(200, 50, 50)
     }
 
     local TRANSLATIONS = {
-        FLY = {EN = "FLY (R)", TH = "บิน (R)"}, ESP = {EN = "ESP (F)", TH = "มองทะลุ (F)"},
-        SINK_BTN = {EN = "SINK (J)", TH = "จมดิน (J)"}, RISE_BTN = {EN = "RISE (K)", TH = "ลอยฟ้า (K)"},
-        INVIS = {EN = "INVIS (Z)", TH = "ล่องหน (Z)"}, GHOST = {EN = "GHOST (G)", TH = "ถอดจิต (G)"},
-        NOCLIP_BTN = {EN = "NOCLIP (N)", TH = "ทะลุกำแพง (N)"},
-        TP = {EN = "CLICK TP", TH = "แตะเพื่อวาร์ป"}, FARM = {EN = "AUTO FARM", TH = "ออโต้ฟาร์ม"},
-        REJOIN = {EN = "REJOIN", TH = "เข้าใหม่"}, RESET = {EN = "RESET CAM", TH = "รีเซ็ตกล้อง"}, 
-        HINT = {EN = "VACUUM MENU", TH = "เมนูระบบ"}, LANG_BTN = {EN = "LANG: EN", TH = "ภาษา: TH"},
-        STATUS_WAIT = {EN = "Vacuum: Waiting...", TH = "Vacuum: รอคำสั่ง..."},
-        STATUS_READY = {EN = "Vacuum: Ready", TH = "สถานะ: พร้อมใช้งาน"},
-        SINK_STATUS = {EN = "Action: Sinking...", TH = "สถานะ: กำลังจมดิน..."},
-        RISE_STATUS = {EN = "Action: Rising...", TH = "สถานะ: กำลังลอยขึ้น..."},
-        INVIS_STATUS = {EN = "Invis: ACTIVE", TH = "สถานะ: ล่องหน"},
-        GHOST_STATUS = {EN = "Ghost: ACTIVE", TH = "สถานะ: ถอดจิต"},
-        ABORT = {EN = "Aborted.", TH = "ยกเลิกคำสั่งแล้ว"},
-        WARP_READY = {EN = "Tap anywhere to TP", TH = "แตะที่หน้าจอเพื่อวาร์ป"},
-        WARP_OFF = {EN = "Click TP: OFF", TH = "แตะวาร์ป: ปิด"},
-        WARPED = {EN = "Warped.", TH = "วาร์ปสำเร็จ!"},
-        FLY_ON = {EN = "Flight Enabled", TH = "โหมดการบิน: เปิด"},
-        CAM_RESET = {EN = "Cam Reset", TH = "รีเซ็ตกล้องเรียบร้อย"},
-        REJOINING = {EN = "Rejoining...", TH = "กำลังเข้าเซิร์ฟใหม่..."},
-        NOCLIP_ON = {EN = "Noclip: ON", TH = "ทะลุกำแพง: เปิด"},
-        NOCLIP_OFF = {EN = "Noclip: OFF", TH = "ทะลุกำแพง: ปิด"}
+        FLY = {EN = "🕊️ FLY", TH = "🕊️ บิน"}, ESP = {EN = "👁️ ESP", TH = "👁️ มองทะลุ"},
+        SINK_BTN = {EN = "⬇️ SINK", TH = "⬇️ จมดิน"}, RISE_BTN = {EN = "⬆️ RISE", TH = "⬆️ ลอยฟ้า"},
+        INVIS = {EN = "👻 INVIS", TH = "👻 ล่องหน"}, GHOST = {EN = "🧟 GHOST", TH = "🧟 ถอดจิต"},
+        NOCLIP_BTN = {EN = "🚪 NOCLIP", TH = "🚪 ทะลุกำแพง"},
+        TP = {EN = "🖱️ CLICK TP", TH = "🖱️ แตะเพื่อวาร์ป"}, 
+        WS_BTN = {EN = "⚡ SPEED", TH = "⚡ วิ่งไว"}, STOP_BTN = {EN = "🛑 NO-SLIP", TH = "🛑 เบรกกึก"}, 
+        FARM = {EN = "🚜 AUTO FARM", TH = "🚜 ออโต้ฟาร์ม"},
+        REJOIN = {EN = "🔄 REJOIN", TH = "🔄 เข้าใหม่"}, RESET = {EN = "📸 RESET CAM", TH = "📸 รีเซ็ตกล้อง"}, 
+        HINT = {EN = "VACUUM MENU", TH = "เมนูระบบ"}, LANG_BTN = {EN = "🌐 LANG: EN", TH = "🌐 ภาษา: TH"},
+        STATUS_WAIT = {EN = "Vacuum: Waiting...", TH = "Vacuum: รอคำสั่ง..."}, STATUS_READY = {EN = "Vacuum: Ready", TH = "สถานะ: พร้อมใช้งาน"},
+        SINK_STATUS = {EN = "Action: Sinking...", TH = "สถานะ: กำลังจมดิน..."}, RISE_STATUS = {EN = "Action: Rising...", TH = "สถานะ: กำลังลอยขึ้น..."},
+        INVIS_STATUS = {EN = "Invis: ACTIVE", TH = "สถานะ: ล่องหน"}, GHOST_STATUS = {EN = "Ghost: ACTIVE", TH = "สถานะ: ถอดจิต"},
+        ABORT = {EN = "Aborted.", TH = "ยกเลิกคำสั่งแล้ว"}, WARP_READY = {EN = "Tap anywhere to TP", TH = "แตะที่หน้าจอเพื่อวาร์ป"},
+        WARP_OFF = {EN = "Click TP: OFF", TH = "แตะวาร์ป: ปิด"}, WARPED = {EN = "Warped.", TH = "วาร์ปสำเร็จ!"},
+        FLY_ON = {EN = "Flight Enabled", TH = "โหมดการบิน: เปิด"}, CAM_RESET = {EN = "Cam Reset", TH = "รีเซ็ตกล้องเรียบร้อย"},
+        REJOINING = {EN = "Rejoining...", TH = "กำลังเข้าเซิร์ฟใหม่..."}, NOCLIP_ON = {EN = "Noclip: ON", TH = "ทะลุกำแพง: เปิด"}, NOCLIP_OFF = {EN = "Noclip: OFF", TH = "ทะลุกำแพง: ปิด"}
     }
 
     local State = {
         Flying = false, ESP = false, PlayerMarks = {}, ClickTP = false, Noclip = false, AutoFarm = false,
-        Invisible = false, GhostMode = false, GhostClone = nil, RealCharacter = nil, 
+        Invisible = false, GhostMode = false, GhostClone = nil, RealCharacter = nil, WalkSpeed = false, InstaStop = false, 
         VerticalMode = "None", FarmInfo = { Count = 0, StartTime = 0, CurrentState = "Idle", Tween = nil },
         CachedParts = {}, FarmThreads = {}, AvatarCache = {}, HoldingUp = false, HoldingDown = false
     }
 
+    ---------------------------------------------------------------------------------
+    -- [[ 3. FULL SAVE/LOAD SYSTEM ]] --
+    ---------------------------------------------------------------------------------
+    local function SaveConfig()
+        if not writefile then return end
+        local waypointsData = {}
+        for _, wp in ipairs(CustomWaypoints) do
+            local pos = wp.CFrame.Position
+            table.insert(waypointsData, {Name = wp.Name, X = pos.X, Y = pos.Y, Z = pos.Z})
+        end
+        local dataToSave = {
+            Speed = CONFIG.Speed, WalkSpeedValue = CONFIG.WalkSpeedValue, Lang = CONFIG.CurrentLang,
+            ESP = State.ESP, ClickTP = State.ClickTP, Noclip = State.Noclip, WalkSpeed = State.WalkSpeed,
+            InstaStop = State.InstaStop, AutoFarm = State.AutoFarm, CustomWaypoints = waypointsData
+        }
+        pcall(function() writefile(CONFIG_FILE_NAME, HttpService:JSONEncode(dataToSave)) end)
+    end
+
+    local function LoadConfig()
+        if not (isfile and readfile) then return end
+        if isfile(CONFIG_FILE_NAME) then
+            pcall(function()
+                local data = HttpService:JSONDecode(readfile(CONFIG_FILE_NAME))
+                if data.Speed then CONFIG.Speed = data.Speed end
+                if data.WalkSpeedValue then CONFIG.WalkSpeedValue = data.WalkSpeedValue end
+                if data.Lang then CONFIG.CurrentLang = data.Lang end
+                if data.ESP ~= nil then State.ESP = data.ESP end
+                if data.ClickTP ~= nil then State.ClickTP = data.ClickTP end
+                if data.Noclip ~= nil then State.Noclip = data.Noclip end
+                if data.WalkSpeed ~= nil then State.WalkSpeed = data.WalkSpeed end
+                if data.InstaStop ~= nil then State.InstaStop = data.InstaStop end
+                if data.AutoFarm ~= nil then State.AutoFarm = data.AutoFarm end
+                if data.CustomWaypoints then
+                    CustomWaypoints = {}
+                    for _, wp in ipairs(data.CustomWaypoints) do
+                        table.insert(CustomWaypoints, {Name = wp.Name, CFrame = CFrame.new(wp.X, wp.Y, wp.Z)})
+                    end
+                end
+            end)
+        end
+    end
+    LoadConfig()
+
     local Utils = {}
     function Utils.getChar()
         local char = LocalPlayer.Character
-        if char and char:FindFirstChild("HumanoidRootPart") and char:FindFirstChild("Humanoid") then
-            return char, char.HumanoidRootPart, char.Humanoid
-        end
+        if char and char:FindFirstChild("HumanoidRootPart") and char:FindFirstChild("Humanoid") then return char, char.HumanoidRootPart, char.Humanoid end
         return nil, nil, nil
     end
-
     function Utils.addCorner(instance, radius) local corner = Instance.new("UICorner", instance); corner.CornerRadius = UDim.new(0, radius); return corner end
     function Utils.addStroke(instance, trans) local stroke = Instance.new("UIStroke", instance); stroke.Color = THEME.Stroke; stroke.Thickness = 1; stroke.Transparency = trans or 0.5; return stroke end
     function Utils.addGradient(instance) local grad = Instance.new("UIGradient", instance); grad.Color = ColorSequence.new{ColorSequenceKeypoint.new(0, THEME.ButtonOn_Start), ColorSequenceKeypoint.new(1, THEME.ButtonOn_End)}; grad.Rotation = 45; grad.Enabled = false; return grad end
 
     function Utils.makeDraggable(frame)
         local dragging, dragInput, dragStart, startPos
-        frame.InputBegan:Connect(function(input)
+        ConnectionManager:AddUnnamed(frame.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 dragging = true; dragStart = input.Position; startPos = frame.Position
-                input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end)
+                local conn; conn = input.Changed:Connect(function()
+                    if input.UserInputState == Enum.UserInputState.End then dragging = false; conn:Disconnect() end
+                end)
             end
-        end)
-        frame.InputChanged:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end end)
-        UserInputService.InputChanged:Connect(function(input)
+        end))
+        ConnectionManager:AddUnnamed(frame.InputChanged:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
+        end))
+        ConnectionManager:Add("DragUI", UserInputService.InputChanged:Connect(function(input)
             if input == dragInput and dragging then
                 local delta = input.Position - dragStart
                 frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
             end
-        end)
+        end))
     end
 
     function Utils.updateCharCache(char)
         State.CachedParts = {}
         if not char then return end
-        for _, v in ipairs(char:GetDescendants()) do
-            if v:IsA("BasePart") then table.insert(State.CachedParts, {Part = v, OrigCollide = v.CanCollide}) end
-        end
+        for _, v in ipairs(char:GetDescendants()) do if v:IsA("BasePart") then table.insert(State.CachedParts, {Part = v, OrigCollide = v.CanCollide}) end end
     end
 
     function Utils.noclip()
-        for i = 1, #State.CachedParts do
-            local data = State.CachedParts[i]
-            if data.Part and data.Part.Parent then data.Part.CanCollide = false end
-        end
+        for i = 1, #State.CachedParts do local data = State.CachedParts[i]; if data.Part and data.Part.Parent then data.Part.CanCollide = false end end
     end
 
     function Utils.restorePhysics()
-        local char, hrp, hum = Utils.getChar()
-        if not char then return end
+        local char, hrp, hum = Utils.getChar(); if not char then return end
         hum.PlatformStand = false; hum:ChangeState(Enum.HumanoidStateType.GettingUp)
         hrp.Velocity = Vector3.zero; hrp.AssemblyLinearVelocity = Vector3.zero; hrp.Anchored = false
-        
-        for _, name in pairs({"Elite_Movement", "SinkLift", "SinkGyro", "FarmGyro", "ActionAtt"}) do
-            local obj = hrp:FindFirstChild(name)
-            if obj then obj:Destroy() end
-        end
-        
-        for i = 1, #State.CachedParts do
-            local data = State.CachedParts[i]
-            if data.Part and data.Part.Parent then data.Part.CanCollide = data.OrigCollide end
-        end
+        for _, name in pairs({"Elite_Movement", "SinkLift", "SinkGyro", "FarmGyro", "ActionAtt"}) do local obj = hrp:FindFirstChild(name); if obj then obj:Destroy() end end
+        for i = 1, #State.CachedParts do local data = State.CachedParts[i]; if data.Part and data.Part.Parent then data.Part.CanCollide = data.OrigCollide end end
     end
 
     function Utils.formatTime(seconds)
@@ -337,9 +296,7 @@ local function StartMainScript()
     function Utils.hasItem(possibleNames)
         local char = LocalPlayer.Character; local backpack = LocalPlayer.Backpack
         if not char or not backpack then return false end
-        for _, name in pairs(possibleNames) do
-            if backpack:FindFirstChild(name) or char:FindFirstChild(name) then return true end
-        end
+        for _, name in pairs(possibleNames) do if backpack:FindFirstChild(name) or char:FindFirstChild(name) then return true end end
         return false
     end
 
@@ -347,28 +304,17 @@ local function StartMainScript()
     -- [[ MOBILE UI & LAYOUT ]] --
     ---------------------------------------------------------------------------------
     local GUI = {}
-    GUI.Screen = Instance.new("ScreenGui", LocalPlayer.PlayerGui)
-    GUI.Screen.Name = "ControlGui_Pro_Ultimate" 
-    GUI.Screen.ResetOnSpawn = false
-    GUI.Screen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    GUI.Screen = Instance.new("ScreenGui", LocalPlayer.PlayerGui); GUI.Screen.Name = "ControlGui_Pro_Ultimate"; GUI.Screen.ResetOnSpawn = false; GUI.Screen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
     GUI.MobileToggleBtn = Instance.new("TextButton", GUI.Screen)
-    GUI.MobileToggleBtn.Size = UDim2.new(0, 50, 0, 50)
-    GUI.MobileToggleBtn.Position = UDim2.new(0, 10, 0.5, -25)
-    GUI.MobileToggleBtn.BackgroundColor3 = THEME.ButtonOn_Start
-    GUI.MobileToggleBtn.TextColor3 = Color3.new(1,1,1)
-    GUI.MobileToggleBtn.Text = "MENU"
-    GUI.MobileToggleBtn.Font = Enum.Font.GothamBold
-    GUI.MobileToggleBtn.TextSize = 12
-    Utils.addCorner(GUI.MobileToggleBtn, 25)
-    Utils.addStroke(GUI.MobileToggleBtn, 0.2)
-    Utils.makeDraggable(GUI.MobileToggleBtn)
+    GUI.MobileToggleBtn.Size = UDim2.new(0, 50, 0, 50); GUI.MobileToggleBtn.Position = UDim2.new(0, 10, 0.5, -25)
+    GUI.MobileToggleBtn.BackgroundColor3 = THEME.ButtonOn_Start; GUI.MobileToggleBtn.TextColor3 = Color3.new(1,1,1)
+    GUI.MobileToggleBtn.Text = "MENU"; GUI.MobileToggleBtn.Font = Enum.Font.GothamBold; GUI.MobileToggleBtn.TextSize = 12
+    Utils.addCorner(GUI.MobileToggleBtn, 25); Utils.addStroke(GUI.MobileToggleBtn, 0.2); Utils.makeDraggable(GUI.MobileToggleBtn)
 
     GUI.VerticalControls = Instance.new("Frame", GUI.Screen)
-    GUI.VerticalControls.Size = UDim2.new(0, 60, 0, 130)
-    GUI.VerticalControls.Position = UDim2.new(1, -80, 0.5, -65)
-    GUI.VerticalControls.BackgroundTransparency = 1
-    GUI.VerticalControls.Visible = false
+    GUI.VerticalControls.Size = UDim2.new(0, 60, 0, 130); GUI.VerticalControls.Position = UDim2.new(1, -80, 0.5, -65)
+    GUI.VerticalControls.BackgroundTransparency = 1; GUI.VerticalControls.Visible = false
 
     GUI.BtnUP = Instance.new("TextButton", GUI.VerticalControls)
     GUI.BtnUP.Size = UDim2.new(1, 0, 0, 60); GUI.BtnUP.Position = UDim2.new(0, 0, 0, 0)
@@ -383,152 +329,83 @@ local function StartMainScript()
     Utils.addCorner(GUI.BtnDOWN, 30); Utils.addStroke(GUI.BtnDOWN, 0.2)
 
     local function bindHold(btn, stateKey)
-        btn.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then State[stateKey] = true end
-        end)
-        btn.InputEnded:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then State[stateKey] = false end
-        end)
-        btn.MouseLeave:Connect(function()
-            State[stateKey] = false
-        end)
+        ConnectionManager:AddUnnamed(btn.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then State[stateKey] = true end end))
+        ConnectionManager:AddUnnamed(btn.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then State[stateKey] = false end end))
+        ConnectionManager:AddUnnamed(btn.MouseLeave:Connect(function() State[stateKey] = false end))
     end
-    bindHold(GUI.BtnUP, "HoldingUp")
-    bindHold(GUI.BtnDOWN, "HoldingDown")
+    bindHold(GUI.BtnUP, "HoldingUp"); bindHold(GUI.BtnDOWN, "HoldingDown")
 
     function GUI.createBtn(parent, textKey, sizeX)
-        local container = Instance.new("Frame", parent)
-        container.Size = UDim2.new(0, sizeX, 0, 45) 
-        container.BackgroundTransparency = 1
-        
-        local btn = Instance.new("TextButton", container)
-        btn.Size = UDim2.new(1, 0, 1, 0)
-        btn.Text = TRANSLATIONS[textKey][CONFIG.CurrentLang]
-        btn.BackgroundColor3 = THEME.ButtonOff
-        btn.TextColor3 = THEME.Text
-        btn.Font = Enum.Font.GothamBold
-        btn.TextSize = 11
-        btn.AutoButtonColor = false
+        local container = Instance.new("Frame", parent); container.Size = UDim2.new(0, sizeX, 0, 45); container.BackgroundTransparency = 1
+        local btn = Instance.new("TextButton", container); btn.Size = UDim2.new(1, 0, 1, 0)
+        btn.Text = TRANSLATIONS[textKey][CONFIG.CurrentLang]; btn.BackgroundColor3 = THEME.ButtonOff; btn.TextColor3 = THEME.Text
+        btn.Font = Enum.Font.GothamBold; btn.TextSize = 11; btn.AutoButtonColor = false
         Utils.addCorner(btn, 10)
-        
         local grad = Utils.addGradient(btn)
         return {Button = btn, Gradient = grad, Key = textKey}
     end
 
-    GUI.Hint = Instance.new("TextLabel", GUI.Screen)
-    GUI.Hint.Size = UDim2.new(0, 200, 0, 30)
-    GUI.Hint.Position = UDim2.new(0.5, -100, 0, 5)
-    GUI.Hint.BackgroundTransparency = 1
-    GUI.Hint.TextColor3 = THEME.TextDim
-    GUI.Hint.Font = Enum.Font.GothamBold
-    GUI.Hint.TextSize = 14
-    GUI.Hint.TextTransparency = 0.5
-    GUI.Hint.Text = TRANSLATIONS.HINT.EN
+    GUI.Hint = Instance.new("TextLabel", GUI.Screen); GUI.Hint.Size = UDim2.new(0, 200, 0, 30); GUI.Hint.Position = UDim2.new(0.5, -100, 0, 5)
+    GUI.Hint.BackgroundTransparency = 1; GUI.Hint.TextColor3 = THEME.TextDim; GUI.Hint.Font = Enum.Font.GothamBold; GUI.Hint.TextSize = 14; GUI.Hint.TextTransparency = 0.5; GUI.Hint.Text = TRANSLATIONS.HINT.EN
 
-    GUI.MenuContainer = Instance.new("Frame", GUI.Screen)
-    GUI.MenuContainer.Size = UDim2.new(1, 0, 1, 0)
-    GUI.MenuContainer.BackgroundTransparency = 1
-    GUI.MenuContainer.Visible = false 
+    GUI.MenuContainer = Instance.new("Frame", GUI.Screen); GUI.MenuContainer.Size = UDim2.new(1, 0, 1, 0); GUI.MenuContainer.BackgroundTransparency = 1; GUI.MenuContainer.Visible = false 
 
-    GUI.StatusFrame = Instance.new("Frame", GUI.Screen)
-    GUI.StatusFrame.AutomaticSize = Enum.AutomaticSize.X
-    GUI.StatusFrame.Size = UDim2.new(0, 0, 0, 40)
-    GUI.StatusFrame.AnchorPoint = Vector2.new(1, 1)
-    GUI.StatusFrame.Position = UDim2.new(1, -20, 1, -50)
-    GUI.StatusFrame.BackgroundColor3 = THEME.Background
-    GUI.StatusFrame.BackgroundTransparency = 0.1
-    Utils.addCorner(GUI.StatusFrame, 10)
-    Utils.addStroke(GUI.StatusFrame, 0.3)
-    local statusPad = Instance.new("UIPadding", GUI.StatusFrame)
-    statusPad.PaddingLeft = UDim.new(0, 15); statusPad.PaddingRight = UDim.new(0, 15)
+    GUI.StatusFrame = Instance.new("Frame", GUI.Screen); GUI.StatusFrame.AutomaticSize = Enum.AutomaticSize.X; GUI.StatusFrame.Size = UDim2.new(0, 0, 0, 40)
+    GUI.StatusFrame.AnchorPoint = Vector2.new(1, 1); GUI.StatusFrame.Position = UDim2.new(1, -20, 1, -50); GUI.StatusFrame.BackgroundColor3 = THEME.Background; GUI.StatusFrame.BackgroundTransparency = 0.1
+    Utils.addCorner(GUI.StatusFrame, 10); Utils.addStroke(GUI.StatusFrame, 0.3)
+    local statusPad = Instance.new("UIPadding", GUI.StatusFrame); statusPad.PaddingLeft = UDim.new(0, 15); statusPad.PaddingRight = UDim.new(0, 15)
 
-    GUI.StatusLabel = Instance.new("TextLabel", GUI.StatusFrame)
-    GUI.StatusLabel.AutomaticSize = Enum.AutomaticSize.X
-    GUI.StatusLabel.Size = UDim2.new(0, 0, 1, 0)
-    GUI.StatusLabel.BackgroundTransparency = 1
-    GUI.StatusLabel.TextColor3 = THEME.Text
-    GUI.StatusLabel.Font = Enum.Font.GothamMedium
-    GUI.StatusLabel.TextSize = 14
-    GUI.StatusLabel.Text = TRANSLATIONS.STATUS_WAIT.EN
+    GUI.StatusLabel = Instance.new("TextLabel", GUI.StatusFrame); GUI.StatusLabel.AutomaticSize = Enum.AutomaticSize.X; GUI.StatusLabel.Size = UDim2.new(0, 0, 1, 0)
+    GUI.StatusLabel.BackgroundTransparency = 1; GUI.StatusLabel.TextColor3 = THEME.Text; GUI.StatusLabel.Font = Enum.Font.GothamMedium; GUI.StatusLabel.TextSize = 14; GUI.StatusLabel.Text = TRANSLATIONS.STATUS_WAIT.EN
 
     GUI.MainBar = Instance.new("ScrollingFrame", GUI.MenuContainer)
-    GUI.MainBar.Size = UDim2.new(0.95, 0, 0, 75)
-    GUI.MainBar.Position = UDim2.new(0.5, 0, 0.85, 0)
-    GUI.MainBar.AnchorPoint = Vector2.new(0.5, 0.5)
-    GUI.MainBar.BackgroundColor3 = THEME.Background
-    GUI.MainBar.BackgroundTransparency = 0.1
-    GUI.MainBar.CanvasSize = UDim2.new(0, 1000, 0, 0) 
-    GUI.MainBar.ScrollBarThickness = 3
-    GUI.MainBar.ScrollBarImageColor3 = THEME.ButtonOn_Start
-    Utils.addCorner(GUI.MainBar, 16)
-    Utils.addStroke(GUI.MainBar, 0.3)
+    GUI.MainBar.Size = UDim2.new(0.95, 0, 0, 75); GUI.MainBar.Position = UDim2.new(0.5, 0, 0.85, 0); GUI.MainBar.AnchorPoint = Vector2.new(0.5, 0.5)
+    GUI.MainBar.BackgroundColor3 = THEME.Background; GUI.MainBar.BackgroundTransparency = 0.1; GUI.MainBar.CanvasSize = UDim2.new(0, 1200, 0, 0) 
+    GUI.MainBar.ScrollBarThickness = 3; GUI.MainBar.ScrollBarImageColor3 = THEME.ButtonOn_Start
+    Utils.addCorner(GUI.MainBar, 16); Utils.addStroke(GUI.MainBar, 0.3)
     
-    local barLayout = Instance.new("UIListLayout", GUI.MainBar)
-    barLayout.FillDirection = Enum.FillDirection.Horizontal
-    barLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
-    barLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-    barLayout.Padding = UDim.new(0, 8)
-    
-    local barPad = Instance.new("UIPadding", GUI.MainBar)
-    barPad.PaddingLeft = UDim.new(0, 10)
+    local barLayout = Instance.new("UIListLayout", GUI.MainBar); barLayout.FillDirection = Enum.FillDirection.Horizontal; barLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left; barLayout.VerticalAlignment = Enum.VerticalAlignment.Center; barLayout.Padding = UDim.new(0, 8)
+    local barPad = Instance.new("UIPadding", GUI.MainBar); barPad.PaddingLeft = UDim.new(0, 10)
 
     GUI.Buttons = {}
-    GUI.Buttons.Fly = GUI.createBtn(GUI.MainBar, "FLY", 80)
-    GUI.Buttons.ESP = GUI.createBtn(GUI.MainBar, "ESP", 80)
-    GUI.Buttons.Sink = GUI.createBtn(GUI.MainBar, "SINK_BTN", 80)
-    GUI.Buttons.Rise = GUI.createBtn(GUI.MainBar, "RISE_BTN", 80)
-    GUI.Buttons.Invis = GUI.createBtn(GUI.MainBar, "INVIS", 90)
-    GUI.Buttons.Ghost = GUI.createBtn(GUI.MainBar, "GHOST", 90) 
-    GUI.Buttons.Noclip = GUI.createBtn(GUI.MainBar, "NOCLIP_BTN", 110)
+    GUI.Buttons.Fly = GUI.createBtn(GUI.MainBar, "FLY", 85)
+    GUI.Buttons.ESP = GUI.createBtn(GUI.MainBar, "ESP", 85)
+    GUI.Buttons.Sink = GUI.createBtn(GUI.MainBar, "SINK_BTN", 85)
+    GUI.Buttons.Rise = GUI.createBtn(GUI.MainBar, "RISE_BTN", 85)
+    GUI.Buttons.Invis = GUI.createBtn(GUI.MainBar, "INVIS", 95)
+    GUI.Buttons.Ghost = GUI.createBtn(GUI.MainBar, "GHOST", 95) 
+    GUI.Buttons.Noclip = GUI.createBtn(GUI.MainBar, "NOCLIP_BTN", 100)
     GUI.Buttons.TP = GUI.createBtn(GUI.MainBar, "TP", 100)
-    GUI.Buttons.Farm = GUI.createBtn(GUI.MainBar, "FARM", 100)
-    GUI.Buttons.Rejoin = GUI.createBtn(GUI.MainBar, "REJOIN", 80)
+    GUI.Buttons.WalkSpeed = GUI.createBtn(GUI.MainBar, "WS_BTN", 90)
+    
+    local wsContainer = Instance.new("Frame", GUI.MainBar); wsContainer.Size = UDim2.new(0, 50, 0, 45); wsContainer.BackgroundTransparency = 1; Utils.addCorner(wsContainer, 10)
+    local wsInput = Instance.new("TextBox", wsContainer); wsInput.Size = UDim2.new(1, 0, 1, 0); wsInput.Text = tostring(CONFIG.WalkSpeedValue); wsInput.BackgroundColor3 = THEME.ButtonOff; wsInput.TextColor3 = THEME.ButtonOn_Start; wsInput.Font = Enum.Font.GothamBold; wsInput.TextSize = 14; wsInput.PlaceholderText = "WS"
+    Utils.addCorner(wsInput, 10); Utils.addStroke(wsInput, 0.6)
 
-    local speedContainer = Instance.new("Frame", GUI.MainBar)
-    speedContainer.Size = UDim2.new(0, 60, 0, 45)
-    speedContainer.BackgroundTransparency = 1
-    Utils.addCorner(speedContainer, 10)
-    local speedInput = Instance.new("TextBox", speedContainer)
-    speedInput.Size = UDim2.new(1, 0, 1, 0)
-    speedInput.Text = tostring(CONFIG.Speed)
-    speedInput.BackgroundColor3 = THEME.ButtonOff
-    speedInput.TextColor3 = THEME.ButtonOn_Start
-    speedInput.Font = Enum.Font.GothamBold
-    speedInput.TextSize = 16
-    Utils.addCorner(speedInput, 10)
-    Utils.addStroke(speedInput, 0.6)
-    GUI.Buttons.Lang = GUI.createBtn(GUI.MainBar, "LANG_BTN", 80)
+    GUI.Buttons.Stop = GUI.createBtn(GUI.MainBar, "STOP_BTN", 100)
+    GUI.Buttons.Farm = GUI.createBtn(GUI.MainBar, "FARM", 110)
+    GUI.Buttons.Rejoin = GUI.createBtn(GUI.MainBar, "REJOIN", 90)
 
-    barLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    local speedContainer = Instance.new("Frame", GUI.MainBar); speedContainer.Size = UDim2.new(0, 50, 0, 45); speedContainer.BackgroundTransparency = 1; Utils.addCorner(speedContainer, 10)
+    local speedInput = Instance.new("TextBox", speedContainer); speedInput.Size = UDim2.new(1, 0, 1, 0); speedInput.Text = tostring(CONFIG.Speed); speedInput.BackgroundColor3 = THEME.ButtonOff; speedInput.TextColor3 = THEME.ButtonOn_Start; speedInput.Font = Enum.Font.GothamBold; speedInput.TextSize = 14; speedInput.PlaceholderText = "SPD"
+    Utils.addCorner(speedInput, 10); Utils.addStroke(speedInput, 0.6)
+    
+    GUI.Buttons.Lang = GUI.createBtn(GUI.MainBar, "LANG_BTN", 90)
+
+    ConnectionManager:AddUnnamed(barLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
         GUI.MainBar.CanvasSize = UDim2.new(0, barLayout.AbsoluteContentSize.X + 20, 0, 0)
-    end)
+    end))
 
-    GUI.SideFrame = Instance.new("Frame", GUI.MenuContainer)
-    GUI.SideFrame.Size = UDim2.new(0, 320, 0, 350) -- ปรับความกว้างให้รองรับปุ่มย่อยแบบใหม่
-    GUI.SideFrame.Position = UDim2.new(0.05, 0, 0.1, 0) 
-    GUI.SideFrame.BackgroundColor3 = THEME.Background
-    GUI.SideFrame.BackgroundTransparency = 0.1
-    Utils.addCorner(GUI.SideFrame, 12)
-    Utils.addStroke(GUI.SideFrame, 0.4)
-    Utils.makeDraggable(GUI.SideFrame)
+    GUI.SideFrame = Instance.new("Frame", GUI.MenuContainer); GUI.SideFrame.Size = UDim2.new(0, 320, 0, 350); GUI.SideFrame.Position = UDim2.new(0.05, 0, 0.1, 0) 
+    GUI.SideFrame.BackgroundColor3 = THEME.Background; GUI.SideFrame.BackgroundTransparency = 0.1; Utils.addCorner(GUI.SideFrame, 12); Utils.addStroke(GUI.SideFrame, 0.4); Utils.makeDraggable(GUI.SideFrame)
 
-    local TabContainer = Instance.new("Frame", GUI.SideFrame)
-    TabContainer.Size = UDim2.new(1, -20, 0, 40)
-    TabContainer.Position = UDim2.new(0, 10, 0, 10)
-    TabContainer.BackgroundTransparency = 1
-    local TabListLayout = Instance.new("UIListLayout", TabContainer)
-    TabListLayout.FillDirection = Enum.FillDirection.Horizontal; TabListLayout.Padding = UDim.new(0, 5)
+    local TabContainer = Instance.new("Frame", GUI.SideFrame); TabContainer.Size = UDim2.new(1, -20, 0, 40); TabContainer.Position = UDim2.new(0, 10, 0, 10); TabContainer.BackgroundTransparency = 1
+    local TabListLayout = Instance.new("UIListLayout", TabContainer); TabListLayout.FillDirection = Enum.FillDirection.Horizontal; TabListLayout.Padding = UDim.new(0, 5)
 
     local function createTabBtn(text, isActive, widthScale)
-        local btn = Instance.new("TextButton", TabContainer)
-        btn.Size = UDim2.new(widthScale, -3, 1, 0); btn.Text = text; btn.Font = Enum.Font.GothamBold; btn.TextSize = 12
-        btn.BackgroundColor3 = isActive and THEME.ButtonOn_End or THEME.ButtonOff
-        btn.TextColor3 = isActive and Color3.new(1,1,1) or THEME.TextDim
-        Utils.addCorner(btn, 8)
-        local line = Instance.new("Frame", btn)
-        line.Size = UDim2.new(0.6, 0, 0, 3); line.Position = UDim2.new(0.2, 0, 0.85, 0)
-        line.BackgroundColor3 = Color3.new(1,1,1); line.BorderSizePixel = 0; line.Visible = isActive
-        Utils.addCorner(line, 2)
+        local btn = Instance.new("TextButton", TabContainer); btn.Size = UDim2.new(widthScale, -3, 1, 0); btn.Text = text; btn.Font = Enum.Font.GothamBold; btn.TextSize = 12
+        btn.BackgroundColor3 = isActive and THEME.ButtonOn_End or THEME.ButtonOff; btn.TextColor3 = isActive and Color3.new(1,1,1) or THEME.TextDim; Utils.addCorner(btn, 8)
+        local line = Instance.new("Frame", btn); line.Size = UDim2.new(0.6, 0, 0, 3); line.Position = UDim2.new(0.2, 0, 0.85, 0); line.BackgroundColor3 = Color3.new(1,1,1); line.BorderSizePixel = 0; line.Visible = isActive; Utils.addCorner(line, 2)
         return btn, line
     end
 
@@ -536,56 +413,26 @@ local function StartMainScript()
     local TabBtn_Warps, TabLine_Warps = createTabBtn("⚡ Warps", false, 0.33)
     local TabBtn_Custom, TabLine_Custom = createTabBtn("📍 Custom", false, 0.33)
 
-    local ContentFrame = Instance.new("Frame", GUI.SideFrame)
-    ContentFrame.Size = UDim2.new(1, -10, 1, -110) 
-    ContentFrame.Position = UDim2.new(0, 5, 0, 60)
-    ContentFrame.BackgroundTransparency = 1
-    ContentFrame.ClipsDescendants = true
+    local ContentFrame = Instance.new("Frame", GUI.SideFrame); ContentFrame.Size = UDim2.new(1, -10, 1, -110); ContentFrame.Position = UDim2.new(0, 5, 0, 60); ContentFrame.BackgroundTransparency = 1; ContentFrame.ClipsDescendants = true
 
-    local scrollFrame = Instance.new("ScrollingFrame", ContentFrame)
-    scrollFrame.Name = "PlayerList"; scrollFrame.Size = UDim2.new(1, 0, 1, 0); scrollFrame.BackgroundTransparency = 1
-    scrollFrame.BorderSizePixel = 0; scrollFrame.ScrollBarThickness = 3; scrollFrame.ScrollBarImageColor3 = THEME.ButtonOn_Start
-    local listLayout = Instance.new("UIListLayout", scrollFrame)
-    listLayout.SortOrder = Enum.SortOrder.LayoutOrder; listLayout.Padding = UDim.new(0, 6)
+    local scrollFrame = Instance.new("ScrollingFrame", ContentFrame); scrollFrame.Name = "PlayerList"; scrollFrame.Size = UDim2.new(1, 0, 1, 0); scrollFrame.BackgroundTransparency = 1; scrollFrame.BorderSizePixel = 0; scrollFrame.ScrollBarThickness = 3; scrollFrame.ScrollBarImageColor3 = THEME.ButtonOn_Start
+    local listLayout = Instance.new("UIListLayout", scrollFrame); listLayout.SortOrder = Enum.SortOrder.LayoutOrder; listLayout.Padding = UDim.new(0, 6)
 
-    local warpScrollFrame = Instance.new("ScrollingFrame", ContentFrame)
-    warpScrollFrame.Name = "WarpList"; warpScrollFrame.Size = UDim2.new(1, 0, 1, 0); warpScrollFrame.Position = UDim2.new(1, 0, 0, 0) 
-    warpScrollFrame.Visible = false; warpScrollFrame.BackgroundTransparency = 1; warpScrollFrame.BorderSizePixel = 0
-    warpScrollFrame.ScrollBarThickness = 3; warpScrollFrame.ScrollBarImageColor3 = THEME.ButtonOn_Start
-    local warpLayout = Instance.new("UIListLayout", warpScrollFrame)
-    warpLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; warpLayout.SortOrder = Enum.SortOrder.LayoutOrder; warpLayout.Padding = UDim.new(0, 8)
+    local warpScrollFrame = Instance.new("ScrollingFrame", ContentFrame); warpScrollFrame.Name = "WarpList"; warpScrollFrame.Size = UDim2.new(1, 0, 1, 0); warpScrollFrame.Position = UDim2.new(1, 0, 0, 0); warpScrollFrame.Visible = false; warpScrollFrame.BackgroundTransparency = 1; warpScrollFrame.BorderSizePixel = 0; warpScrollFrame.ScrollBarThickness = 3; warpScrollFrame.ScrollBarImageColor3 = THEME.ButtonOn_Start
+    local warpLayout = Instance.new("UIListLayout", warpScrollFrame); warpLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; warpLayout.SortOrder = Enum.SortOrder.LayoutOrder; warpLayout.Padding = UDim.new(0, 8)
 
-    local customContainer = Instance.new("Frame", ContentFrame)
-    customContainer.Name = "CustomContainer"; customContainer.Size = UDim2.new(1, 0, 1, 0); customContainer.Position = UDim2.new(1, 0, 0, 0)
-    customContainer.Visible = false; customContainer.BackgroundTransparency = 1
+    local customContainer = Instance.new("Frame", ContentFrame); customContainer.Name = "CustomContainer"; customContainer.Size = UDim2.new(1, 0, 1, 0); customContainer.Position = UDim2.new(1, 0, 0, 0); customContainer.Visible = false; customContainer.BackgroundTransparency = 1
 
-    local inputArea = Instance.new("Frame", customContainer)
-    inputArea.Size = UDim2.new(1, 0, 0, 35); inputArea.BackgroundTransparency = 1
-    local nameInput = Instance.new("TextBox", inputArea)
-    nameInput.Size = UDim2.new(0.7, -5, 1, 0); nameInput.Position = UDim2.new(0, 5, 0, 0)
-    nameInput.PlaceholderText = "Warp Name..."; nameInput.Text = ""; nameInput.BackgroundColor3 = THEME.ButtonOff
-    nameInput.TextColor3 = THEME.Text; nameInput.Font = Enum.Font.GothamBold; nameInput.TextSize = 14
-    Utils.addCorner(nameInput, 8); Utils.addStroke(nameInput, 0.5)
+    local inputArea = Instance.new("Frame", customContainer); inputArea.Size = UDim2.new(1, 0, 0, 35); inputArea.BackgroundTransparency = 1
+    local nameInput = Instance.new("TextBox", inputArea); nameInput.Size = UDim2.new(0.7, -5, 1, 0); nameInput.Position = UDim2.new(0, 5, 0, 0); nameInput.PlaceholderText = "Warp Name..."; nameInput.Text = ""; nameInput.BackgroundColor3 = THEME.ButtonOff; nameInput.TextColor3 = THEME.Text; nameInput.Font = Enum.Font.GothamBold; nameInput.TextSize = 14; Utils.addCorner(nameInput, 8); Utils.addStroke(nameInput, 0.5)
 
-    local saveBtn = Instance.new("TextButton", inputArea)
-    saveBtn.Size = UDim2.new(0.3, -10, 1, 0); saveBtn.Position = UDim2.new(0.7, 5, 0, 0)
-    saveBtn.Text = "SAVE"; saveBtn.BackgroundColor3 = THEME.ButtonOn_Start; saveBtn.TextColor3 = Color3.new(1,1,1)
-    saveBtn.Font = Enum.Font.GothamBold; saveBtn.TextSize = 12; Utils.addCorner(saveBtn, 8)
+    local saveBtn = Instance.new("TextButton", inputArea); saveBtn.Size = UDim2.new(0.3, -10, 1, 0); saveBtn.Position = UDim2.new(0.7, 5, 0, 0); saveBtn.Text = "SAVE"; saveBtn.BackgroundColor3 = THEME.ButtonOn_Start; saveBtn.TextColor3 = Color3.new(1,1,1); saveBtn.Font = Enum.Font.GothamBold; saveBtn.TextSize = 12; Utils.addCorner(saveBtn, 8)
 
-    local customScroll = Instance.new("ScrollingFrame", customContainer)
-    customScroll.Size = UDim2.new(1, 0, 1, -45); customScroll.Position = UDim2.new(0, 0, 0, 45)
-    customScroll.BackgroundTransparency = 1; customScroll.BorderSizePixel = 0; customScroll.ScrollBarThickness = 3
-    customScroll.ScrollBarImageColor3 = THEME.ButtonOn_Start
-    local customLayout = Instance.new("UIListLayout", customScroll)
-    customLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; customLayout.SortOrder = Enum.SortOrder.LayoutOrder; customLayout.Padding = UDim.new(0, 8)
+    local customScroll = Instance.new("ScrollingFrame", customContainer); customScroll.Size = UDim2.new(1, 0, 1, -45); customScroll.Position = UDim2.new(0, 0, 0, 45); customScroll.BackgroundTransparency = 1; customScroll.BorderSizePixel = 0; customScroll.ScrollBarThickness = 3; customScroll.ScrollBarImageColor3 = THEME.ButtonOn_Start
+    local customLayout = Instance.new("UIListLayout", customScroll); customLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; customLayout.SortOrder = Enum.SortOrder.LayoutOrder; customLayout.Padding = UDim.new(0, 8)
 
-    local resetContainer = Instance.new("Frame", GUI.SideFrame)
-    resetContainer.Size = UDim2.new(1, -20, 0, 40); resetContainer.Position = UDim2.new(0, 10, 1, -50); resetContainer.BackgroundTransparency = 1
-
-    local resetBtn = Instance.new("TextButton", resetContainer)
-    resetBtn.Size = UDim2.new(1, 0, 1, 0); resetBtn.Text = TRANSLATIONS.RESET[CONFIG.CurrentLang]
-    resetBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50); resetBtn.TextColor3 = Color3.new(1, 1, 1)
-    resetBtn.Font = Enum.Font.GothamBold; resetBtn.TextSize = 14; resetBtn.AutoButtonColor = false
+    local resetContainer = Instance.new("Frame", GUI.SideFrame); resetContainer.Size = UDim2.new(1, -20, 0, 40); resetContainer.Position = UDim2.new(0, 10, 1, -50); resetContainer.BackgroundTransparency = 1
+    local resetBtn = Instance.new("TextButton", resetContainer); resetBtn.Size = UDim2.new(1, 0, 1, 0); resetBtn.Text = TRANSLATIONS.RESET[CONFIG.CurrentLang]; resetBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50); resetBtn.TextColor3 = Color3.new(1, 1, 1); resetBtn.Font = Enum.Font.GothamBold; resetBtn.TextSize = 14; resetBtn.AutoButtonColor = false
     Utils.addCorner(resetBtn, 8); Utils.addStroke(resetBtn, 0.5)
     GUI.Buttons.Reset = {Button = resetBtn, Key = "RESET", Gradient = Utils.addGradient(resetBtn)}
 
@@ -606,23 +453,31 @@ local function StartMainScript()
     TabBtn_Warps.MouseButton1Click:Connect(function() UpdateTabVisuals("Warps") end)
     TabBtn_Custom.MouseButton1Click:Connect(function() UpdateTabVisuals("Custom") end)
 
+    local editingIndex = nil
     local function refreshCustomList()
         for _, v in pairs(customScroll:GetChildren()) do if v:IsA("Frame") then v:Destroy() end end
         for i, warp in ipairs(CustomWaypoints) do
             local btnContainer = Instance.new("Frame", customScroll); btnContainer.Size = UDim2.new(0.95, 0, 0, 40); btnContainer.BackgroundTransparency = 1
-            local btn = Instance.new("TextButton", btnContainer); btn.Size = UDim2.new(0.8, -5, 1, 0); btn.Text = warp.Name
-            btn.BackgroundColor3 = THEME.ButtonOff; btn.TextColor3 = THEME.Text; btn.Font = Enum.Font.GothamBold; btn.TextSize = 14; btn.AutoButtonColor = false
+            local btn = Instance.new("TextButton", btnContainer); btn.Size = UDim2.new(0.55, -5, 1, 0); btn.Text = warp.Name
+            btn.BackgroundColor3 = THEME.ButtonOff; btn.TextColor3 = THEME.Text; btn.Font = Enum.Font.GothamBold; btn.TextSize = 13; btn.AutoButtonColor = false; btn.TextTruncate = Enum.TextTruncate.AtEnd
             Utils.addCorner(btn, 10); Utils.addStroke(btn, 0.5)
             
             btn.MouseButton1Click:Connect(function()
-                local _, hrp, _ = Utils.getChar()
-                if hrp then hrp.CFrame = warp.CFrame; GUI.setStatus("Warped: " .. warp.Name) end
+                local _, hrp, _ = Utils.getChar(); if hrp then hrp.CFrame = warp.CFrame; GUI.setStatus("Warped: " .. warp.Name) end
             end)
+
+            local renameBtn = Instance.new("TextButton", btnContainer); renameBtn.Size = UDim2.new(0.15, -2, 1, 0); renameBtn.Position = UDim2.new(0.55, 0, 0, 0); renameBtn.Text = "📝"; renameBtn.BackgroundColor3 = Color3.fromRGB(50, 100, 200); renameBtn.TextColor3 = Color3.new(1,1,1); renameBtn.Font = Enum.Font.GothamBold; Utils.addCorner(renameBtn, 8)
+            renameBtn.MouseButton1Click:Connect(function() nameInput.Text = warp.Name; saveBtn.Text = "RENAME"; saveBtn.BackgroundColor3 = Color3.fromRGB(50, 100, 200); editingIndex = i end)
+
+            local updateBtn = Instance.new("TextButton", btnContainer); updateBtn.Size = UDim2.new(0.15, -2, 1, 0); updateBtn.Position = UDim2.new(0.70, 0, 0, 0); updateBtn.Text = "📍"; updateBtn.BackgroundColor3 = Color3.fromRGB(50, 200, 100); updateBtn.TextColor3 = Color3.new(1,1,1); updateBtn.Font = Enum.Font.GothamBold; Utils.addCorner(updateBtn, 8)
+            updateBtn.MouseButton1Click:Connect(function() local _, hrp, _ = Utils.getChar(); if hrp then CustomWaypoints[i].CFrame = hrp.CFrame; SaveConfig(); GUI.setStatus("Updated Pos: " .. warp.Name) end end)
             
-            local delBtn = Instance.new("TextButton", btnContainer); delBtn.Size = UDim2.new(0.2, 0, 1, 0); delBtn.Position = UDim2.new(0.8, 5, 0, 0)
-            delBtn.Text = "X"; delBtn.BackgroundColor3 = THEME.Delete; delBtn.TextColor3 = Color3.new(1,1,1); delBtn.Font = Enum.Font.GothamBold; delBtn.TextSize = 14
-            Utils.addCorner(delBtn, 10)
-            delBtn.MouseButton1Click:Connect(function() table.remove(CustomWaypoints, i); refreshCustomList() end)
+            local delBtn = Instance.new("TextButton", btnContainer); delBtn.Size = UDim2.new(0.15, 0, 1, 0); delBtn.Position = UDim2.new(0.85, 0, 0, 0); delBtn.Text = "X"; delBtn.BackgroundColor3 = THEME.Delete; delBtn.TextColor3 = Color3.new(1,1,1); delBtn.Font = Enum.Font.GothamBold; delBtn.TextSize = 14; Utils.addCorner(delBtn, 8)
+            delBtn.MouseButton1Click:Connect(function() 
+                table.remove(CustomWaypoints, i)
+                if editingIndex == i then editingIndex = nil; nameInput.Text = ""; saveBtn.Text = "SAVE"; saveBtn.BackgroundColor3 = THEME.ButtonOn_Start end
+                refreshCustomList(); SaveConfig() 
+            end)
         end
         customScroll.CanvasSize = UDim2.new(0, 0, 0, customLayout.AbsoluteContentSize.Y + 10)
     end
@@ -631,24 +486,18 @@ local function StartMainScript()
         local _, hrp, _ = Utils.getChar()
         if hrp then
             local name = nameInput.Text; if name == "" then name = "Point #" .. (#CustomWaypoints + 1) end
-            table.insert(CustomWaypoints, {Name = name, CFrame = hrp.CFrame}); nameInput.Text = ""; refreshCustomList(); GUI.setStatus("Saved: " .. name)
-        else
-            GUI.setStatus("Error: Character not found")
-        end
+            if editingIndex then CustomWaypoints[editingIndex].Name = name; GUI.setStatus("Renamed: " .. name); editingIndex = nil; saveBtn.Text = "SAVE"; saveBtn.BackgroundColor3 = THEME.ButtonOn_Start
+            else table.insert(CustomWaypoints, {Name = name, CFrame = hrp.CFrame}); GUI.setStatus("Saved: " .. name) end
+            nameInput.Text = ""; refreshCustomList(); SaveConfig()
+        else GUI.setStatus("Error: Character not found") end
     end)
 
     GUI.WarpButtons = {} 
     local function createWarpBtn(nameData, cframe)
         local btnContainer = Instance.new("Frame", warpScrollFrame); btnContainer.Size = UDim2.new(0.95, 0, 0, 40); btnContainer.BackgroundTransparency = 1
-        local btn = Instance.new("TextButton", btnContainer); btn.Size = UDim2.new(1, 0, 1, 0); btn.Text = nameData[CONFIG.CurrentLang]
-        btn.BackgroundColor3 = THEME.ButtonOff; btn.TextColor3 = THEME.Text; btn.Font = Enum.Font.GothamBold; btn.TextSize = 14; btn.AutoButtonColor = false
-        Utils.addCorner(btn, 10); Utils.addStroke(btn, 0.5)
+        local btn = Instance.new("TextButton", btnContainer); btn.Size = UDim2.new(1, 0, 1, 0); btn.Text = nameData[CONFIG.CurrentLang]; btn.BackgroundColor3 = THEME.ButtonOff; btn.TextColor3 = THEME.Text; btn.Font = Enum.Font.GothamBold; btn.TextSize = 14; btn.AutoButtonColor = false; Utils.addCorner(btn, 10); Utils.addStroke(btn, 0.5)
         local dec = Instance.new("Frame", btn); dec.Size = UDim2.new(0, 4, 0.6, 0); dec.Position = UDim2.new(0, 6, 0.2, 0); dec.BackgroundColor3 = THEME.ButtonOn_Start; dec.BorderSizePixel = 0; Utils.addCorner(dec, 2)
-        
-        btn.MouseButton1Click:Connect(function()
-            local _, hrp, _ = Utils.getChar()
-            if hrp then hrp.CFrame = cframe; GUI.setStatus("Warped: " .. nameData[CONFIG.CurrentLang]) end
-        end)
+        btn.MouseButton1Click:Connect(function() local _, hrp, _ = Utils.getChar(); if hrp then hrp.CFrame = cframe; GUI.setStatus("Warped: " .. nameData[CONFIG.CurrentLang]) end end)
         table.insert(GUI.WarpButtons, {Button = btn, NameData = nameData})
     end
     if CONFIG.SpecialWarps then for _, warp in ipairs(CONFIG.SpecialWarps) do createWarpBtn(warp.Name, warp.Pos) end end
@@ -669,12 +518,10 @@ local function StartMainScript()
         GUI.StatusLabel.Text = text
         TweenService:Create(GUI.StatusFrame, TweenInfo.new(0.2), {BackgroundTransparency = 0.1}):Play()
         TweenService:Create(GUI.StatusLabel, TweenInfo.new(0.2), {TextTransparency = 0}):Play()
-        local stroke = GUI.StatusFrame:FindFirstChildWhichIsA("UIStroke")
-        if stroke then TweenService:Create(stroke, TweenInfo.new(0.2), {Transparency = 0.3}):Play() end
+        local stroke = GUI.StatusFrame:FindFirstChildWhichIsA("UIStroke"); if stroke then TweenService:Create(stroke, TweenInfo.new(0.2), {Transparency = 0.3}):Play() end
         if statusHideThread then task.cancel(statusHideThread) end
         statusHideThread = task.spawn(function()
-            task.wait(3)
-            TweenService:Create(GUI.StatusFrame, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play()
+            task.wait(3); TweenService:Create(GUI.StatusFrame, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play()
             TweenService:Create(GUI.StatusLabel, TweenInfo.new(0.5), {TextTransparency = 1}):Play()
             if stroke then TweenService:Create(stroke, TweenInfo.new(0.5), {Transparency = 1}):Play() end
         end)
@@ -690,7 +537,7 @@ local function StartMainScript()
         end
     end
 
-    local updateList -- Pre-declare
+    local updateList 
 
     function GUI.updateTexts()
         local lang = CONFIG.CurrentLang; local dynamicTextSize = (lang == "TH") and 13 or 10
@@ -706,8 +553,7 @@ local function StartMainScript()
 
     function Features.setupInstantPrompts()
         for _, obj in pairs(workspace:GetDescendants()) do if obj:IsA("ProximityPrompt") then obj.HoldDuration = 0 end end
-        local conn = workspace.DescendantAdded:Connect(function(d) if d:IsA("ProximityPrompt") then d.HoldDuration = 0 end end)
-        table.insert(_G.ProScript_Connections, conn)
+        ConnectionManager:Add("PromptsAdded", workspace.DescendantAdded:Connect(function(d) if d:IsA("ProximityPrompt") then d.HoldDuration = 0 end end))
     end
     Features.setupInstantPrompts()
 
@@ -718,10 +564,8 @@ local function StartMainScript()
     end
 
     function Features.toggleInvis()
-        local char, hrp, _ = Utils.getChar()
-        if not char then return end
-        State.Invisible = not State.Invisible
-        GUI.toggleVisual(GUI.Buttons.Invis, State.Invisible)
+        local char, hrp, _ = Utils.getChar(); if not char then return end
+        State.Invisible = not State.Invisible; GUI.toggleVisual(GUI.Buttons.Invis, State.Invisible)
         if State.Invisible then
             local savedCF = hrp.CFrame; char:MoveTo(CONFIG.InvisPos); task.wait(0.15)
             local seat = Instance.new("Seat"); seat.Name = "Invis_Seat_Fixed"; seat.Anchored = false; seat.CanCollide = false; seat.Transparency = 1; seat.Position = CONFIG.InvisPos; seat.Parent = workspace
@@ -738,18 +582,14 @@ local function StartMainScript()
 
     function Features.toggleGhost()
         if not State.GhostMode then
-            local char = LocalPlayer.Character
-            if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+            local char = LocalPlayer.Character; if not char or not char:FindFirstChild("HumanoidRootPart") then return end
             State.GhostMode = true; State.RealCharacter = char; char.HumanoidRootPart.Anchored = true 
             char.Archivable = true; local ghost = char:Clone(); ghost.Name = LocalPlayer.Name .. " (Ghost)"
             for _, v in pairs(ghost:GetDescendants()) do if v:IsA("LocalScript") or v:IsA("Script") then v:Destroy() end end
-            for _, v in pairs(ghost:GetDescendants()) do
-                if v:IsA("BasePart") or v:IsA("Decal") then v.Transparency = 0.6; if v:IsA("BasePart") then v.CanCollide = false; v.Anchored = true end end
-            end
+            for _, v in pairs(ghost:GetDescendants()) do if v:IsA("BasePart") or v:IsA("Decal") then v.Transparency = 0.6; if v:IsA("BasePart") then v.CanCollide = false; v.Anchored = true end end end
             ghost.Parent = workspace; State.GhostClone = ghost; Camera.CameraSubject = ghost:FindFirstChild("Humanoid")
             for _, v in pairs(char:GetDescendants()) do if (v:IsA("BasePart") or v:IsA("Decal")) and v.Name ~= "HumanoidRootPart" then v.LocalTransparencyModifier = 1 end end
-            GUI.toggleVisual(GUI.Buttons.Ghost, true)
-            GUI.VerticalControls.Visible = true 
+            GUI.toggleVisual(GUI.Buttons.Ghost, true); GUI.VerticalControls.Visible = true 
             GUI.setStatus(TRANSLATIONS.GHOST_STATUS[CONFIG.CurrentLang])
         else
             if State.RealCharacter then
@@ -762,31 +602,24 @@ local function StartMainScript()
             if State.GhostClone then State.GhostClone:Destroy() end
             State.GhostClone = nil; State.GhostMode = false
             if State.Flying then Features.toggleFly() end
-            Utils.restorePhysics(); GUI.toggleVisual(GUI.Buttons.Ghost, false)
-            GUI.VerticalControls.Visible = false 
+            Utils.restorePhysics(); GUI.toggleVisual(GUI.Buttons.Ghost, false); GUI.VerticalControls.Visible = false 
             GUI.setStatus(TRANSLATIONS.STATUS_READY[CONFIG.CurrentLang])
         end
     end
 
     function Features.toggleNoclip()
-        State.Noclip = not State.Noclip
-        GUI.toggleVisual(GUI.Buttons.Noclip, State.Noclip)
-        if State.Noclip then
-            GUI.setStatus(TRANSLATIONS.NOCLIP_ON[CONFIG.CurrentLang])
-        else
-            Utils.restorePhysics()
-            GUI.setStatus(TRANSLATIONS.NOCLIP_OFF[CONFIG.CurrentLang])
-        end
+        State.Noclip = not State.Noclip; GUI.toggleVisual(GUI.Buttons.Noclip, State.Noclip)
+        if State.Noclip then GUI.setStatus(TRANSLATIONS.NOCLIP_ON[CONFIG.CurrentLang])
+        else Utils.restorePhysics(); GUI.setStatus(TRANSLATIONS.NOCLIP_OFF[CONFIG.CurrentLang]) end
+        SaveConfig()
     end
 
     function Features.setVertical(mode)
         if State.VerticalMode == mode then Features.stopVertical(); return end
         Features.stopVertical(); State.VerticalMode = mode
-        local char, hrp, hum = Utils.getChar()
-        if not char then return end
+        local char, hrp, hum = Utils.getChar(); if not char then return end
         if mode == "Sink" then GUI.toggleVisual(GUI.Buttons.Sink, true); GUI.setStatus(TRANSLATIONS.SINK_STATUS[CONFIG.CurrentLang])
         else GUI.toggleVisual(GUI.Buttons.Rise, true); GUI.setStatus(TRANSLATIONS.RISE_STATUS[CONFIG.CurrentLang]) end
-
         hum.PlatformStand = true; Utils.noclip()
         local att = Instance.new("Attachment", hrp); att.Name = "ActionAtt"
         local lv = Instance.new("LinearVelocity", hrp); lv.Name = "SinkLift"; lv.Attachment0 = att; lv.MaxForce = math.huge; lv.VectorVelocity = Vector3.new(0, (mode == "Sink" and -6 or 6), 0)
@@ -799,8 +632,7 @@ local function StartMainScript()
     end
 
     function Features.smartMove(targetCFrame)
-        local char, hrp, hum = Utils.getChar()
-        if not char then return end
+        local char, hrp, hum = Utils.getChar(); if not char then return end
         if not hrp:FindFirstChild("FarmGyro") then
             local att = hrp:FindFirstChild("ActionAtt") or Instance.new("Attachment", hrp); att.Name = "ActionAtt"
             local ao = Instance.new("AlignOrientation", hrp); ao.Name = "FarmGyro"; ao.Attachment0 = att; ao.Mode = Enum.OrientationAlignmentMode.OneAttachment; ao.MaxTorque = math.huge; ao.CFrame = hrp.CFrame
@@ -813,8 +645,7 @@ local function StartMainScript()
     end
 
     function Features.interactUntil(conditionFunc, maxTime)
-        local elapsed = 0
-        local overlap = OverlapParams.new(); overlap.FilterType = Enum.RaycastFilterType.Exclude
+        local elapsed = 0; local overlap = OverlapParams.new(); overlap.FilterType = Enum.RaycastFilterType.Exclude
         while elapsed < maxTime and State.AutoFarm do
             if conditionFunc() then return true end
             local currentChar, currentHrp, _ = Utils.getChar()
@@ -825,8 +656,7 @@ local function StartMainScript()
                     local part = parts[i]
                     local prompt = part:FindFirstChildWhichIsA("ProximityPrompt") or (part.Parent and part.Parent:FindFirstChildWhichIsA("ProximityPrompt"))
                     if prompt and prompt.Enabled then
-                        if fireproximityprompt then
-                            fireproximityprompt(prompt)
+                        if fireproximityprompt then fireproximityprompt(prompt)
                         else
                             prompt:InputHoldBegin()
                             task.spawn(function()
@@ -843,15 +673,12 @@ local function StartMainScript()
     end
 
     function Features.toggleFarm()
-        State.AutoFarm = not State.AutoFarm
-        GUI.toggleVisual(GUI.Buttons.Farm, State.AutoFarm)
+        State.AutoFarm = not State.AutoFarm; GUI.toggleVisual(GUI.Buttons.Farm, State.AutoFarm)
         for _, th in pairs(State.FarmThreads) do if th then task.cancel(th) end end
         State.FarmThreads = {}
-
         if State.AutoFarm then
             State.OldSpeed = CONFIG.Speed; CONFIG.Speed = 4; if speedInput then speedInput.Text = tostring(CONFIG.Speed) end
             State.FarmInfo.StartTime = os.time(); State.FarmInfo.Count = 0; State.FarmInfo.CurrentState = "Starting..."
-            
             local statusTh = task.spawn(function() 
                 while State.AutoFarm do 
                     local elapsed = os.time() - State.FarmInfo.StartTime; 
@@ -859,7 +686,6 @@ local function StartMainScript()
                     GUI.setStatus(info); task.wait(1) 
                 end 
             end)
-            
             local logicTh = task.spawn(function()
                 pcall(function() local char, hrp, _ = Utils.getChar(); if char and hrp then hrp.CFrame = CONFIG.Locations.Job; task.wait(0.5) end end)
                 while State.AutoFarm do
@@ -881,24 +707,22 @@ local function StartMainScript()
                 end
                 if State.FarmInfo.Tween then State.FarmInfo.Tween:Cancel() end; Utils.restorePhysics(); GUI.setStatus(TRANSLATIONS.ABORT[CONFIG.CurrentLang])
             end)
-            
             table.insert(State.FarmThreads, statusTh); table.insert(State.FarmThreads, logicTh)
         else
             if State.OldSpeed then CONFIG.Speed = State.OldSpeed; if speedInput then speedInput.Text = tostring(CONFIG.Speed) end end
             if State.FarmInfo.Tween then State.FarmInfo.Tween:Cancel() end; Utils.restorePhysics(); GUI.setStatus(TRANSLATIONS.ABORT[CONFIG.CurrentLang])
         end
+        SaveConfig()
     end
 
     function Features.updateESP()
         for _, p in pairs(Players:GetPlayers()) do
             if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
                 local char = p.Character
-                
                 local markType = State.PlayerMarks[p.UserId] or 0
                 local currentESPColor = THEME.ESP_Color
                 if markType == 1 then currentESPColor = THEME.ESP_Friend
                 elseif markType == 2 then currentESPColor = THEME.ESP_Target end
-                
                 local forceESP = (markType > 0)
                 
                 if State.ESP or forceESP then
@@ -908,9 +732,7 @@ local function StartMainScript()
                         local tl = Instance.new("TextLabel", bg); tl.BackgroundTransparency = 1; tl.Size = UDim2.new(1, 0, 1, 0); tl.Text = p.DisplayName; tl.TextColor3 = currentESPColor; tl.Font = Enum.Font.GothamBold; tl.TextSize = 14; tl.TextStrokeTransparency = 0.5
                     else
                         char.Elite_Highlight.OutlineColor = currentESPColor
-                        if char:FindFirstChild("Elite_Tag") then
-                            char.Elite_Tag:FindFirstChildWhichIsA("TextLabel").TextColor3 = currentESPColor
-                        end
+                        if char:FindFirstChild("Elite_Tag") then char.Elite_Tag:FindFirstChildWhichIsA("TextLabel").TextColor3 = currentESPColor end
                     end
                 else
                     if char:FindFirstChild("Elite_Highlight") then char.Elite_Highlight:Destroy() end
@@ -921,21 +743,29 @@ local function StartMainScript()
     end
 
     function Features.toggleESP()
-        State.ESP = not State.ESP; GUI.toggleVisual(GUI.Buttons.ESP, State.ESP); Features.updateESP()
+        State.ESP = not State.ESP; GUI.toggleVisual(GUI.Buttons.ESP, State.ESP); Features.updateESP(); SaveConfig()
     end
 
     function Features.toggleFly()
         State.Flying = not State.Flying; GUI.toggleVisual(GUI.Buttons.Fly, State.Flying)
         if State.Flying then 
-            GUI.VerticalControls.Visible = true 
-            GUI.setStatus(TRANSLATIONS.FLY_ON[CONFIG.CurrentLang]) 
+            GUI.VerticalControls.Visible = true; GUI.setStatus(TRANSLATIONS.FLY_ON[CONFIG.CurrentLang]) 
         else 
-            GUI.VerticalControls.Visible = false 
-            Utils.restorePhysics(); GUI.setStatus(TRANSLATIONS.STATUS_READY[CONFIG.CurrentLang]) 
+            GUI.VerticalControls.Visible = false; Utils.restorePhysics(); GUI.setStatus(TRANSLATIONS.STATUS_READY[CONFIG.CurrentLang]) 
         end
     end
+    
+    function Features.toggleWalkSpeed()
+        State.WalkSpeed = not State.WalkSpeed; GUI.toggleVisual(GUI.Buttons.WalkSpeed, State.WalkSpeed)
+        GUI.setStatus(State.WalkSpeed and TRANSLATIONS.WS_ON[CONFIG.CurrentLang] or TRANSLATIONS.WS_OFF[CONFIG.CurrentLang]); SaveConfig()
+    end
 
-    UserInputService.TouchTapInWorld:Connect(function(position, processedByUI)
+    function Features.toggleInstaStop()
+        State.InstaStop = not State.InstaStop; GUI.toggleVisual(GUI.Buttons.Stop, State.InstaStop)
+        GUI.setStatus(State.InstaStop and TRANSLATIONS.STOP_ON[CONFIG.CurrentLang] or TRANSLATIONS.STOP_OFF[CONFIG.CurrentLang]); SaveConfig()
+    end
+
+    ConnectionManager:Add("TouchTap", UserInputService.TouchTapInWorld:Connect(function(position, processedByUI)
         if processedByUI or not State.ClickTP then return end
         local char, hrp, _ = Utils.getChar()
         if char and hrp then
@@ -950,19 +780,6 @@ local function StartMainScript()
                 GUI.setStatus(TRANSLATIONS.WARPED[CONFIG.CurrentLang])
             end
         end
-    end)
-    
-    table.insert(_G.ProScript_Connections, Mouse.Button1Down:Connect(function()
-        if State.ClickTP and (UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) or UserInputService.TouchEnabled == false) then
-            local char, hrp, _ = Utils.getChar()
-            if Mouse.Target and char then
-                local currentRotation = hrp.CFrame - hrp.CFrame.Position
-                hrp.AssemblyLinearVelocity = Vector3.zero; hrp.AssemblyAngularVelocity = Vector3.zero
-                local targetPos = Mouse.Hit.p + Vector3.new(0, 3.5, 0)
-                hrp.CFrame = CFrame.new(targetPos) * currentRotation
-                GUI.setStatus(TRANSLATIONS.WARPED[CONFIG.CurrentLang])
-            end
-        end
     end))
 
     ---------------------------------------------------------------------------------
@@ -971,21 +788,25 @@ local function StartMainScript()
     local controlModule = nil
     pcall(function() controlModule = require(LocalPlayer.PlayerScripts:WaitForChild("PlayerModule")):GetControls() end)
 
-    local runConn = RunService.Stepped:Connect(function()
+    ConnectionManager:Add("RunLoop", RunService.Stepped:Connect(function()
+        local char, hrp, hum = Utils.getChar()
+        
+        if State.WalkSpeed then if hum then hum.WalkSpeed = CONFIG.WalkSpeedValue end
+        else if hum and hum.WalkSpeed == CONFIG.WalkSpeedValue then hum.WalkSpeed = 16 end end
+
+        if State.InstaStop and hum and not State.Flying then
+            if hum.MoveDirection.Magnitude == 0 and hrp then hrp.AssemblyLinearVelocity = Vector3.new(0, hrp.AssemblyLinearVelocity.Y, 0) end
+        end
+
         local moveVector = Vector3.zero
         if controlModule then
             local rawMove = controlModule:GetMoveVector()
             moveVector = (Camera.CFrame.RightVector * rawMove.X) + (Camera.CFrame.LookVector * -rawMove.Z)
-        else
-            if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveVector = moveVector + Camera.CFrame.LookVector end
-            if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveVector = moveVector - Camera.CFrame.LookVector end
-            if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveVector = moveVector - Camera.CFrame.RightVector end
-            if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveVector = moveVector + Camera.CFrame.RightVector end
         end
 
         local upDownVec = Vector3.zero
-        if State.HoldingUp or UserInputService:IsKeyDown(Enum.KeyCode.Space) then upDownVec = upDownVec + Vector3.new(0, 1, 0) end
-        if State.HoldingDown or UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then upDownVec = upDownVec - Vector3.new(0, 1, 0) end
+        if State.HoldingUp then upDownVec = upDownVec + Vector3.new(0, 1, 0) end
+        if State.HoldingDown then upDownVec = upDownVec - Vector3.new(0, 1, 0) end
         moveVector = moveVector + upDownVec
 
         if State.GhostMode and State.GhostClone then
@@ -999,7 +820,6 @@ local function StartMainScript()
             end
         end
 
-        local char, hrp, hum = Utils.getChar()
         if not char then return end
 
         if State.Flying or State.Invisible or State.VerticalMode ~= "None" or State.AutoFarm or State.Noclip then Utils.noclip() end
@@ -1007,35 +827,14 @@ local function StartMainScript()
         if State.Flying and not State.GhostMode then
             local lv = hrp:FindFirstChild("Elite_Movement")
             if not lv then 
-                local att = hrp:FindFirstChild("ActionAtt") or Instance.new("Attachment", hrp)
-                att.Name = "ActionAtt"
-                lv = Instance.new("LinearVelocity", hrp)
-                lv.Name = "Elite_Movement"; lv.Attachment0 = att; lv.MaxForce = math.huge
+                local att = hrp:FindFirstChild("ActionAtt") or Instance.new("Attachment", hrp); att.Name = "ActionAtt"
+                lv = Instance.new("LinearVelocity", hrp); lv.Name = "Elite_Movement"; lv.Attachment0 = att; lv.MaxForce = math.huge
             end
-            
             lv.VectorVelocity = moveVector.Magnitude > 0 and (moveVector.Unit * (CONFIG.Speed * 50)) or Vector3.zero
             hrp.AssemblyLinearVelocity = Vector3.zero
             hum:ChangeState(Enum.HumanoidStateType.Physics)
         end
-    end)
-    table.insert(_G.ProScript_Connections, runConn)
-
-    local inputConn = UserInputService.InputBegan:Connect(function(input, gpe)
-        if gpe then return end
-        local code = input.KeyCode
-        if code == Enum.KeyCode.R then Features.toggleFly()
-        elseif code == Enum.KeyCode.F then Features.toggleESP()
-        elseif code == Enum.KeyCode.T then State.ClickTP = not State.ClickTP; GUI.toggleVisual(GUI.Buttons.TP, State.ClickTP); GUI.setStatus(State.ClickTP and TRANSLATIONS.WARP_READY[CONFIG.CurrentLang] or TRANSLATIONS.WARP_OFF[CONFIG.CurrentLang])
-        elseif code == Enum.KeyCode.J then Features.setVertical("Sink")
-        elseif code == Enum.KeyCode.K then Features.setVertical("Rise")
-        elseif code == Enum.KeyCode.Z then Features.toggleInvis()
-        elseif code == Enum.KeyCode.N then Features.toggleNoclip()
-        elseif code == Enum.KeyCode.G then Features.toggleGhost()
-        elseif code == Enum.KeyCode.X then GUI.toggleMenu()
-        elseif code == Enum.KeyCode.C then local _, _, hum = Utils.getChar(); if hum then Camera.CameraSubject = hum; GUI.setStatus(TRANSLATIONS.CAM_RESET[CONFIG.CurrentLang]) end
-        end
-    end)
-    table.insert(_G.ProScript_Connections, inputConn)
+    end))
 
     GUI.Buttons.Fly.Button.MouseButton1Click:Connect(Features.toggleFly)
     GUI.Buttons.ESP.Button.MouseButton1Click:Connect(Features.toggleESP)
@@ -1044,39 +843,36 @@ local function StartMainScript()
     GUI.Buttons.Invis.Button.MouseButton1Click:Connect(Features.toggleInvis)
     GUI.Buttons.Ghost.Button.MouseButton1Click:Connect(Features.toggleGhost) 
     GUI.Buttons.Noclip.Button.MouseButton1Click:Connect(Features.toggleNoclip)
-    GUI.Buttons.TP.Button.MouseButton1Click:Connect(function() State.ClickTP = not State.ClickTP; GUI.toggleVisual(GUI.Buttons.TP, State.ClickTP); GUI.setStatus(State.ClickTP and TRANSLATIONS.WARP_READY[CONFIG.CurrentLang] or TRANSLATIONS.WARP_OFF[CONFIG.CurrentLang]) end)
+    GUI.Buttons.TP.Button.MouseButton1Click:Connect(function() State.ClickTP = not State.ClickTP; GUI.toggleVisual(GUI.Buttons.TP, State.ClickTP); GUI.setStatus(State.ClickTP and TRANSLATIONS.WARP_READY[CONFIG.CurrentLang] or TRANSLATIONS.WARP_OFF[CONFIG.CurrentLang]); SaveConfig() end)
     GUI.Buttons.Farm.Button.MouseButton1Click:Connect(Features.toggleFarm)
+    GUI.Buttons.WalkSpeed.Button.MouseButton1Click:Connect(Features.toggleWalkSpeed)
+    GUI.Buttons.Stop.Button.MouseButton1Click:Connect(Features.toggleInstaStop)
     GUI.Buttons.Rejoin.Button.MouseButton1Click:Connect(Features.rejoinServer)
     GUI.Buttons.Reset.Button.MouseButton1Click:Connect(function() local _, _, hum = Utils.getChar(); if hum then Camera.CameraSubject = hum; GUI.setStatus(TRANSLATIONS.CAM_RESET[CONFIG.CurrentLang]) end end)
     
     GUI.Buttons.Lang.Button.MouseButton1Click:Connect(function() 
-        CONFIG.CurrentLang = (CONFIG.CurrentLang == "EN") and "TH" or "EN"
-        GUI.updateTexts() 
-        if updateList then updateList() end 
+        CONFIG.CurrentLang = (CONFIG.CurrentLang == "EN") and "TH" or "EN"; GUI.updateTexts(); if updateList then updateList() end; SaveConfig()
     end)
 
-    table.insert(_G.ProScript_Connections, speedInput:GetPropertyChangedSignal("Text"):Connect(function() CONFIG.Speed = tonumber(speedInput.Text) or 1 end))
-    table.insert(_G.ProScript_Connections, LocalPlayer.Idled:Connect(function() VirtualUser:CaptureController(); VirtualUser:ClickButton2(Vector2.new()); GUI.setStatus(TRANSLATIONS.AFK[CONFIG.CurrentLang]) end))
+    ConnectionManager:AddUnnamed(speedInput:GetPropertyChangedSignal("Text"):Connect(function() CONFIG.Speed = tonumber(speedInput.Text) or 1; SaveConfig() end))
+    ConnectionManager:AddUnnamed(wsInput:GetPropertyChangedSignal("Text"):Connect(function() CONFIG.WalkSpeedValue = tonumber(wsInput.Text) or 16; SaveConfig() end))
+    ConnectionManager:Add("Idled", LocalPlayer.Idled:Connect(function() VirtualUser:CaptureController(); VirtualUser:ClickButton2(Vector2.new()); GUI.setStatus(TRANSLATIONS.AFK[CONFIG.CurrentLang]) end))
 
     updateList = function()
         for _, item in pairs(scrollFrame:GetChildren()) do if item:IsA("Frame") then item:Destroy() end end
-        local playersList = Players:GetPlayers()
-        table.sort(playersList, function(a, b) return string.lower(a.DisplayName) < string.lower(b.DisplayName) end)
-        
+        local playersList = Players:GetPlayers(); table.sort(playersList, function(a, b) return string.lower(a.DisplayName) < string.lower(b.DisplayName) end)
         local lang = CONFIG.CurrentLang
 
         for i, p in ipairs(playersList) do
             if p ~= LocalPlayer then
                 local pRow = Instance.new("Frame", scrollFrame); pRow.Name = p.DisplayName; pRow.LayoutOrder = i
-                pRow.Size = UDim2.new(1, -12, 0, 40); pRow.BackgroundTransparency = 0.5
-                pRow.BackgroundColor3 = THEME.ButtonOff; Utils.addCorner(pRow, 8)
+                pRow.Size = UDim2.new(1, -12, 0, 40); pRow.BackgroundTransparency = 0.5; pRow.BackgroundColor3 = THEME.ButtonOff; Utils.addCorner(pRow, 8)
 
                 local headIcon = Instance.new("ImageLabel", pRow); headIcon.Name = "Avatar"; headIcon.Size = UDim2.new(0, 30, 0, 30); headIcon.Position = UDim2.new(0, 6, 0.5, -15)
                 headIcon.BackgroundColor3 = Color3.fromRGB(50, 50, 60); headIcon.BackgroundTransparency = 0; headIcon.BorderSizePixel = 0; headIcon.ZIndex = 2
                 local iconCorner = Instance.new("UICorner", headIcon); iconCorner.CornerRadius = UDim.new(1, 0)
                 
-                if State.AvatarCache[p.UserId] then
-                    headIcon.Image = State.AvatarCache[p.UserId]; headIcon.BackgroundTransparency = 1
+                if State.AvatarCache[p.UserId] then headIcon.Image = State.AvatarCache[p.UserId]; headIcon.BackgroundTransparency = 1
                 else
                     task.spawn(function() 
                         local success, content = pcall(function() return Players:GetUserThumbnailAsync(p.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size48x48) end)
@@ -1084,68 +880,28 @@ local function StartMainScript()
                     end)
                 end
 
-                -- ปุ่ม MARK (ขวาสุด)
-                local markBtn = Instance.new("TextButton", pRow)
-                markBtn.Size = UDim2.new(0, 55, 0.7, 0)
-                markBtn.AnchorPoint = Vector2.new(1, 0)
-                markBtn.Position = UDim2.new(1, -5, 0.15, 0) 
-                
+                local markBtn = Instance.new("TextButton", pRow); markBtn.Size = UDim2.new(0, 55, 0.7, 0); markBtn.AnchorPoint = Vector2.new(1, 0); markBtn.Position = UDim2.new(1, -5, 0.15, 0) 
                 local currentMark = State.PlayerMarks[p.UserId] or 0
-                if currentMark == 1 then
-                    markBtn.Text = (lang == "TH") and "เพื่อน" or "FRIEND"
-                    markBtn.BackgroundColor3 = THEME.ESP_Friend
-                elseif currentMark == 2 then
-                    markBtn.Text = (lang == "TH") and "เป้าหมาย" or "TARGET"
-                    markBtn.BackgroundColor3 = THEME.ESP_Target
-                else
-                    markBtn.Text = (lang == "TH") and "มาร์ค" or "MARK"
-                    markBtn.BackgroundColor3 = THEME.ButtonOn_Start
-                end
-                
-                markBtn.TextColor3 = Color3.new(1,1,1)
-                markBtn.Font = Enum.Font.GothamBold
-                markBtn.TextSize = 9
-                markBtn.ZIndex = 3
-                Utils.addCorner(markBtn, 6)
+                if currentMark == 1 then markBtn.Text = (lang == "TH") and "เพื่อน" or "FRIEND"; markBtn.BackgroundColor3 = THEME.ESP_Friend
+                elseif currentMark == 2 then markBtn.Text = (lang == "TH") and "เป้าหมาย" or "TARGET"; markBtn.BackgroundColor3 = THEME.ESP_Target
+                else markBtn.Text = (lang == "TH") and "มาร์ค" or "MARK"; markBtn.BackgroundColor3 = THEME.ButtonOn_Start end
+                markBtn.TextColor3 = Color3.new(1,1,1); markBtn.Font = Enum.Font.GothamBold; markBtn.TextSize = 9; markBtn.ZIndex = 3; Utils.addCorner(markBtn, 6)
 
                 markBtn.MouseButton1Click:Connect(function()
-                    local nextMark = (State.PlayerMarks[p.UserId] or 0) + 1
-                    if nextMark > 2 then nextMark = 0 end
+                    local nextMark = (State.PlayerMarks[p.UserId] or 0) + 1; if nextMark > 2 then nextMark = 0 end
                     State.PlayerMarks[p.UserId] = nextMark
-                    
                     if nextMark == 1 then GUI.setStatus("Marked Friend: " .. p.DisplayName)
                     elseif nextMark == 2 then GUI.setStatus("Marked Target: " .. p.DisplayName)
                     else GUI.setStatus("Unmarked: " .. p.DisplayName) end
-                    Features.updateESP() 
-                    updateList() 
+                    Features.updateESP(); updateList() 
                 end)
 
-                -- ปุ่ม VIEW (อยู่ถัดซ้ายมาจากปุ่ม MARK)
-                local sBtn = Instance.new("TextButton", pRow)
-                sBtn.Size = UDim2.new(0, 45, 0.7, 0)
-                sBtn.AnchorPoint = Vector2.new(1, 0)
-                sBtn.Position = UDim2.new(1, -65, 0.15, 0) 
-                sBtn.Text = (lang == "TH") and "ส่อง" or "VIEW"
-                sBtn.BackgroundColor3 = THEME.ButtonOn_Start
-                sBtn.TextColor3 = Color3.new(1,1,1)
-                sBtn.Font = Enum.Font.GothamBold
-                sBtn.TextSize = 10
-                sBtn.ZIndex = 3
-                Utils.addCorner(sBtn, 6)
+                local sBtn = Instance.new("TextButton", pRow); sBtn.Size = UDim2.new(0, 45, 0.7, 0); sBtn.AnchorPoint = Vector2.new(1, 0); sBtn.Position = UDim2.new(1, -65, 0.15, 0) 
+                sBtn.Text = (lang == "TH") and "ส่อง" or "VIEW"; sBtn.BackgroundColor3 = THEME.ButtonOn_Start; sBtn.TextColor3 = Color3.new(1,1,1); sBtn.Font = Enum.Font.GothamBold; sBtn.TextSize = 10; sBtn.ZIndex = 3; Utils.addCorner(sBtn, 6)
                 sBtn.MouseButton1Click:Connect(function() if p.Character and p.Character:FindFirstChild("Humanoid") then Camera.CameraSubject = p.Character.Humanoid end end)
 
-                -- ชื่อผู้เล่น (ลดความกว้าง ไม่ทับปุ่ม)
-                local tBtn = Instance.new("TextButton", pRow)
-                tBtn.Size = UDim2.new(1, -155, 1, 0) 
-                tBtn.Position = UDim2.new(0, 42, 0, 0)
-                tBtn.Text = p.DisplayName
-                tBtn.TextXAlignment = Enum.TextXAlignment.Left
-                tBtn.BackgroundTransparency = 1
-                tBtn.TextColor3 = THEME.Text
-                tBtn.Font = Enum.Font.GothamMedium
-                tBtn.TextSize = 14
-                tBtn.ZIndex = 2
-                tBtn.TextTruncate = Enum.TextTruncate.AtEnd
+                local tBtn = Instance.new("TextButton", pRow); tBtn.Size = UDim2.new(1, -155, 1, 0); tBtn.Position = UDim2.new(0, 42, 0, 0)
+                tBtn.Text = p.DisplayName; tBtn.TextXAlignment = Enum.TextXAlignment.Left; tBtn.BackgroundTransparency = 1; tBtn.TextColor3 = THEME.Text; tBtn.Font = Enum.Font.GothamMedium; tBtn.TextSize = 14; tBtn.ZIndex = 2; tBtn.TextTruncate = Enum.TextTruncate.AtEnd
                 tBtn.MouseButton1Click:Connect(function() if p.Character and p.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character then LocalPlayer.Character.HumanoidRootPart.CFrame = p.Character.HumanoidRootPart.CFrame * CFrame.new(0,0,3) end end)
             end
         end
@@ -1154,104 +910,37 @@ local function StartMainScript()
 
     local function bindLocalCharacter(char)
         Utils.updateCharCache(char)
-        char.DescendantAdded:Connect(function(descendant)
+        ConnectionManager:Add("LocalCharAdded", char.DescendantAdded:Connect(function(descendant)
             if descendant:IsA("BasePart") then table.insert(State.CachedParts, {Part = descendant, OrigCollide = descendant.CanCollide}) end
-        end)
+        end))
     end
     if LocalPlayer.Character then bindLocalCharacter(LocalPlayer.Character) end
-    table.insert(_G.ProScript_Connections, LocalPlayer.CharacterAdded:Connect(bindLocalCharacter))
+    ConnectionManager:Add("LocalPlayerChar", LocalPlayer.CharacterAdded:Connect(bindLocalCharacter))
 
     local function bindPlayerEvents(p)
         if p == LocalPlayer then return end 
-        p.CharacterAdded:Connect(function(char)
-            local waited = 0
-            while waited < 3 and not char:FindFirstChild("HumanoidRootPart") do waited = waited + task.wait(0.1) end
+        ConnectionManager:Add("CharAdded_"..p.UserId, p.CharacterAdded:Connect(function(char)
+            local waited = 0; while waited < 3 and not char:FindFirstChild("HumanoidRootPart") do waited = waited + task.wait(0.1) end
             if State.ESP or (State.PlayerMarks[p.UserId] and State.PlayerMarks[p.UserId] > 0) then Features.updateESP() end
-        end)
+        end))
     end
 
-    for _, p in pairs(Players:GetPlayers()) do 
-        bindPlayerEvents(p) 
-        if p.Character and (State.ESP or (State.PlayerMarks[p.UserId] and State.PlayerMarks[p.UserId] > 0)) then Features.updateESP() end 
-    end
+    for _, p in pairs(Players:GetPlayers()) do bindPlayerEvents(p); if p.Character and (State.ESP or (State.PlayerMarks[p.UserId] and State.PlayerMarks[p.UserId] > 0)) then Features.updateESP() end end
     
-    table.insert(_G.ProScript_Connections, Players.PlayerAdded:Connect(function(p) bindPlayerEvents(p); updateList() end))
-    table.insert(_G.ProScript_Connections, Players.PlayerRemoving:Connect(updateList))
+    ConnectionManager:Add("PlayerAdded", Players.PlayerAdded:Connect(function(p) bindPlayerEvents(p); updateList() end))
+    ConnectionManager:Add("PlayerRemoving", Players.PlayerRemoving:Connect(updateList))
     updateList()
 
-    -- [[ INTRO SEQUENCE ]] --
-    local function playIntro()
-        if LocalPlayer.UserId == 473092660 then return end
-        local introGui = Instance.new("ScreenGui", LocalPlayer.PlayerGui)
-        introGui.Name = "Intro_Vacuum_Cinematic"
-        introGui.IgnoreGuiInset = true 
-        introGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
-        local bg = Instance.new("Frame", introGui)
-        bg.Size = UDim2.new(1, 0, 1, 0)
-        bg.BackgroundColor3 = Color3.new(0, 0, 0)
-        bg.ZIndex = 100
-        
-        local line = Instance.new("Frame", bg)
-        line.Size = UDim2.new(0, 0, 0, 2) 
-        line.Position = UDim2.new(0.5, 0, 0.5, 0)
-        line.AnchorPoint = Vector2.new(0.5, 0.5)
-        line.BackgroundColor3 = Color3.fromRGB(150, 50, 255) 
-        line.BorderSizePixel = 0
-        
-        local title = Instance.new("TextLabel", bg)
-        title.Text = "PROJECT: VACUUM"
-        title.Size = UDim2.new(1, 0, 0, 50)
-        title.Position = UDim2.new(0.5, 0, 0.5, 0) 
-        title.AnchorPoint = Vector2.new(0.5, 1) 
-        title.Font = Enum.Font.GothamBlack
-        title.TextColor3 = Color3.fromRGB(255, 255, 255)
-        title.TextSize = 40
-        title.BackgroundTransparency = 1
-        title.TextTransparency = 1 
-        
-        local subTitle = Instance.new("TextLabel", bg)
-        subTitle.Text = "[🌑] สุญญากาศ"
-        subTitle.Size = UDim2.new(1, 0, 0, 30)
-        subTitle.Position = UDim2.new(0.5, 0, 0.5, 0) 
-        subTitle.AnchorPoint = Vector2.new(0.5, 0) 
-        subTitle.Font = Enum.Font.GothamBold
-        subTitle.TextColor3 = Color3.fromRGB(180, 180, 200)
-        subTitle.TextSize = 18
-        subTitle.BackgroundTransparency = 1
-        subTitle.TextTransparency = 1 
-
-        TweenService:Create(line, TweenInfo.new(0.8, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Size = UDim2.new(0, 300, 0, 2)}):Play()
-        task.wait(0.6)
-        
-        TweenService:Create(title, TweenInfo.new(1, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Position = UDim2.new(0.5, 0, 0.5, -10), TextTransparency = 0}):Play()
-        TweenService:Create(subTitle, TweenInfo.new(1, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Position = UDim2.new(0.5, 0, 0.5, 10), TextTransparency = 0}):Play()
-        
-        local flash = Instance.new("Frame", bg)
-        flash.Size = UDim2.new(1, 0, 1, 0)
-        flash.BackgroundColor3 = Color3.new(1,1,1)
-        flash.BackgroundTransparency = 1
-        TweenService:Create(flash, TweenInfo.new(0.1), {BackgroundTransparency = 0.9}):Play() 
-        task.wait(0.1)
-        TweenService:Create(flash, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play() 
-
-        task.wait(2.5) 
-        
-        TweenService:Create(title, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.In), {Position = UDim2.new(0.5, 0, 0.5, 0), TextTransparency = 1}):Play()
-        TweenService:Create(subTitle, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.In), {Position = UDim2.new(0.5, 0, 0.5, 0), TextTransparency = 1}):Play()
-        task.wait(0.3)
-        TweenService:Create(line, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Size = UDim2.new(0, 0, 0, 2)}):Play()
-        task.wait(0.4)
-        
-        TweenService:Create(bg, TweenInfo.new(1), {BackgroundTransparency = 1}):Play()
-        task.wait(1)
-        
-        introGui:Destroy()
-    end
-
-    playIntro()
-    task.wait(0.5)
-    GUI.toggleMenu()
+    -- Sync UI Visuals with Loaded Config
+    if State.ESP then GUI.toggleVisual(GUI.Buttons.ESP, true); Features.updateESP() end
+    if State.ClickTP then GUI.toggleVisual(GUI.Buttons.TP, true); GUI.setStatus(TRANSLATIONS.WARP_READY[CONFIG.CurrentLang]) end
+    if State.Noclip then GUI.toggleVisual(GUI.Buttons.Noclip, true) end
+    if State.WalkSpeed then GUI.toggleVisual(GUI.Buttons.WalkSpeed, true) end
+    if State.InstaStop then GUI.toggleVisual(GUI.Buttons.Stop, true) end
+    if State.AutoFarm then Features.toggleFarm() end
+    
+    GUI.updateTexts()
+    refreshCustomList()
 end
 
 ---------------------------------------------------------------------------------
@@ -1263,12 +952,7 @@ local function Initialize()
         if savedKey and savedKey ~= "" then
             StarterGui:SetCore("SendNotification", {Title = "VACUUM SYSTEM", Text = "Auto-Authenticating...", Duration = 2})
             local ok, msg = CheckAndLock(savedKey)
-            if ok then
-                StartMainScript()
-                return 
-            else
-                delfile(KEY_FILE_NAME)
-            end
+            if ok then StartMainScript(); return else delfile(KEY_FILE_NAME) end
         end
     end
     CreateKeyUI(StartMainScript)
