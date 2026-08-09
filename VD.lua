@@ -25,7 +25,7 @@ local SETTINGS = {
     Key_AutoParry = Enum.KeyCode.V, 
     Key_Aimbot = Enum.KeyCode.X,
     Key_Fullbright = Enum.KeyCode.K, 
-    Key_NoFog = Enum.KeyCode.P, -- [เพิ่มปุ่ม P สำหรับลบหมอก]
+    Key_NoFog = Enum.KeyCode.P, 
     Key_Rejoin = Enum.KeyCode.L,
     Key_Help = Enum.KeyCode.Z, 
     
@@ -35,7 +35,7 @@ local SETTINGS = {
     AutoParry_Enabled = false,
     Aimbot_Enabled = false,        
     Fullbright_Enabled = false, 
-    NoFog_Enabled = false, -- [สถานะเปิด/ปิด ลบหมอก]
+    NoFog_Enabled = false,
     
     Parry_Key = "RightClick", 
     Parry_MaxRange = 12, 
@@ -65,11 +65,14 @@ local SURVIVOR_ITEMS = {"medkit", "firstaid", "bandage", "flashlight", "phone", 
 local ATTACK_KEYWORDS = {"attack", "swing", "slash", "lunge", "m1", "punch", "strike", "heavy", "light"} 
 local ATTACK_IDS = { "111920872708571", "78935059863801", "139369275981139", "78432063483146", "132817836308238", "133963973694098", "74968262036854" }
 
+-- [UPDATED] เก็บ Event Connections ทั้งหมดเพื่อป้องกัน Memory Leak
 if _G.ProScript_Connections then
     for _, conn in pairs(_G.ProScript_Connections) do if conn then pcall(function() conn:Disconnect() end) end end
 end
 _G.ProScript_Connections = {} 
 
+local fbConnections = {} -- สำหรับล็อก Fullbright
+local fogConnections = {} -- สำหรับล็อก No Fog
 local originalCollision = {}
 local cachedNoclipParts = {}
 
@@ -195,11 +198,16 @@ local function AddWorldObject(v)
     end
 end
 
-for _, v in pairs(Workspace:GetDescendants()) do
-    AddWorldObject(v)
-end
+-- [UPDATED] ลดอาการเกมค้างตอนโหลด World ESP โดยแบ่งโหลดเฟรมละ 1000 ชิ้น
+coroutine.wrap(function()
+    local descendants = Workspace:GetDescendants()
+    for i, v in ipairs(descendants) do
+        AddWorldObject(v)
+        if i % 1000 == 0 then task.wait() end 
+    end
+end)()
 
-Workspace.DescendantAdded:Connect(AddWorldObject)
+table.insert(_G.ProScript_Connections, Workspace.DescendantAdded:Connect(AddWorldObject))
 
 local function UpdateWorldESP()
     local activeObjects = {}
@@ -297,8 +305,11 @@ local function AutoParryCheck()
     if not SETTINGS.AutoParry_Enabled or not LocalPlayer.Character then return end
     local myRoot = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not myRoot then return end
-    local now = tick()
+    
+    -- [UPDATED] เปลี่ยน tick() เป็น os.clock()
+    local now = os.clock()
     if now - lastParryTime < SETTINGS.Parry_Cooldown then return end
+    
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= LocalPlayer and p.Character then
             if GetPlayerRole(p) == "Killer" then
@@ -324,7 +335,8 @@ local function AutoParryCheck()
                                         if not isPanic then if track.Length > 0 and track.TimePosition < 0.05 then task.wait(0.05) end end
                                         
                                         task.spawn(SpamParry) 
-                                        lastParryTime = tick()
+                                        -- [UPDATED] เปลี่ยน tick() เป็น os.clock()
+                                        lastParryTime = os.clock()
                                         
                                         return 
                                     end
@@ -375,19 +387,19 @@ local function AutoAim()
     end
 end
 
-RunService.RenderStepped:Connect(AutoSkillCheck)
-RunService.RenderStepped:Connect(AutoAim) 
+-- [UPDATED] นำ Event ทั้งหมดเข้า Table
+table.insert(_G.ProScript_Connections, RunService.RenderStepped:Connect(AutoSkillCheck))
+table.insert(_G.ProScript_Connections, RunService.RenderStepped:Connect(AutoAim)) 
+table.insert(_G.ProScript_Connections, RunService.Heartbeat:Connect(AutoParryCheck))
 
-RunService.Heartbeat:Connect(AutoParryCheck)
-
-RunService.Stepped:Connect(function()
+table.insert(_G.ProScript_Connections, RunService.Stepped:Connect(function()
     if SETTINGS.Noclip_Enabled and LocalPlayer.Character then
         for i = 1, #cachedNoclipParts do 
             local p = cachedNoclipParts[i]
             if p and p.Parent then p.CanCollide = false end
         end
     end
-end)
+end))
 
 coroutine.wrap(function() 
     while true do 
@@ -409,7 +421,7 @@ end)()
 
 local function SendNotify(titleText, descText) pcall(function() StarterGui:SetCore("SendNotification", { Title = titleText, Text = descText, Duration = 2 }) end) end
 
-UserInputService.InputBegan:Connect(function(input, gpe)
+table.insert(_G.ProScript_Connections, UserInputService.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     
     if input.KeyCode == SETTINGS.Key_Help then
@@ -447,48 +459,69 @@ UserInputService.InputBegan:Connect(function(input, gpe)
         SETTINGS.Aimbot_Enabled = not SETTINGS.Aimbot_Enabled
         local status = SETTINGS.Aimbot_Enabled and "ON (Hold Right Click)" or "OFF"
         SendNotify("Aimbot", status)
+        
+    -- [UPDATED] ระบบล็อกค่า Fullbright กันเกมเปลี่ยนคืน
     elseif input.KeyCode == SETTINGS.Key_Fullbright then
         SETTINGS.Fullbright_Enabled = not SETTINGS.Fullbright_Enabled
         if SETTINGS.Fullbright_Enabled then
             origLighting.Ambient = Lighting.Ambient
             origLighting.OutdoorAmbient = Lighting.OutdoorAmbient
             origLighting.Brightness = Lighting.Brightness
-            origLighting.FogEnd = Lighting.FogEnd
             origLighting.GlobalShadows = Lighting.GlobalShadows
             origLighting.ClockTime = Lighting.ClockTime
             
+            table.insert(fbConnections, Lighting:GetPropertyChangedSignal("Ambient"):Connect(function() Lighting.Ambient = Color3.fromRGB(255, 255, 255) end))
             Lighting.Ambient = Color3.fromRGB(255, 255, 255)
+            
+            table.insert(fbConnections, Lighting:GetPropertyChangedSignal("OutdoorAmbient"):Connect(function() Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255) end))
             Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
+            
+            table.insert(fbConnections, Lighting:GetPropertyChangedSignal("Brightness"):Connect(function() Lighting.Brightness = 2 end))
             Lighting.Brightness = 2
-            Lighting.FogEnd = 100000
+            
+            table.insert(fbConnections, Lighting:GetPropertyChangedSignal("GlobalShadows"):Connect(function() Lighting.GlobalShadows = false end))
             Lighting.GlobalShadows = false
+            
+            table.insert(fbConnections, Lighting:GetPropertyChangedSignal("ClockTime"):Connect(function() Lighting.ClockTime = 12 end))
             Lighting.ClockTime = 12
-            SendNotify("Fullbright", "ON")
+            
+            SendNotify("Fullbright", "ON (Locked)")
         else
+            for _, conn in pairs(fbConnections) do conn:Disconnect() end
+            table.clear(fbConnections)
+            
             Lighting.Ambient = origLighting.Ambient
             Lighting.OutdoorAmbient = origLighting.OutdoorAmbient
             Lighting.Brightness = origLighting.Brightness
-            Lighting.FogEnd = origLighting.FogEnd
             Lighting.GlobalShadows = origLighting.GlobalShadows
             Lighting.ClockTime = origLighting.ClockTime
             SendNotify("Fullbright", "OFF")
         end
-    elseif input.KeyCode == SETTINGS.Key_NoFog then -- [โค้ดฟังก์ชันลบหมอกปุ่ม P]
+        
+    -- [UPDATED] ระบบล็อกค่า No Fog กันเกมเปลี่ยนคืน
+    elseif input.KeyCode == SETTINGS.Key_NoFog then 
         SETTINGS.NoFog_Enabled = not SETTINGS.NoFog_Enabled
         if SETTINGS.NoFog_Enabled then
             origLighting.FogEnd = Lighting.FogEnd
             origLighting.FogStart = Lighting.FogStart
             
+            table.insert(fogConnections, Lighting:GetPropertyChangedSignal("FogStart"):Connect(function() Lighting.FogStart = 0 end))
             Lighting.FogStart = 0
+            
+            table.insert(fogConnections, Lighting:GetPropertyChangedSignal("FogEnd"):Connect(function() Lighting.FogEnd = 999999 end))
             Lighting.FogEnd = 999999
             
             local atm = Lighting:FindFirstChildWhichIsA("Atmosphere")
             if atm then
                 origLighting.AtmDensity = atm.Density
+                table.insert(fogConnections, atm:GetPropertyChangedSignal("Density"):Connect(function() atm.Density = 0 end))
                 atm.Density = 0
             end
-            SendNotify("No Fog", "ON")
+            SendNotify("No Fog", "ON (Locked)")
         else
+            for _, conn in pairs(fogConnections) do conn:Disconnect() end
+            table.clear(fogConnections)
+            
             Lighting.FogStart = origLighting.FogStart or 0
             Lighting.FogEnd = origLighting.FogEnd or 100000
             
@@ -498,19 +531,20 @@ UserInputService.InputBegan:Connect(function(input, gpe)
             end
             SendNotify("No Fog", "OFF")
         end
+        
     elseif input.KeyCode == SETTINGS.Key_Rejoin then
         SendNotify("Rejoining", "Please wait... Teleporting back to server.")
         task.wait(0.5)
         pcall(function() TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer) end)
     end
-end)
+end))
 
-LocalPlayer.CharacterAdded:Connect(function(char)
+table.insert(_G.ProScript_Connections, LocalPlayer.CharacterAdded:Connect(function(char)
     char:WaitForChild("HumanoidRootPart")
     if SETTINGS.Noclip_Enabled then
         SaveCollisionData(char)
         CacheNoclipParts(char)
     end
-end)
+end))
 
 SendNotify("V8.6 + FPS BOOST + NO FOG", "Loaded! (Press Z for Keybinds)")
