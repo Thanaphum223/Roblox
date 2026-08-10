@@ -1,4 +1,4 @@
--- [[ PROJECT: VACUUM - ULTIMATE EDITION (v10.8: KEYBINDS + ANTI-LEAK) ]] --
+-- [[ PROJECT: VACUUM - ULTIMATE EDITION (v10.8: KEYBINDS + ANTI-LEAK + FIXED GHOST SPD) ]] --
 
 ---------------------------------------------------------------------------------
 -- [[ 0. SECURITY & MAP LOCK ]] --
@@ -1555,7 +1555,7 @@ local function StartMainScript()
     ---------------------------------------------------------------------------------
     local updateList 
 
-    ConnectionManager:Add("RunLoop", RunService.Stepped:Connect(function()
+    ConnectionManager:Add("RunLoop", RunService.Stepped:Connect(function(t, deltaTime)
         local char, hrp, hum = Utils.getChar()
 
         if State.WalkSpeed then
@@ -1584,7 +1584,9 @@ local function StartMainScript()
                 if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveVector = moveVector - Vector3.new(0, 1, 0) end
                 
                 if moveVector.Magnitude > 0 then
-                    moveVector = moveVector.Unit * (CONFIG.Speed * 2) 
+                    -- ปรับความเร็ว Ghost ให้เท่ากับ Fly (R) โดยอิงจาก Frame Rate (deltaTime)
+                    local speedMultiplier = (CONFIG.Speed * 50) * (deltaTime or 0.016)
+                    moveVector = moveVector.Unit * speedMultiplier
                     ghostHRP.CFrame = ghostHRP.CFrame + moveVector
                 end
                 ghostHRP.CFrame = CFrame.new(ghostHRP.Position, ghostHRP.Position + camCF.LookVector)
