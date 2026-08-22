@@ -1,4 +1,4 @@
--- [[ PROJECT: VIOLENCE DISTRICT - INSTANT V8.6 (PERFORMANCE + FULLBRIGHT + NO RED BALL + HELP MENU + NO FOG) ]] --
+-- [[ PROJECT: VIOLENCE DISTRICT - INSTANT V8.9 (GOD MODE PARRY + ITEM TRACKER + CLEAN VISION) ]] --
 if _G.ViolenceDistrict_Loaded then
     pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", { Title = "System", Text = "Script is already loaded!", Duration = 3 }) end)
     return
@@ -13,6 +13,8 @@ local Workspace = game:GetService("Workspace")
 local StarterGui = game:GetService("StarterGui")
 local TeleportService = game:GetService("TeleportService")
 local Lighting = game:GetService("Lighting")
+local TweenService = game:GetService("TweenService")
+
 local Camera = Workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
@@ -26,6 +28,8 @@ local SETTINGS = {
     Key_Aimbot = Enum.KeyCode.X,
     Key_Fullbright = Enum.KeyCode.K, 
     Key_NoFog = Enum.KeyCode.P, 
+    Key_CleanVision = Enum.KeyCode.C,
+    Key_SpeedHack = Enum.KeyCode.B,
     Key_Rejoin = Enum.KeyCode.L,
     Key_Help = Enum.KeyCode.Z, 
     
@@ -36,6 +40,8 @@ local SETTINGS = {
     Aimbot_Enabled = false,        
     Fullbright_Enabled = false, 
     NoFog_Enabled = false,
+    CleanVision_Enabled = false,
+    SpeedHack_Enabled = false,
     
     Parry_Key = "RightClick", 
     Parry_MaxRange = 12, 
@@ -47,10 +53,10 @@ local SETTINGS = {
     Aimbot_Smoothness = 0.2,        
     Aimbot_Prediction = 0.13,        
     
-    SurvivorColor = Color3.fromRGB(0, 255, 100),    
-    KillerColor = Color3.fromRGB(255, 0, 0),        
+    SurvivorColor = LocalPlayer:GetAttribute("survaura") or Color3.fromRGB(0, 255, 100),    
+    KillerColor = LocalPlayer:GetAttribute("killeraura") or Color3.fromRGB(255, 0, 0),        
     SuspectColor = Color3.fromRGB(255, 170, 0),        
-    GenColor = Color3.fromRGB(0, 255, 255),
+    GenColor = LocalPlayer:GetAttribute("genaura") or Color3.fromRGB(0, 255, 255),
     PalletColor = Color3.fromRGB(74, 255, 181),
     WindowColor = Color3.fromRGB(100, 180, 255),
     
@@ -60,32 +66,127 @@ local SETTINGS = {
     GOAL_NAME = "Goal",
 }
 
+local ITEM_COOLDOWNS = {
+    ["Parrying Dagger"] = 60,
+    ["Holy Water"] = 70,
+    ["Riot Shield"] = 50,
+    ["Adrenaline Shot"] = 60,
+    ["Shadow Clone"] = 60,
+    ["Gate"] = 60,
+    ["WaxBound Candle"] = 30
+}
+
+local KNOWN_KILLERS = {
+    ["Stalker"] = true, ["Killer"] = true, ["Slasher"] = true, ["Masked"] = true, 
+    ["Abysswalker"] = true, ["Veil"] = true, ["Cure"] = true, ["scp035"] = true,
+    ["Halloween_Jerma"] = true, ["Halloween_MJ"] = true, ["Christmas_ScratchFace"] = true
+}
+
 local KILLER_ITEMS = {"knife", "bat", "axe", "machete", "saw", "gun", "hammer", "sword", "katana", "pipe", "weapon"}
 local SURVIVOR_ITEMS = {"medkit", "firstaid", "bandage", "flashlight", "phone", "key", "card", "soda"}
 local ATTACK_KEYWORDS = {"attack", "swing", "slash", "lunge", "m1", "punch", "strike", "heavy", "light"} 
 local ATTACK_IDS = { "111920872708571", "78935059863801", "139369275981139", "78432063483146", "132817836308238", "133963973694098", "74968262036854" }
 
--- [UPDATED] เก็บ Event Connections ทั้งหมดเพื่อป้องกัน Memory Leak
 if _G.ProScript_Connections then
     for _, conn in pairs(_G.ProScript_Connections) do if conn then pcall(function() conn:Disconnect() end) end end
 end
 _G.ProScript_Connections = {} 
 
-local fbConnections = {} -- สำหรับล็อก Fullbright
-local fogConnections = {} -- สำหรับล็อก No Fog
+local fbConnections = {} 
+local fogConnections = {} 
 local originalCollision = {}
 local cachedNoclipParts = {}
+local ActiveCooldowns = {}
 
 local origLighting = {
-    Ambient = Lighting.Ambient,
-    OutdoorAmbient = Lighting.OutdoorAmbient,
-    Brightness = Lighting.Brightness,
-    FogEnd = Lighting.FogEnd,
-    FogStart = Lighting.FogStart,
-    GlobalShadows = Lighting.GlobalShadows,
-    ClockTime = Lighting.ClockTime,
-    AtmDensity = nil
+    Ambient = Lighting.Ambient, OutdoorAmbient = Lighting.OutdoorAmbient, Brightness = Lighting.Brightness,
+    FogEnd = Lighting.FogEnd, FogStart = Lighting.FogStart, GlobalShadows = Lighting.GlobalShadows,
+    ClockTime = Lighting.ClockTime, AtmDensity = nil
 }
+
+local function SendNotify(titleText, descText) pcall(function() StarterGui:SetCore("SendNotification", { Title = titleText, Text = descText, Duration = 2 }) end) end
+
+local function SetupTrackerGUI()
+    local oldGui = PlayerGui:FindFirstChild("VD_ItemTracker")
+    if oldGui then oldGui:Destroy() end
+
+    local TrackerGui = Instance.new("ScreenGui")
+    TrackerGui.Name = "VD_ItemTracker"
+    TrackerGui.ResetOnSpawn = false
+    TrackerGui.Parent = PlayerGui
+
+    local Container = Instance.new("Frame")
+    Container.Name = "Container"
+    Container.Size = UDim2.new(0, 200, 0, 400)
+    Container.Position = UDim2.new(0, 20, 0.5, -200)
+    Container.BackgroundTransparency = 1
+    Container.Parent = TrackerGui
+
+    local UIListLayout = Instance.new("UIListLayout")
+    UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    UIListLayout.Padding = UDim.new(0, 10)
+    UIListLayout.Parent = Container
+
+    return Container
+end
+local TrackerContainer = SetupTrackerGUI()
+
+local function CreateCooldownBar(itemName, duration)
+    if ActiveCooldowns[itemName] then return end
+    ActiveCooldowns[itemName] = true
+
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 0, 30)
+    frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    frame.BorderSizePixel = 0
+    frame.Parent = TrackerContainer
+
+    local uic = Instance.new("UICorner")
+    uic.CornerRadius = UDim.new(0, 4)
+    uic.Parent = frame
+
+    local bar = Instance.new("Frame")
+    bar.Size = UDim2.new(1, 0, 1, 0)
+    bar.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+    bar.BorderSizePixel = 0
+    bar.Parent = frame
+    local uic2 = Instance.new("UICorner")
+    uic2.CornerRadius = UDim.new(0, 4)
+    uic2.Parent = bar
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -10, 1, 0)
+    label.Position = UDim2.new(0, 10, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = itemName .. " (" .. duration .. "s)"
+    label.TextColor3 = Color3.new(1, 1, 1)
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 14
+    label.Parent = frame
+
+    local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Linear)
+    local tween = TweenService:Create(bar, tweenInfo, {Size = UDim2.new(0, 0, 1, 0)})
+    tween:Play()
+
+    task.spawn(function()
+        for i = duration, 1, -1 do
+            if not frame or not frame.Parent then break end
+            label.Text = itemName .. " (" .. i .. "s)"
+            task.wait(1)
+        end
+        if frame then frame:Destroy() end
+        ActiveCooldowns[itemName] = nil
+    end)
+end
+
+local function HookTool(tool)
+    if tool:IsA("Tool") and ITEM_COOLDOWNS[tool.Name] then
+        table.insert(_G.ProScript_Connections, tool.Activated:Connect(function()
+            CreateCooldownBar(tool.Name, ITEM_COOLDOWNS[tool.Name])
+        end))
+    end
+end
 
 local function CacheNoclipParts(char)
     cachedNoclipParts = {}
@@ -116,13 +217,47 @@ end
 
 local function CleanVisuals()
     for _, v in pairs(Workspace:GetDescendants()) do 
-        if v.Name:match("ESP") and (v:IsA("Highlight") or v:IsA("BillboardGui")) then 
-            v:Destroy() 
-        end 
+        if v.Name:match("ESP") and (v:IsA("Highlight") or v:IsA("BillboardGui")) then v:Destroy() end 
     end
 end
-
 CleanVisuals()
+
+local function AutoCleanVision()
+    if not SETTINGS.CleanVision_Enabled then return end
+    pcall(function()
+        local pg = LocalPlayer:FindFirstChild("PlayerGui")
+        if pg then
+            local darkness = pg:FindFirstChild("Darkness")
+            if darkness and darkness.Enabled then darkness.Enabled = false end
+            
+            local blood = pg:FindFirstChild("Killerblood")
+            if blood and blood.Enabled then blood.Enabled = false end
+            
+            local effects = pg:FindFirstChild("effects")
+            if effects then
+                local vignette = effects:FindFirstChild("vignette")
+                if vignette and vignette.Visible then vignette.Visible = false end
+                local pestilence = effects:FindFirstChild("pestilence")
+                if pestilence and pestilence.Visible then pestilence.Visible = false end
+            end
+        end
+        if LocalPlayer.Character then
+            local cutscene = LocalPlayer.Character:FindFirstChild("cutscene")
+            if cutscene and cutscene:IsA("LocalScript") and not cutscene.Disabled then cutscene.Disabled = true end
+        end
+    end)
+end
+
+local function SpeedHackLoop()
+    if not SETTINGS.SpeedHack_Enabled then return end
+    pcall(function()
+        local char = LocalPlayer.Character
+        if char then
+            local hum = char:FindFirstChild("Humanoid")
+            if hum and hum.WalkSpeed < 24 then hum.WalkSpeed = 24 end
+        end
+    end)
+end
 
 local function GetPlayerRole(plr)
     if not plr or not plr.Character then return "Unknown" end
@@ -131,6 +266,8 @@ local function GetPlayerRole(plr)
         if teamName:match("kill") or teamName:match("murder") then return "Killer" end
         if teamName:match("surviv") or teamName:match("innocent") then return "Survivor" end
     end
+    local charName = plr.Character.Name
+    if KNOWN_KILLERS[charName] or plr.Character:FindFirstChild("WeaponHolder") or plr.Character:FindFirstChild("Weapon") then return "Killer" end
     local function CheckItems(container)
         for _, item in pairs(container:GetChildren()) do
             if item:IsA("Tool") then
@@ -188,7 +325,6 @@ local function GetGenProgress(model)
 end
 
 local cachedWorldObjects = {}
-
 local function AddWorldObject(v)
     if v:IsA("Model") and not v:IsA("Character") then
         local name = v.Name:lower()
@@ -198,7 +334,6 @@ local function AddWorldObject(v)
     end
 end
 
--- [UPDATED] ลดอาการเกมค้างตอนโหลด World ESP โดยแบ่งโหลดเฟรมละ 1000 ชิ้น
 coroutine.wrap(function()
     local descendants = Workspace:GetDescendants()
     for i, v in ipairs(descendants) do
@@ -206,12 +341,10 @@ coroutine.wrap(function()
         if i % 1000 == 0 then task.wait() end 
     end
 end)()
-
 table.insert(_G.ProScript_Connections, Workspace.DescendantAdded:Connect(AddWorldObject))
 
 local function UpdateWorldESP()
     local activeObjects = {}
-    
     for _, v in ipairs(cachedWorldObjects) do
         if v and v.Parent then
             table.insert(activeObjects, v) 
@@ -241,7 +374,6 @@ local function UpdateWorldESP()
                 local hi = v:FindFirstChild("ObjESP_Highlight") or Instance.new("Highlight", v)
                 hi.Name, hi.FillColor, hi.OutlineColor, hi.FillTransparency, hi.OutlineTransparency = "ObjESP_Highlight", SETTINGS.PalletColor, SETTINGS.PalletColor, 0.8, 0.3
                 hi.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                
                 if centerPart then
                     local oldTag = centerPart:FindFirstChild("ObjESP_Tag")
                     if oldTag then oldTag:Destroy() end
@@ -251,7 +383,6 @@ local function UpdateWorldESP()
                 local centerPart = v.PrimaryPart or v:FindFirstChildWhichIsA("BasePart")
                 local oldHi = v:FindFirstChild("ObjESP_Highlight")
                 if oldHi then oldHi:Destroy() end
-                
                 if centerPart then
                     local bg = centerPart:FindFirstChild("ObjESP_Tag") or Instance.new("BillboardGui", centerPart)
                     bg.Name, bg.Size, bg.AlwaysOnTop, bg.StudsOffset = "ObjESP_Tag", UDim2.new(0, 100, 0, 30), true, Vector3.new(0, 1.5, 0)
@@ -287,11 +418,17 @@ local function AutoSkillCheck()
 end
 
 local lastParryTime = 0
-local function SpamParry()
-    for i = 1, 3 do
-        if SETTINGS.Parry_Key == "RightClick" then VirtualInputManager:SendMouseButtonEvent(0, 0, 1, true, game, 1) VirtualInputManager:SendMouseButtonEvent(0, 0, 1, false, game, 1)
-        else VirtualInputManager:SendKeyEvent(true, SETTINGS.Parry_Key, false, game) VirtualInputManager:SendKeyEvent(false, SETTINGS.Parry_Key, false, game) end
-        task.wait(0.01)
+
+-- [NEW] ส่งค่าคลิกที่สมูทขึ้นเพื่อไม่ให้ Server รีเจค
+local function ExecuteParry()
+    if SETTINGS.Parry_Key == "RightClick" then 
+        VirtualInputManager:SendMouseButtonEvent(0, 0, 1, true, game, 1)
+        task.wait(0.05) -- หน่วงนิดนึงเพื่อให้ Server จับจังหวะได้เต็ม 0.8s
+        VirtualInputManager:SendMouseButtonEvent(0, 0, 1, false, game, 1)
+    else 
+        VirtualInputManager:SendKeyEvent(true, SETTINGS.Parry_Key, false, game)
+        task.wait(0.05)
+        VirtualInputManager:SendKeyEvent(false, SETTINGS.Parry_Key, false, game) 
     end
 end
 
@@ -301,12 +438,48 @@ local function IsFacingMe(myPos, killerRoot)
     return directionToMe:Dot(killerLook) > 0.35 
 end
 
+-- [NEW] ตรวจจับ 3 รูปแบบ (Animation + เสียง Pull + เอฟเฟกต์ Trail)
+local function CheckKillerAttacking(kChar)
+    -- 1. เช็ค Animation (วิธีเดิม)
+    local animator = kChar:FindFirstChild("Animator", true) or (kChar:FindFirstChildWhichIsA("Humanoid") and kChar:FindFirstChildWhichIsA("Humanoid"):FindFirstChild("Animator"))
+    if animator then
+        for _, track in pairs(animator:GetPlayingAnimationTracks()) do
+            if track.Priority == Enum.AnimationPriority.Action or track.Priority == Enum.AnimationPriority.Action2 or track.Priority == Enum.AnimationPriority.Action3 then
+                local name = track.Name:lower()
+                local id = track.Animation.AnimationId
+                for _, kw in ipairs(ATTACK_KEYWORDS) do if name:find(kw) then return true end end
+                for _, aid in ipairs(ATTACK_IDS) do if id:find(aid) then return true end end
+            end
+        end
+    end
+
+    -- 2. เช็คเสียงดึงอาวุธ (Pull Sound) จากแขนขวา
+    local rightArm = kChar:FindFirstChild("Right Arm") or kChar:FindFirstChild("RightHand")
+    if rightArm then
+        local pullSound = rightArm:FindFirstChild("Pull")
+        if pullSound and pullSound:IsA("Sound") and pullSound.Playing then
+            return true
+        end
+    end
+
+    -- 3. เช็ค Trail ของอาวุธว่าถูกเปิดใช้งานหรือยัง
+    local weaponFolder = kChar:FindFirstChild("Weapon") or kChar:FindFirstChild("WeaponHolder")
+    if weaponFolder then
+        for _, v in pairs(weaponFolder:GetDescendants()) do
+            if (v:IsA("Trail") or v:IsA("ParticleEmitter")) and v.Enabled then
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
 local function AutoParryCheck()
     if not SETTINGS.AutoParry_Enabled or not LocalPlayer.Character then return end
     local myRoot = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not myRoot then return end
     
-    -- [UPDATED] เปลี่ยน tick() เป็น os.clock()
     local now = os.clock()
     if now - lastParryTime < SETTINGS.Parry_Cooldown then return end
     
@@ -320,28 +493,14 @@ local function AutoParryCheck()
                     if dist <= SETTINGS.Parry_MaxRange then
                         local isPanic = dist <= SETTINGS.Parry_PanicRange
                         if isPanic or IsFacingMe(myRoot.Position, kRoot) then
-                            local animator = kHum:FindFirstChild("Animator") or p.Character:FindFirstChild("Animator")
-                            if animator then
-                                for _, track in pairs(animator:GetPlayingAnimationTracks()) do
-                                    local shouldParry = false
-                                    if track.Priority == Enum.AnimationPriority.Action or track.Priority == Enum.AnimationPriority.Action2 or track.Priority == Enum.AnimationPriority.Action3 then shouldParry = true end
-                                    if not shouldParry then
-                                        local name = track.Name:lower()
-                                        local id = track.Animation.AnimationId
-                                        for _, kw in ipairs(ATTACK_KEYWORDS) do if name:find(kw) then shouldParry = true break end end
-                                        if not shouldParry then for _, aid in ipairs(ATTACK_IDS) do if id:find(aid) then shouldParry = true break end end end
-                                    end
-                                    if shouldParry then
-                                        if not isPanic then if track.Length > 0 and track.TimePosition < 0.05 then task.wait(0.05) end end
-                                        
-                                        task.spawn(SpamParry) 
-                                        -- [UPDATED] เปลี่ยน tick() เป็น os.clock()
-                                        lastParryTime = os.clock()
-                                        
-                                        return 
-                                    end
-                                end
+                            
+                            -- เรียกใช้ฟังก์ชันตรวจสอบแบบ 3 มิติ
+                            if CheckKillerAttacking(p.Character) then
+                                task.spawn(ExecuteParry) 
+                                lastParryTime = os.clock()
+                                return 
                             end
+                            
                         end
                     end
                 end
@@ -358,13 +517,13 @@ local function GetClosestKiller()
         if p ~= LocalPlayer and p.Character then
             if GetPlayerRole(p) == "Killer" then
                 local hum = p.Character:FindFirstChild("Humanoid")
-                local root = p.Character:FindFirstChild("HumanoidRootPart")
-                if hum and root and hum.Health > 0 then
-                    local screenPos, onScreen = Camera:WorldToViewportPoint(root.Position)
+                local targetPart = p.Character:FindFirstChild("Head") or p.Character:FindFirstChild("HumanoidRootPart")
+                if hum and targetPart and hum.Health > 0 then
+                    local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
                     if onScreen then
                         local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
                         if dist < maxDist then
-                            closestTarget = root
+                            closestTarget = targetPart
                             maxDist = dist
                         end
                     end
@@ -387,10 +546,11 @@ local function AutoAim()
     end
 end
 
--- [UPDATED] นำ Event ทั้งหมดเข้า Table
 table.insert(_G.ProScript_Connections, RunService.RenderStepped:Connect(AutoSkillCheck))
 table.insert(_G.ProScript_Connections, RunService.RenderStepped:Connect(AutoAim)) 
 table.insert(_G.ProScript_Connections, RunService.Heartbeat:Connect(AutoParryCheck))
+table.insert(_G.ProScript_Connections, RunService.RenderStepped:Connect(AutoCleanVision)) 
+table.insert(_G.ProScript_Connections, RunService.RenderStepped:Connect(SpeedHackLoop))
 
 table.insert(_G.ProScript_Connections, RunService.Stepped:Connect(function()
     if SETTINGS.Noclip_Enabled and LocalPlayer.Character then
@@ -403,23 +563,17 @@ end))
 
 coroutine.wrap(function() 
     while true do 
-        if SETTINGS.ESP_Enabled then 
-            pcall(UpdatePlayerESP) 
-        end 
+        if SETTINGS.ESP_Enabled then pcall(UpdatePlayerESP) end 
         task.wait(0.2) 
     end 
 end)()
 
 coroutine.wrap(function() 
     while true do 
-        if SETTINGS.ESP_Enabled then 
-            pcall(UpdateWorldESP)
-        end 
+        if SETTINGS.ESP_Enabled then pcall(UpdateWorldESP) end 
         task.wait(1.5) 
     end 
 end)()
-
-local function SendNotify(titleText, descText) pcall(function() StarterGui:SetCore("SendNotification", { Title = titleText, Text = descText, Duration = 2 }) end) end
 
 table.insert(_G.ProScript_Connections, UserInputService.InputBegan:Connect(function(input, gpe)
     if gpe then return end
@@ -428,15 +582,14 @@ table.insert(_G.ProScript_Connections, UserInputService.InputBegan:Connect(funct
         pcall(function() 
             StarterGui:SetCore("SendNotification", { 
                 Title = "📜 รายการปุ่มกด (Help)", 
-                Text = "E = ESP | R = Noclip\nG = AutoSkill | V = AutoParry\nX = Aimbot | K = Fullbright\nP = No Fog | L = Rejoin\nZ = ช่วยเหลือ", 
+                Text = "E = ESP | R = Noclip | C = Anti-Blind\nG = AutoSkill | V = God AutoParry\nX = Aimbot | K = Fullbright\nP = No Fog | B = Speed Hack\nL = Rejoin", 
                 Duration = 5 
             }) 
         end)
     elseif input.KeyCode == SETTINGS.Key_ESP then
         SETTINGS.ESP_Enabled = not SETTINGS.ESP_Enabled
         if not SETTINGS.ESP_Enabled then CleanVisuals() end
-        local status = SETTINGS.ESP_Enabled and "ON" or "OFF"
-        SendNotify("ESP", status)
+        SendNotify("ESP", SETTINGS.ESP_Enabled and "ON" or "OFF")
     elseif input.KeyCode == SETTINGS.Key_Noclip then
         SETTINGS.Noclip_Enabled = not SETTINGS.Noclip_Enabled
         if SETTINGS.Noclip_Enabled then 
@@ -445,22 +598,26 @@ table.insert(_G.ProScript_Connections, UserInputService.InputBegan:Connect(funct
         else 
             if next(originalCollision) then RestoreCollisionData(LocalPlayer.Character) else ForceResetCollision(LocalPlayer.Character) end 
         end
-        local status = SETTINGS.Noclip_Enabled and "ON" or "OFF"
-        SendNotify("Noclip", status)
+        SendNotify("Noclip", SETTINGS.Noclip_Enabled and "ON" or "OFF")
     elseif input.KeyCode == SETTINGS.Key_AutoSkill then
         SETTINGS.AutoSkill_Enabled = not SETTINGS.AutoSkill_Enabled
-        local status = SETTINGS.AutoSkill_Enabled and "ON" or "OFF"
-        SendNotify("Auto Skill", status)
+        SendNotify("Auto Skill", SETTINGS.AutoSkill_Enabled and "ON" or "OFF")
     elseif input.KeyCode == SETTINGS.Key_AutoParry then
         SETTINGS.AutoParry_Enabled = not SETTINGS.AutoParry_Enabled
-        local status = SETTINGS.AutoParry_Enabled and "ON" or "OFF"
-        SendNotify("Auto Parry", status)
+        SendNotify("God Auto Parry", SETTINGS.AutoParry_Enabled and "ON" or "OFF")
     elseif input.KeyCode == SETTINGS.Key_Aimbot then
         SETTINGS.Aimbot_Enabled = not SETTINGS.Aimbot_Enabled
-        local status = SETTINGS.Aimbot_Enabled and "ON (Hold Right Click)" or "OFF"
-        SendNotify("Aimbot", status)
-        
-    -- [UPDATED] ระบบล็อกค่า Fullbright กันเกมเปลี่ยนคืน
+        SendNotify("Aimbot (Head-Lock)", SETTINGS.Aimbot_Enabled and "ON (Hold Right Click)" or "OFF")
+    elseif input.KeyCode == SETTINGS.Key_CleanVision then
+        SETTINGS.CleanVision_Enabled = not SETTINGS.CleanVision_Enabled
+        SendNotify("Clean Vision (Anti-Blind)", SETTINGS.CleanVision_Enabled and "ON" or "OFF")
+    elseif input.KeyCode == SETTINGS.Key_SpeedHack then
+        SETTINGS.SpeedHack_Enabled = not SETTINGS.SpeedHack_Enabled
+        if not SETTINGS.SpeedHack_Enabled and LocalPlayer.Character then
+            local hum = LocalPlayer.Character:FindFirstChild("Humanoid")
+            if hum then hum.WalkSpeed = 16 end
+        end
+        SendNotify("Speed Hack (Test)", SETTINGS.SpeedHack_Enabled and "ON (WalkSpeed = 24)" or "OFF")
     elseif input.KeyCode == SETTINGS.Key_Fullbright then
         SETTINGS.Fullbright_Enabled = not SETTINGS.Fullbright_Enabled
         if SETTINGS.Fullbright_Enabled then
@@ -484,12 +641,10 @@ table.insert(_G.ProScript_Connections, UserInputService.InputBegan:Connect(funct
             
             table.insert(fbConnections, Lighting:GetPropertyChangedSignal("ClockTime"):Connect(function() Lighting.ClockTime = 12 end))
             Lighting.ClockTime = 12
-            
             SendNotify("Fullbright", "ON (Locked)")
         else
             for _, conn in pairs(fbConnections) do conn:Disconnect() end
             table.clear(fbConnections)
-            
             Lighting.Ambient = origLighting.Ambient
             Lighting.OutdoorAmbient = origLighting.OutdoorAmbient
             Lighting.Brightness = origLighting.Brightness
@@ -497,17 +652,13 @@ table.insert(_G.ProScript_Connections, UserInputService.InputBegan:Connect(funct
             Lighting.ClockTime = origLighting.ClockTime
             SendNotify("Fullbright", "OFF")
         end
-        
-    -- [UPDATED] ระบบล็อกค่า No Fog กันเกมเปลี่ยนคืน
     elseif input.KeyCode == SETTINGS.Key_NoFog then 
         SETTINGS.NoFog_Enabled = not SETTINGS.NoFog_Enabled
         if SETTINGS.NoFog_Enabled then
             origLighting.FogEnd = Lighting.FogEnd
             origLighting.FogStart = Lighting.FogStart
-            
             table.insert(fogConnections, Lighting:GetPropertyChangedSignal("FogStart"):Connect(function() Lighting.FogStart = 0 end))
             Lighting.FogStart = 0
-            
             table.insert(fogConnections, Lighting:GetPropertyChangedSignal("FogEnd"):Connect(function() Lighting.FogEnd = 999999 end))
             Lighting.FogEnd = 999999
             
@@ -521,17 +672,12 @@ table.insert(_G.ProScript_Connections, UserInputService.InputBegan:Connect(funct
         else
             for _, conn in pairs(fogConnections) do conn:Disconnect() end
             table.clear(fogConnections)
-            
             Lighting.FogStart = origLighting.FogStart or 0
             Lighting.FogEnd = origLighting.FogEnd or 100000
-            
             local atm = Lighting:FindFirstChildWhichIsA("Atmosphere")
-            if atm and origLighting.AtmDensity then
-                atm.Density = origLighting.AtmDensity
-            end
+            if atm and origLighting.AtmDensity then atm.Density = origLighting.AtmDensity end
             SendNotify("No Fog", "OFF")
         end
-        
     elseif input.KeyCode == SETTINGS.Key_Rejoin then
         SendNotify("Rejoining", "Please wait... Teleporting back to server.")
         task.wait(0.5)
@@ -541,10 +687,19 @@ end))
 
 table.insert(_G.ProScript_Connections, LocalPlayer.CharacterAdded:Connect(function(char)
     char:WaitForChild("HumanoidRootPart")
+    
     if SETTINGS.Noclip_Enabled then
         SaveCollisionData(char)
         CacheNoclipParts(char)
     end
+
+    table.insert(_G.ProScript_Connections, char.ChildAdded:Connect(HookTool))
+    for _, child in pairs(char:GetChildren()) do HookTool(child) end
 end))
 
-SendNotify("V8.6 + FPS BOOST + NO FOG", "Loaded! (Press Z for Keybinds)")
+if LocalPlayer.Character then
+    table.insert(_G.ProScript_Connections, LocalPlayer.Character.ChildAdded:Connect(HookTool))
+    for _, child in pairs(LocalPlayer.Character:GetChildren()) do HookTool(child) end
+end
+
+SendNotify("V8.9 + GOD PARRY + ITEM TRACKER", "Loaded! (Press Z for Keybinds)")
