@@ -1,4 +1,4 @@
--- [[ PROJECT: VIOLENCE DISTRICT - INSTANT V8.9 (GOD MODE PARRY + ITEM TRACKER + CLEAN VISION) ]] --
+-- [[ PROJECT: VIOLENCE DISTRICT - INSTANT V8.9 (UPGRADED EDITION) ]] --
 if _G.ViolenceDistrict_Loaded then
     pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", { Title = "System", Text = "Script is already loaded!", Duration = 3 }) end)
     return
@@ -44,7 +44,7 @@ local SETTINGS = {
     SpeedHack_Enabled = false,
     
     Parry_Key = "RightClick", 
-    Parry_MaxRange = 12, 
+    Parry_MaxRange = 15, -- ขยายระยะให้ครอบคลุมขึ้นเล็กน้อย
     Parry_PanicRange = 6.5,   
     Parry_Cooldown = 0.05, 
     
@@ -67,13 +67,8 @@ local SETTINGS = {
 }
 
 local ITEM_COOLDOWNS = {
-    ["Parrying Dagger"] = 60,
-    ["Holy Water"] = 70,
-    ["Riot Shield"] = 50,
-    ["Adrenaline Shot"] = 60,
-    ["Shadow Clone"] = 60,
-    ["Gate"] = 60,
-    ["WaxBound Candle"] = 30
+    ["Parrying Dagger"] = 60, ["Holy Water"] = 70, ["Riot Shield"] = 50,
+    ["Adrenaline Shot"] = 60, ["Shadow Clone"] = 60, ["Gate"] = 60, ["WaxBound Candle"] = 30
 }
 
 local KNOWN_KILLERS = {
@@ -85,7 +80,16 @@ local KNOWN_KILLERS = {
 local KILLER_ITEMS = {"knife", "bat", "axe", "machete", "saw", "gun", "hammer", "sword", "katana", "pipe", "weapon"}
 local SURVIVOR_ITEMS = {"medkit", "firstaid", "bandage", "flashlight", "phone", "key", "card", "soda"}
 local ATTACK_KEYWORDS = {"attack", "swing", "slash", "lunge", "m1", "punch", "strike", "heavy", "light"} 
-local ATTACK_IDS = { "111920872708571", "78935059863801", "139369275981139", "78432063483146", "132817836308238", "133963973694098", "74968262036854" }
+
+-- [UPGRADED] ฐานข้อมูลท่าตีของคิลเลอร์ที่ละเอียดขึ้น
+local KILLER_ANIM_IDS = {
+    ["105374834496520"] = true, ["113255068724446"] = true, ["118907603246885"] = true, ["129784271201071"] = true,
+    ["117042998468241"] = true, ["122812055447896"] = true, ["78935059863801"] = true,  ["74968262036854"] = true,
+    ["78432063483146"] = true,  ["132817836308238"] = true, ["133963973694098"] = true, ["111920872708571"] = true,
+    ["80411309607666"] = true,  ["98163597193511"] = true,  ["82666958311998"] = true,  ["110355011987939"] = true,
+    ["139369275981139"] = true, ["135002183282873"] = true, ["121216847022485"] = true, ["130593238885843"] = true,
+    ["117070354890871"] = true, ["106871536134254"] = true, ["138720291317243"] = true
+}
 
 if _G.ProScript_Connections then
     for _, conn in pairs(_G.ProScript_Connections) do if conn then pcall(function() conn:Disconnect() end) end end
@@ -97,6 +101,7 @@ local fogConnections = {}
 local originalCollision = {}
 local cachedNoclipParts = {}
 local ActiveCooldowns = {}
+local VaultTracks = {}
 
 local origLighting = {
     Ambient = Lighting.Ambient, OutdoorAmbient = Lighting.OutdoorAmbient, Brightness = Lighting.Brightness,
@@ -188,6 +193,32 @@ local function HookTool(tool)
     end
 end
 
+-- [ADDED] ระบบเปลี่ยนแอนิเมชันข้ามสิ่งกีดขวางให้ไวขึ้น
+local function HookVault(char)
+    local hum = char:WaitForChild("Humanoid", 5)
+    if not hum then return end
+    local animator = hum:WaitForChild("Animator", 5)
+    if not animator then return end
+    
+    table.insert(_G.ProScript_Connections, animator.AnimationPlayed:Connect(function(track)
+        if not track.Animation or not track.Animation.AnimationId then return end
+        local id = track.Animation.AnimationId:match("%d+")
+        
+        if id == "83873880822918" then
+            if VaultTracks[track] then return end
+            VaultTracks[track] = true
+            track:Stop()
+            local newAnim = Instance.new("Animation")
+            newAnim.AnimationId = "rbxassetid://136962284480779"
+            local newTrack = animator:LoadAnimation(newAnim)
+            newTrack.Priority = Enum.AnimationPriority.Action
+            newTrack:Play()
+            newTrack:AdjustSpeed(1.3) -- เร่งความเร็ว
+            newTrack.Stopped:Connect(function() VaultTracks[track] = nil end)
+        end
+    end))
+end
+
 local function CacheNoclipParts(char)
     cachedNoclipParts = {}
     for _, v in pairs(char:GetDescendants()) do 
@@ -248,13 +279,34 @@ local function AutoCleanVision()
     end)
 end
 
-local function SpeedHackLoop()
-    if not SETTINGS.SpeedHack_Enabled then return end
+-- [ADDED] Anti-Fall + SpeedHack Handler
+local AntiFall = { IsBoosted = false, BoostTimer = 0 }
+local function SpeedAndFallLoop()
     pcall(function()
         local char = LocalPlayer.Character
-        if char then
-            local hum = char:FindFirstChild("Humanoid")
-            if hum and hum.WalkSpeed < 24 then hum.WalkSpeed = 24 end
+        if not char then return end
+        local hum = char:FindFirstChild("Humanoid")
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if not hum or not hrp then return end
+
+        -- SpeedHack Check
+        if SETTINGS.SpeedHack_Enabled and not AntiFall.IsBoosted then
+            if hum.WalkSpeed < 24 then hum.WalkSpeed = 24 end
+        end
+
+        -- Anti-Fall Detection
+        local velocity = hrp.AssemblyLinearVelocity
+        if velocity.Y < -10 and not AntiFall.IsBoosted then
+            AntiFall.IsBoosted = true
+            AntiFall.BoostTimer = os.clock()
+            hum.WalkSpeed = 24
+        elseif AntiFall.IsBoosted then
+            if os.clock() - AntiFall.BoostTimer >= 4 then
+                AntiFall.IsBoosted = false
+                if not SETTINGS.SpeedHack_Enabled then hum.WalkSpeed = 16 end
+            else
+                if hum.WalkSpeed < 24 then hum.WalkSpeed = 24 end
+            end
         end
     end)
 end
@@ -294,6 +346,7 @@ local function CreatePlayerESP(target, text, color)
     tl.Name, tl.BackgroundTransparency, tl.Size, tl.Font, tl.TextSize, tl.Text, tl.TextColor3, tl.TextStrokeTransparency, tl.TextStrokeColor3 = "Label", 1, UDim2.new(1, 0, 1, 0), Enum.Font.GothamBold, 13, text, color, 0, Color3.new(0,0,0)
 end
 
+-- [UPGRADED] เพิ่มการแสดงสถานะล้มใน ESP
 local function UpdatePlayerESP()
     if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
     local myPos = LocalPlayer.Character.HumanoidRootPart.Position
@@ -305,11 +358,16 @@ local function UpdatePlayerESP()
                 local role = GetPlayerRole(p)
                 local dist = (myPos - char.HumanoidRootPart.Position).Magnitude
                 local hpText = ""
+                
                 if humanoid and role == "Survivor" then
                     local hp = math.floor(humanoid.Health)
                     local maxHp = math.floor(humanoid.MaxHealth)
                     hpText = hp < maxHp and string.format(" [HP:%d%%]", (hp/maxHp)*100) or " [FULL]"
+                    
+                    local isDown = hp <= 0 or hp < 2 or char:GetAttribute("Downed") == true or char:GetAttribute("IsDown") == true or char:GetAttribute("Knocked") == true
+                    if isDown then hpText = hpText .. " [🔻DOWN]" end
                 end
+                
                 local color = (role == "Killer" and SETTINGS.KillerColor) or (role == "Suspect" and SETTINGS.SuspectColor) or SETTINGS.SurvivorColor
                 local prefix = (role == "Killer" and "[KILLER] ") or (role == "Suspect" and "[?] ") or "[+] "
                 CreatePlayerESP(char.HumanoidRootPart, prefix .. p.Name .. hpText .. string.format("\n[%d m]", math.floor(dist)), color)
@@ -318,8 +376,9 @@ local function UpdatePlayerESP()
     end
 end
 
+-- [UPGRADED] อ่านเปอร์เซ็นต์เครื่องแม่นยำขึ้น
 local function GetGenProgress(model)
-    local pct = tonumber(model:GetAttribute("RepairProgress")) or 0
+    local pct = tonumber(model:GetAttribute("RepairProgress")) or tonumber(model:GetAttribute("Progress")) or 0
     if pct > 0 and pct <= 1.001 then pct = pct * 100 end
     return math.floor(math.clamp(pct, 0, 100))
 end
@@ -346,7 +405,7 @@ table.insert(_G.ProScript_Connections, Workspace.DescendantAdded:Connect(AddWorl
 local function UpdateWorldESP()
     local activeObjects = {}
     for _, v in ipairs(cachedWorldObjects) do
-        if v and v.Parent then
+        if v and v:IsDescendantOf(Workspace) then
             table.insert(activeObjects, v) 
             local name = v.Name:lower()
             
@@ -418,8 +477,6 @@ local function AutoSkillCheck()
 end
 
 local lastParryTime = 0
-
--- [UPDATED] ส่งค่าคลิกที่สมูทขึ้น พร้อมระบบกัน Spam และสุ่ม Delay เหมือนคนกด
 local function ExecuteParry()
     local now = os.clock()
     if now - lastParryTime < SETTINGS.Parry_Cooldown then return end
@@ -427,7 +484,7 @@ local function ExecuteParry()
 
     if SETTINGS.Parry_Key == "RightClick" then 
         VirtualInputManager:SendMouseButtonEvent(0, 0, 1, true, game, 1)
-        task.wait(math.random(30, 60) / 1000) -- สุ่มหน่วงเวลา 0.03 ถึง 0.06 วินาที
+        task.wait(math.random(30, 60) / 1000)
         VirtualInputManager:SendMouseButtonEvent(0, 0, 1, false, game, 1)
     else 
         VirtualInputManager:SendKeyEvent(true, SETTINGS.Parry_Key, false, game)
@@ -448,9 +505,9 @@ local function CheckKillerAttacking(kChar)
         for _, track in pairs(animator:GetPlayingAnimationTracks()) do
             if track.Priority == Enum.AnimationPriority.Action or track.Priority == Enum.AnimationPriority.Action2 or track.Priority == Enum.AnimationPriority.Action3 then
                 local name = track.Name:lower()
-                local id = track.Animation.AnimationId
+                local id = track.Animation and track.Animation.AnimationId and track.Animation.AnimationId:match("%d+") or ""
                 for _, kw in ipairs(ATTACK_KEYWORDS) do if name:find(kw) then return true end end
-                for _, aid in ipairs(ATTACK_IDS) do if id:find(aid) then return true end end
+                if KILLER_ANIM_IDS[id] then return true end
             end
         end
     end
@@ -458,21 +515,40 @@ local function CheckKillerAttacking(kChar)
     local rightArm = kChar:FindFirstChild("Right Arm") or kChar:FindFirstChild("RightHand")
     if rightArm then
         local pullSound = rightArm:FindFirstChild("Pull")
-        if pullSound and pullSound:IsA("Sound") and pullSound.Playing then
-            return true
-        end
+        if pullSound and pullSound:IsA("Sound") and pullSound.Playing then return true end
     end
 
     local weaponFolder = kChar:FindFirstChild("Weapon") or kChar:FindFirstChild("WeaponHolder")
     if weaponFolder then
         for _, v in pairs(weaponFolder:GetDescendants()) do
-            if (v:IsA("Trail") or v:IsA("ParticleEmitter")) and v.Enabled then
-                return true
-            end
+            if (v:IsA("Trail") or v:IsA("ParticleEmitter")) and v.Enabled then return true end
         end
     end
-
     return false
+end
+
+-- [ADDED] Parry Range Visualizer
+local ParryCircle = nil
+local function UpdateParryVisual()
+    if not SETTINGS.AutoParry_Enabled or not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        if ParryCircle then ParryCircle:Destroy() ParryCircle = nil end
+        return
+    end
+    if not ParryCircle then
+        ParryCircle = Instance.new("Part")
+        ParryCircle.Shape = Enum.PartType.Cylinder
+        ParryCircle.Anchored = true
+        ParryCircle.CanCollide = false
+        ParryCircle.Material = Enum.Material.Neon
+        ParryCircle.Color = Color3.fromRGB(255, 80, 80)
+        ParryCircle.Transparency = 0.8
+        ParryCircle.Name = "ParryRangeCircle"
+        ParryCircle.Parent = Workspace
+    end
+    local root = LocalPlayer.Character.HumanoidRootPart
+    local size = SETTINGS.Parry_MaxRange * 2
+    ParryCircle.Size = Vector3.new(0.2, size, size)
+    ParryCircle.CFrame = CFrame.new(root.Position - Vector3.new(0, 2.5, 0)) * CFrame.Angles(0, 0, math.rad(90))
 end
 
 local function AutoParryCheck()
@@ -505,20 +581,33 @@ local function AutoParryCheck()
     end
 end
 
+-- [UPGRADED] Aimbot Visibility Check (ป้องกันการล็อกทะลุกำแพง)
+local RaycastParamsBlacklist = RaycastParams.new()
+RaycastParamsBlacklist.FilterType = Enum.RaycastFilterType.Blacklist
+
+local function IsTargetVisible(targetPart)
+    RaycastParamsBlacklist.FilterDescendantsInstances = {LocalPlayer.Character}
+    local origin = Camera.CFrame.Position
+    local direction = targetPart.Position - origin
+    local result = Workspace:Raycast(origin, direction, RaycastParamsBlacklist)
+    return not result or result.Instance:IsDescendantOf(targetPart.Parent)
+end
+
 local function GetClosestKiller()
     local closestTarget = nil
     local maxDist = SETTINGS.Aimbot_FOV
     local mousePos = Vector2.new(Mouse.X, Mouse.Y)
+    
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= LocalPlayer and p.Character then
             if GetPlayerRole(p) == "Killer" then
                 local hum = p.Character:FindFirstChild("Humanoid")
-                local targetPart = p.Character:FindFirstChild("Head") or p.Character:FindFirstChild("HumanoidRootPart")
+                local targetPart = p.Character:FindFirstChild("HumanoidRootPart")
                 if hum and targetPart and hum.Health > 0 then
                     local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
                     if onScreen then
                         local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
-                        if dist < maxDist then
+                        if dist < maxDist and IsTargetVisible(targetPart) then
                             closestTarget = targetPart
                             maxDist = dist
                         end
@@ -535,18 +624,20 @@ local function AutoAim()
     if not UserInputService:IsMouseButtonPressed(SETTINGS.Aimbot_HoldKey) then return end
     local target = GetClosestKiller()
     if target then
-        local predictedPos = target.Position + (target.Velocity * SETTINGS.Aimbot_Prediction)
+        local predictedPos = target.Position + (target.AssemblyLinearVelocity * SETTINGS.Aimbot_Prediction)
         local currentCamCF = Camera.CFrame
         local goalCF = CFrame.new(currentCamCF.Position, predictedPos)
         Camera.CFrame = currentCamCF:Lerp(goalCF, SETTINGS.Aimbot_Smoothness)
     end
 end
 
+-- Core Loops
 table.insert(_G.ProScript_Connections, RunService.RenderStepped:Connect(AutoSkillCheck))
 table.insert(_G.ProScript_Connections, RunService.RenderStepped:Connect(AutoAim)) 
 table.insert(_G.ProScript_Connections, RunService.Heartbeat:Connect(AutoParryCheck))
+table.insert(_G.ProScript_Connections, RunService.Heartbeat:Connect(UpdateParryVisual)) 
 table.insert(_G.ProScript_Connections, RunService.RenderStepped:Connect(AutoCleanVision)) 
-table.insert(_G.ProScript_Connections, RunService.RenderStepped:Connect(SpeedHackLoop))
+table.insert(_G.ProScript_Connections, RunService.RenderStepped:Connect(SpeedAndFallLoop))
 
 table.insert(_G.ProScript_Connections, RunService.Stepped:Connect(function()
     if SETTINGS.Noclip_Enabled and LocalPlayer.Character then
@@ -579,7 +670,7 @@ table.insert(_G.ProScript_Connections, UserInputService.InputBegan:Connect(funct
             StarterGui:SetCore("SendNotification", { 
                 Title = "📜 รายการปุ่มกด (Help)", 
                 Text = "E = ESP | R = Noclip | C = Anti-Blind\nG = AutoSkill | V = God AutoParry\nX = Aimbot | K = Fullbright\nP = No Fog | B = Speed Hack\nL = Rejoin", 
-                Duration = 5 
+                Duration = 6 
             }) 
         end)
     elseif input.KeyCode == SETTINGS.Key_ESP then
@@ -600,10 +691,10 @@ table.insert(_G.ProScript_Connections, UserInputService.InputBegan:Connect(funct
         SendNotify("Auto Skill", SETTINGS.AutoSkill_Enabled and "ON" or "OFF")
     elseif input.KeyCode == SETTINGS.Key_AutoParry then
         SETTINGS.AutoParry_Enabled = not SETTINGS.AutoParry_Enabled
-        SendNotify("God Auto Parry", SETTINGS.AutoParry_Enabled and "ON" or "OFF")
+        SendNotify("God Auto Parry", SETTINGS.AutoParry_Enabled and "ON (Visible Range)" or "OFF")
     elseif input.KeyCode == SETTINGS.Key_Aimbot then
         SETTINGS.Aimbot_Enabled = not SETTINGS.Aimbot_Enabled
-        SendNotify("Aimbot (Head-Lock)", SETTINGS.Aimbot_Enabled and "ON (Hold Right Click)" or "OFF")
+        SendNotify("Aimbot (Smart Lock)", SETTINGS.Aimbot_Enabled and "ON (Hold Right Click)" or "OFF")
     elseif input.KeyCode == SETTINGS.Key_CleanVision then
         SETTINGS.CleanVision_Enabled = not SETTINGS.CleanVision_Enabled
         SendNotify("Clean Vision (Anti-Blind)", SETTINGS.CleanVision_Enabled and "ON" or "OFF")
@@ -613,7 +704,7 @@ table.insert(_G.ProScript_Connections, UserInputService.InputBegan:Connect(funct
             local hum = LocalPlayer.Character:FindFirstChild("Humanoid")
             if hum then hum.WalkSpeed = 16 end
         end
-        SendNotify("Speed Hack (Test)", SETTINGS.SpeedHack_Enabled and "ON (WalkSpeed = 24)" or "OFF")
+        SendNotify("Speed Hack", SETTINGS.SpeedHack_Enabled and "ON (WalkSpeed = 24)" or "OFF")
     elseif input.KeyCode == SETTINGS.Key_Fullbright then
         SETTINGS.Fullbright_Enabled = not SETTINGS.Fullbright_Enabled
         if SETTINGS.Fullbright_Enabled then
@@ -691,11 +782,13 @@ table.insert(_G.ProScript_Connections, LocalPlayer.CharacterAdded:Connect(functi
 
     table.insert(_G.ProScript_Connections, char.ChildAdded:Connect(HookTool))
     for _, child in pairs(char:GetChildren()) do HookTool(child) end
+    HookVault(char)
 end))
 
 if LocalPlayer.Character then
     table.insert(_G.ProScript_Connections, LocalPlayer.Character.ChildAdded:Connect(HookTool))
     for _, child in pairs(LocalPlayer.Character:GetChildren()) do HookTool(child) end
+    HookVault(LocalPlayer.Character)
 end
 
-SendNotify("V8.9 + GOD PARRY + ITEM TRACKER", "Loaded! (Press Z for Keybinds)")
+SendNotify("V8.9 (UPGRADED EDITION)", "Loaded! (Press Z for Keybinds)")
