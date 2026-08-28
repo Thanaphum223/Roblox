@@ -1,4 +1,4 @@
--- [[ PROJECT: VIOLENCE DISTRICT - INSTANT V8.9 (UPGRADED EDITION) ]] --
+-- [[ PROJECT: VIOLENCE DISTRICT - INSTANT V8.9 (ULTIMATE EDITION) ]] --
 if _G.ViolenceDistrict_Loaded then
     pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", { Title = "System", Text = "Script is already loaded!", Duration = 3 }) end)
     return
@@ -14,6 +14,7 @@ local StarterGui = game:GetService("StarterGui")
 local TeleportService = game:GetService("TeleportService")
 local Lighting = game:GetService("Lighting")
 local TweenService = game:GetService("TweenService")
+local GuiService = game:GetService("GuiService")
 
 local Camera = Workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
@@ -30,6 +31,7 @@ local SETTINGS = {
     Key_NoFog = Enum.KeyCode.P, 
     Key_CleanVision = Enum.KeyCode.C,
     Key_SpeedHack = Enum.KeyCode.B,
+    Key_SelfHeal = Enum.KeyCode.H, -- [ADDED] ปุ่มเปิด/ปิด Self Heal
     Key_Rejoin = Enum.KeyCode.L,
     Key_Help = Enum.KeyCode.Z, 
     
@@ -42,9 +44,10 @@ local SETTINGS = {
     NoFog_Enabled = false,
     CleanVision_Enabled = false,
     SpeedHack_Enabled = false,
+    SelfHeal_Enabled = true, -- [ADDED] เปิดใช้งาน Passive Self Heal เป็นค่าเริ่มต้น
     
     Parry_Key = "RightClick", 
-    Parry_MaxRange = 15, -- ขยายระยะให้ครอบคลุมขึ้นเล็กน้อย
+    Parry_MaxRange = 15,
     Parry_PanicRange = 6.5,   
     Parry_Cooldown = 0.05, 
     
@@ -59,6 +62,7 @@ local SETTINGS = {
     GenColor = LocalPlayer:GetAttribute("genaura") or Color3.fromRGB(0, 255, 255),
     PalletColor = Color3.fromRGB(74, 255, 181),
     WindowColor = Color3.fromRGB(100, 180, 255),
+    SCPColor = Color3.fromRGB(255, 0, 0),
     
     GUI_NAME = "SkillCheckPromptGui",
     FRAME_NAME = "Check",
@@ -81,7 +85,6 @@ local KILLER_ITEMS = {"knife", "bat", "axe", "machete", "saw", "gun", "hammer", 
 local SURVIVOR_ITEMS = {"medkit", "firstaid", "bandage", "flashlight", "phone", "key", "card", "soda"}
 local ATTACK_KEYWORDS = {"attack", "swing", "slash", "lunge", "m1", "punch", "strike", "heavy", "light"} 
 
--- [UPGRADED] ฐานข้อมูลท่าตีของคิลเลอร์ที่ละเอียดขึ้น
 local KILLER_ANIM_IDS = {
     ["105374834496520"] = true, ["113255068724446"] = true, ["118907603246885"] = true, ["129784271201071"] = true,
     ["117042998468241"] = true, ["122812055447896"] = true, ["78935059863801"] = true,  ["74968262036854"] = true,
@@ -102,6 +105,7 @@ local originalCollision = {}
 local cachedNoclipParts = {}
 local ActiveCooldowns = {}
 local VaultTracks = {}
+local CachedSCP = {}
 
 local origLighting = {
     Ambient = Lighting.Ambient, OutdoorAmbient = Lighting.OutdoorAmbient, Brightness = Lighting.Brightness,
@@ -111,6 +115,9 @@ local origLighting = {
 
 local function SendNotify(titleText, descText) pcall(function() StarterGui:SetCore("SendNotification", { Title = titleText, Text = descText, Duration = 2 }) end) end
 
+-- =====================================================
+-- ITEM TRACKER GUI
+-- =====================================================
 local function SetupTrackerGUI()
     local oldGui = PlayerGui:FindFirstChild("VD_ItemTracker")
     if oldGui then oldGui:Destroy() end
@@ -193,7 +200,88 @@ local function HookTool(tool)
     end
 end
 
--- [ADDED] ระบบเปลี่ยนแอนิเมชันข้ามสิ่งกีดขวางให้ไวขึ้น
+-- =====================================================
+-- SELF HEAL PASSIVE HUD & LOGIC
+-- =====================================================
+local SelfHealProgressLabel = nil
+local lastHealTick = 0
+
+local function SetupSelfHealHUD()
+    local oldGui = PlayerGui:FindFirstChild("VD_SelfHealGui")
+    if oldGui then oldGui:Destroy() end
+
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "VD_SelfHealGui"
+    gui.ResetOnSpawn = false
+    gui.Parent = PlayerGui
+
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0, 200, 0, 35)
+    frame.Position = UDim2.new(0.5, -100, 0.90, 0)
+    frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    frame.BackgroundTransparency = 0.5
+    frame.BorderSizePixel = 0
+    frame.Parent = gui
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(1, 0)
+    corner.Parent = frame
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Text = "💚 Self Heal: Active"
+    label.TextColor3 = Color3.fromRGB(0, 255, 0)
+    label.TextSize = 13
+    label.Font = Enum.Font.GothamBold
+    label.Parent = frame
+
+    SelfHealProgressLabel = label
+end
+SetupSelfHealHUD()
+
+local function SelfHealPassiveLoop()
+    if not SETTINGS.SelfHeal_Enabled then 
+        if SelfHealProgressLabel and SelfHealProgressLabel.Parent then
+            SelfHealProgressLabel.Parent.Visible = false
+        end
+        return 
+    end
+
+    if SelfHealProgressLabel and SelfHealProgressLabel.Parent then
+        SelfHealProgressLabel.Parent.Visible = true
+    end
+
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum or hum.Health <= 0 then return end
+
+    local now = os.clock()
+    if now - lastHealTick >= 1 then
+        lastHealTick = now
+        local maxHp = hum.MaxHealth
+        local currentHp = hum.Health
+        local healNeeded = maxHp - currentHp
+
+        if healNeeded > 0 then
+            local healAmount = math.min(10, healNeeded)
+            hum.Health = currentHp + healAmount
+            local progress = math.min(100, (hum.Health / maxHp) * 100)
+            if SelfHealProgressLabel then 
+                SelfHealProgressLabel.Text = string.format("💚 Healing: %.0f%%", progress) 
+            end
+        else
+            if SelfHealProgressLabel then 
+                SelfHealProgressLabel.Text = "✅ Full Health" 
+            end
+        end
+    end
+end
+
+-- =====================================================
+-- FAST VAULT
+-- =====================================================
 local function HookVault(char)
     local hum = char:WaitForChild("Humanoid", 5)
     if not hum then return end
@@ -213,12 +301,15 @@ local function HookVault(char)
             local newTrack = animator:LoadAnimation(newAnim)
             newTrack.Priority = Enum.AnimationPriority.Action
             newTrack:Play()
-            newTrack:AdjustSpeed(1.3) -- เร่งความเร็ว
+            newTrack:AdjustSpeed(1.3)
             newTrack.Stopped:Connect(function() VaultTracks[track] = nil end)
         end
     end))
 end
 
+-- =====================================================
+-- NOCLIP & VISION
+-- =====================================================
 local function CacheNoclipParts(char)
     cachedNoclipParts = {}
     for _, v in pairs(char:GetDescendants()) do 
@@ -279,7 +370,9 @@ local function AutoCleanVision()
     end)
 end
 
--- [ADDED] Anti-Fall + SpeedHack Handler
+-- =====================================================
+-- SPEED & ANTI-FALL
+-- =====================================================
 local AntiFall = { IsBoosted = false, BoostTimer = 0 }
 local function SpeedAndFallLoop()
     pcall(function()
@@ -289,12 +382,10 @@ local function SpeedAndFallLoop()
         local hrp = char:FindFirstChild("HumanoidRootPart")
         if not hum or not hrp then return end
 
-        -- SpeedHack Check
         if SETTINGS.SpeedHack_Enabled and not AntiFall.IsBoosted then
             if hum.WalkSpeed < 24 then hum.WalkSpeed = 24 end
         end
 
-        -- Anti-Fall Detection
         local velocity = hrp.AssemblyLinearVelocity
         if velocity.Y < -10 and not AntiFall.IsBoosted then
             AntiFall.IsBoosted = true
@@ -311,6 +402,9 @@ local function SpeedAndFallLoop()
     end)
 end
 
+-- =====================================================
+-- ESP SYSTEM & OBJECT CACHE
+-- =====================================================
 local function GetPlayerRole(plr)
     if not plr or not plr.Character then return "Unknown" end
     local success, teamName = pcall(function() return plr.Team.Name:lower() end)
@@ -346,7 +440,6 @@ local function CreatePlayerESP(target, text, color)
     tl.Name, tl.BackgroundTransparency, tl.Size, tl.Font, tl.TextSize, tl.Text, tl.TextColor3, tl.TextStrokeTransparency, tl.TextStrokeColor3 = "Label", 1, UDim2.new(1, 0, 1, 0), Enum.Font.GothamBold, 13, text, color, 0, Color3.new(0,0,0)
 end
 
--- [UPGRADED] เพิ่มการแสดงสถานะล้มใน ESP
 local function UpdatePlayerESP()
     if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
     local myPos = LocalPlayer.Character.HumanoidRootPart.Position
@@ -376,7 +469,6 @@ local function UpdatePlayerESP()
     end
 end
 
--- [UPGRADED] อ่านเปอร์เซ็นต์เครื่องแม่นยำขึ้น
 local function GetGenProgress(model)
     local pct = tonumber(model:GetAttribute("RepairProgress")) or tonumber(model:GetAttribute("Progress")) or 0
     if pct > 0 and pct <= 1.001 then pct = pct * 100 end
@@ -385,11 +477,14 @@ end
 
 local cachedWorldObjects = {}
 local function AddWorldObject(v)
+    local name = v.Name:lower()
     if v:IsA("Model") and not v:IsA("Character") then
-        local name = v.Name:lower()
         if name:match("generator") or name:match("cipher") or name:match("repair") or name == "palletwrong" or name == "pallet" or name == "window" then
             table.insert(cachedWorldObjects, v)
         end
+    end
+    if name:find("scp") then
+        CachedSCP[v] = true
     end
 end
 
@@ -401,6 +496,7 @@ coroutine.wrap(function()
     end
 end)()
 table.insert(_G.ProScript_Connections, Workspace.DescendantAdded:Connect(AddWorldObject))
+table.insert(_G.ProScript_Connections, Workspace.DescendantRemoving:Connect(function(v) CachedSCP[v] = nil end))
 
 local function UpdateWorldESP()
     local activeObjects = {}
@@ -454,42 +550,95 @@ local function UpdateWorldESP()
     cachedWorldObjects = activeObjects
 end
 
+-- =====================================================
+-- AUTO SKILL CHECK (PC & MOBILE TOUCH SUPPORT)
+-- =====================================================
+local ActionPath = "Survivor-mob.Controls.action.check"
+local function TriggerMobileSkillCheck()
+    local current = PlayerGui
+    for segment in string.gmatch(ActionPath, "[^%.]+") do
+        current = current and current:FindFirstChild(segment)
+    end
+    if current and current:IsA("GuiObject") then
+        local p, s, i = current.AbsolutePosition, current.AbsoluteSize, GuiService:GetGuiInset()
+        local cx, cy = p.X + (s.X/2) + i.X, p.Y + (s.Y/2) + i.Y
+        pcall(function()
+            VirtualInputManager:SendTouchEvent(8822, 0, cx, cy)
+            task.wait(0.01)
+            VirtualInputManager:SendTouchEvent(8822, 2, cx, cy)
+        end)
+    end
+end
+
 local function LineInGoal(Line, Goal)
     local lr, gr = Line.Rotation % 360, Goal.Rotation % 360
     local gs, ge = (gr + 104) % 360, (gr + 114) % 360
     return gs > ge and (lr >= gs or lr <= ge) or (lr >= gs and lr <= ge)
 end
 
+local skillBusy = false
 local function AutoSkillCheck()
-    if not SETTINGS.AutoSkill_Enabled then return end
+    if not SETTINGS.AutoSkill_Enabled or skillBusy then return end
     pcall(function()
         local mainGui = PlayerGui:FindFirstChild(SETTINGS.GUI_NAME)
         local checkFrame = mainGui and mainGui:FindFirstChild(SETTINGS.FRAME_NAME, true)
         if checkFrame and checkFrame.Visible then
             local needle, goal = checkFrame:FindFirstChild(SETTINGS.NEEDLE_NAME), checkFrame:FindFirstChild(SETTINGS.GOAL_NAME)
             if needle and goal and LineInGoal(needle, goal) then
-                VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-                task.wait() 
-                VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+                skillBusy = true
+                task.spawn(function()
+                    if UserInputService.TouchEnabled then
+                        TriggerMobileSkillCheck()
+                    else
+                        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+                        task.wait() 
+                        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+                    end
+                    task.wait(0.05)
+                    skillBusy = false
+                end)
             end
         end
     end)
 end
 
+-- =====================================================
+-- AUTO PARRY (PC & MOBILE TOUCH SUPPORT)
+-- =====================================================
 local lastParryTime = 0
+
+local function TriggerMobileParry()
+    local current = PlayerGui
+    for segment in string.gmatch("Survivor-mob.Controls.Gui-mob", "[^%.]+") do
+        current = current and current:FindFirstChild(segment)
+    end
+    if current and current:IsA("GuiObject") then
+        local pos, size, inset = current.AbsolutePosition, current.AbsoluteSize, GuiService:GetGuiInset()
+        local x = pos.X + size.X/2 + inset.X
+        local y = pos.Y + size.Y/2 + inset.Y
+        VirtualInputManager:SendTouchEvent(8823, 0, x, y)
+        task.wait(0.01)
+        VirtualInputManager:SendTouchEvent(8823, 2, x, y)
+    end
+end
+
 local function ExecuteParry()
     local now = os.clock()
     if now - lastParryTime < SETTINGS.Parry_Cooldown then return end
     lastParryTime = now
 
-    if SETTINGS.Parry_Key == "RightClick" then 
-        VirtualInputManager:SendMouseButtonEvent(0, 0, 1, true, game, 1)
-        task.wait(math.random(30, 60) / 1000)
-        VirtualInputManager:SendMouseButtonEvent(0, 0, 1, false, game, 1)
-    else 
-        VirtualInputManager:SendKeyEvent(true, SETTINGS.Parry_Key, false, game)
-        task.wait(math.random(30, 60) / 1000)
-        VirtualInputManager:SendKeyEvent(false, SETTINGS.Parry_Key, false, game) 
+    if UserInputService.TouchEnabled then
+        TriggerMobileParry()
+    else
+        if SETTINGS.Parry_Key == "RightClick" then 
+            VirtualInputManager:SendMouseButtonEvent(0, 0, 1, true, game, 1)
+            task.wait(math.random(30, 60) / 1000)
+            VirtualInputManager:SendMouseButtonEvent(0, 0, 1, false, game, 1)
+        else 
+            VirtualInputManager:SendKeyEvent(true, SETTINGS.Parry_Key, false, game)
+            task.wait(math.random(30, 60) / 1000)
+            VirtualInputManager:SendKeyEvent(false, SETTINGS.Parry_Key, false, game) 
+        end
     end
 end
 
@@ -527,7 +676,6 @@ local function CheckKillerAttacking(kChar)
     return false
 end
 
--- [ADDED] Parry Range Visualizer
 local ParryCircle = nil
 local function UpdateParryVisual()
     if not SETTINGS.AutoParry_Enabled or not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
@@ -581,7 +729,9 @@ local function AutoParryCheck()
     end
 end
 
--- [UPGRADED] Aimbot Visibility Check (ป้องกันการล็อกทะลุกำแพง)
+-- =====================================================
+-- AIMBOT (KILLER + SCP TARGETING)
+-- =====================================================
 local RaycastParamsBlacklist = RaycastParams.new()
 RaycastParamsBlacklist.FilterType = Enum.RaycastFilterType.Blacklist
 
@@ -593,16 +743,17 @@ local function IsTargetVisible(targetPart)
     return not result or result.Instance:IsDescendantOf(targetPart.Parent)
 end
 
-local function GetClosestKiller()
+local function GetClosestTarget()
     local closestTarget = nil
     local maxDist = SETTINGS.Aimbot_FOV
     local mousePos = Vector2.new(Mouse.X, Mouse.Y)
     
+    -- 1. ตรวจจับ Killer
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= LocalPlayer and p.Character then
             if GetPlayerRole(p) == "Killer" then
                 local hum = p.Character:FindFirstChild("Humanoid")
-                local targetPart = p.Character:FindFirstChild("HumanoidRootPart")
+                local targetPart = p.Character:FindFirstChild("HumanoidRootPart") or p.Character:FindFirstChild("Head")
                 if hum and targetPart and hum.Health > 0 then
                     local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
                     if onScreen then
@@ -616,28 +767,50 @@ local function GetClosestKiller()
             end
         end
     end
+
+    -- 2. [ADDED] ตรวจจับ SCP Target
+    for scpObj in pairs(CachedSCP) do
+        if scpObj and scpObj:IsDescendantOf(Workspace) then
+            local targetPart = scpObj:IsA("Model") and (scpObj.PrimaryPart or scpObj:FindFirstChildWhichIsA("BasePart")) or (scpObj:IsA("BasePart") and scpObj)
+            if targetPart then
+                local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+                if onScreen then
+                    local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+                    if dist < maxDist and IsTargetVisible(targetPart) then
+                        closestTarget = targetPart
+                        maxDist = dist
+                    end
+                end
+            end
+        end
+    end
+
     return closestTarget
 end
 
 local function AutoAim()
     if not SETTINGS.Aimbot_Enabled then return end
     if not UserInputService:IsMouseButtonPressed(SETTINGS.Aimbot_HoldKey) then return end
-    local target = GetClosestKiller()
+    local target = GetClosestTarget()
     if target then
-        local predictedPos = target.Position + (target.AssemblyLinearVelocity * SETTINGS.Aimbot_Prediction)
+        local velocity = target.AssemblyLinearVelocity or Vector3.zero
+        local predictedPos = target.Position + (velocity * SETTINGS.Aimbot_Prediction)
         local currentCamCF = Camera.CFrame
         local goalCF = CFrame.new(currentCamCF.Position, predictedPos)
         Camera.CFrame = currentCamCF:Lerp(goalCF, SETTINGS.Aimbot_Smoothness)
     end
 end
 
--- Core Loops
+-- =====================================================
+-- CORE LOOPS & BINDINGS
+-- =====================================================
 table.insert(_G.ProScript_Connections, RunService.RenderStepped:Connect(AutoSkillCheck))
 table.insert(_G.ProScript_Connections, RunService.RenderStepped:Connect(AutoAim)) 
 table.insert(_G.ProScript_Connections, RunService.Heartbeat:Connect(AutoParryCheck))
 table.insert(_G.ProScript_Connections, RunService.Heartbeat:Connect(UpdateParryVisual)) 
 table.insert(_G.ProScript_Connections, RunService.RenderStepped:Connect(AutoCleanVision)) 
 table.insert(_G.ProScript_Connections, RunService.RenderStepped:Connect(SpeedAndFallLoop))
+table.insert(_G.ProScript_Connections, RunService.Heartbeat:Connect(SelfHealPassiveLoop)) -- [ADDED] Hook Passive Self Heal
 
 table.insert(_G.ProScript_Connections, RunService.Stepped:Connect(function()
     if SETTINGS.Noclip_Enabled and LocalPlayer.Character then
@@ -669,7 +842,7 @@ table.insert(_G.ProScript_Connections, UserInputService.InputBegan:Connect(funct
         pcall(function() 
             StarterGui:SetCore("SendNotification", { 
                 Title = "📜 รายการปุ่มกด (Help)", 
-                Text = "E = ESP | R = Noclip | C = Anti-Blind\nG = AutoSkill | V = God AutoParry\nX = Aimbot | K = Fullbright\nP = No Fog | B = Speed Hack\nL = Rejoin", 
+                Text = "E = ESP | R = Noclip | C = Anti-Blind\nG = AutoSkill | V = God AutoParry\nX = Aimbot (Killer/SCP) | K = Fullbright\nP = No Fog | B = Speed Hack | H = Self Heal\nL = Rejoin", 
                 Duration = 6 
             }) 
         end)
@@ -694,10 +867,13 @@ table.insert(_G.ProScript_Connections, UserInputService.InputBegan:Connect(funct
         SendNotify("God Auto Parry", SETTINGS.AutoParry_Enabled and "ON (Visible Range)" or "OFF")
     elseif input.KeyCode == SETTINGS.Key_Aimbot then
         SETTINGS.Aimbot_Enabled = not SETTINGS.Aimbot_Enabled
-        SendNotify("Aimbot (Smart Lock)", SETTINGS.Aimbot_Enabled and "ON (Hold Right Click)" or "OFF")
+        SendNotify("Aimbot (Killer & SCP)", SETTINGS.Aimbot_Enabled and "ON (Hold Right Click)" or "OFF")
     elseif input.KeyCode == SETTINGS.Key_CleanVision then
         SETTINGS.CleanVision_Enabled = not SETTINGS.CleanVision_Enabled
         SendNotify("Clean Vision (Anti-Blind)", SETTINGS.CleanVision_Enabled and "ON" or "OFF")
+    elseif input.KeyCode == SETTINGS.Key_SelfHeal then
+        SETTINGS.SelfHeal_Enabled = not SETTINGS.SelfHeal_Enabled
+        SendNotify("Passive Self Heal", SETTINGS.SelfHeal_Enabled and "ON" or "OFF")
     elseif input.KeyCode == SETTINGS.Key_SpeedHack then
         SETTINGS.SpeedHack_Enabled = not SETTINGS.SpeedHack_Enabled
         if not SETTINGS.SpeedHack_Enabled and LocalPlayer.Character then
@@ -791,4 +967,4 @@ if LocalPlayer.Character then
     HookVault(LocalPlayer.Character)
 end
 
-SendNotify("V8.9 (UPGRADED EDITION)", "Loaded! (Press Z for Keybinds)")
+SendNotify("V8.9 (ULTIMATE EDITION)", "Loaded! (Press Z for Keybinds)")
