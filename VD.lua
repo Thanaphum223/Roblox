@@ -419,15 +419,19 @@ end
 
 local lastParryTime = 0
 
--- [NEW] ส่งค่าคลิกที่สมูทขึ้นเพื่อไม่ให้ Server รีเจค
+-- [UPDATED] ส่งค่าคลิกที่สมูทขึ้น พร้อมระบบกัน Spam และสุ่ม Delay เหมือนคนกด
 local function ExecuteParry()
+    local now = os.clock()
+    if now - lastParryTime < SETTINGS.Parry_Cooldown then return end
+    lastParryTime = now
+
     if SETTINGS.Parry_Key == "RightClick" then 
         VirtualInputManager:SendMouseButtonEvent(0, 0, 1, true, game, 1)
-        task.wait(0.05) -- หน่วงนิดนึงเพื่อให้ Server จับจังหวะได้เต็ม 0.8s
+        task.wait(math.random(30, 60) / 1000) -- สุ่มหน่วงเวลา 0.03 ถึง 0.06 วินาที
         VirtualInputManager:SendMouseButtonEvent(0, 0, 1, false, game, 1)
     else 
         VirtualInputManager:SendKeyEvent(true, SETTINGS.Parry_Key, false, game)
-        task.wait(0.05)
+        task.wait(math.random(30, 60) / 1000)
         VirtualInputManager:SendKeyEvent(false, SETTINGS.Parry_Key, false, game) 
     end
 end
@@ -438,9 +442,7 @@ local function IsFacingMe(myPos, killerRoot)
     return directionToMe:Dot(killerLook) > 0.35 
 end
 
--- [NEW] ตรวจจับ 3 รูปแบบ (Animation + เสียง Pull + เอฟเฟกต์ Trail)
 local function CheckKillerAttacking(kChar)
-    -- 1. เช็ค Animation (วิธีเดิม)
     local animator = kChar:FindFirstChild("Animator", true) or (kChar:FindFirstChildWhichIsA("Humanoid") and kChar:FindFirstChildWhichIsA("Humanoid"):FindFirstChild("Animator"))
     if animator then
         for _, track in pairs(animator:GetPlayingAnimationTracks()) do
@@ -453,7 +455,6 @@ local function CheckKillerAttacking(kChar)
         end
     end
 
-    -- 2. เช็คเสียงดึงอาวุธ (Pull Sound) จากแขนขวา
     local rightArm = kChar:FindFirstChild("Right Arm") or kChar:FindFirstChild("RightHand")
     if rightArm then
         local pullSound = rightArm:FindFirstChild("Pull")
@@ -462,7 +463,6 @@ local function CheckKillerAttacking(kChar)
         end
     end
 
-    -- 3. เช็ค Trail ของอาวุธว่าถูกเปิดใช้งานหรือยัง
     local weaponFolder = kChar:FindFirstChild("Weapon") or kChar:FindFirstChild("WeaponHolder")
     if weaponFolder then
         for _, v in pairs(weaponFolder:GetDescendants()) do
@@ -493,14 +493,10 @@ local function AutoParryCheck()
                     if dist <= SETTINGS.Parry_MaxRange then
                         local isPanic = dist <= SETTINGS.Parry_PanicRange
                         if isPanic or IsFacingMe(myRoot.Position, kRoot) then
-                            
-                            -- เรียกใช้ฟังก์ชันตรวจสอบแบบ 3 มิติ
                             if CheckKillerAttacking(p.Character) then
                                 task.spawn(ExecuteParry) 
-                                lastParryTime = os.clock()
                                 return 
                             end
-                            
                         end
                     end
                 end
