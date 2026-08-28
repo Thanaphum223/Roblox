@@ -50,7 +50,7 @@ local SETTINGS = {
     Aimbot_TargetMode = "Killer", -- [ADDED] "Killer", "SCP", "Both"
     
     Parry_Key = "RightClick", 
-    Parry_MaxRange = 12, 
+    Parry_MaxRange = 10, 
     Parry_PanicRange = 6.5,   
     Parry_Cooldown = 0.05, 
     
