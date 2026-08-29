@@ -323,45 +323,7 @@ local function AutoCleanVision()
     end)
 end
 
--- Fall, Speed & Heal Loop
-local AntiFall = { IsBoosted = false, BoostTimer = 0 }
-local lastHealTime = 0
-local function ConstantLogicLoop()
-    pcall(function()
-        local char = LocalPlayer.Character
-        if not char then return end
-        local hum = char:FindFirstChild("Humanoid")
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        if not hum or not hrp then return end
-
-        if SETTINGS.SpeedHack_Enabled and not AntiFall.IsBoosted then
-            if hum.WalkSpeed < 24 then hum.WalkSpeed = 24 end
-        end
-
-        local velocity = hrp.AssemblyLinearVelocity
-        if velocity.Y < -10 and not AntiFall.IsBoosted then
-            AntiFall.IsBoosted = true
-            AntiFall.BoostTimer = os.clock()
-            hum.WalkSpeed = 24
-        elseif AntiFall.IsBoosted then
-            if os.clock() - AntiFall.BoostTimer >= 4 then
-                AntiFall.IsBoosted = false
-                if not SETTINGS.SpeedHack_Enabled then hum.WalkSpeed = 16 end
-            else
-                if hum.WalkSpeed < 24 then hum.WalkSpeed = 24 end
-            end
-        end
-
-        if SETTINGS.SelfHeal_Enabled then
-            local now = os.clock()
-            if now - lastHealTime >= 1 then
-                lastHealTime = now
-                ProcessSelfHeal()
-            end
-        end
-    end)
-end
-
+-- เลื่อน GetPlayerRole มาไว้ตรงนี้ เพื่อให้ ConstantLogicLoop เรียกใช้ได้ทันที
 local function GetPlayerRole(plr)
     if not plr or not plr.Character then return "Unknown" end
     local success, teamName = pcall(function() return plr.Team.Name:lower() end)
@@ -384,6 +346,47 @@ local function GetPlayerRole(plr)
     local role = CheckItems(plr.Character)
     if not role and plr:FindFirstChild("Backpack") then role = CheckItems(plr.Backpack) end
     return role or "Suspect"
+end
+
+-- Fall, Speed & Heal Loop (อัปเดตระบบดัก Killer)
+local AntiFall = { IsBoosted = false, BoostTimer = 0 }
+local lastHealTime = 0
+local function ConstantLogicLoop()
+    pcall(function()
+        local char = LocalPlayer.Character
+        if not char then return end
+        local hum = char:FindFirstChild("Humanoid")
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if not hum or not hrp then return end
+
+        local myRole = GetPlayerRole(LocalPlayer)
+
+        if SETTINGS.SpeedHack_Enabled and not AntiFall.IsBoosted then
+            if hum.WalkSpeed < 24 then hum.WalkSpeed = 24 end
+        end
+
+        local velocity = hrp.AssemblyLinearVelocity
+        if velocity.Y < -40 and not AntiFall.IsBoosted and myRole ~= "Killer" then
+            AntiFall.IsBoosted = true
+            AntiFall.BoostTimer = os.clock()
+            hum.WalkSpeed = 24
+        elseif AntiFall.IsBoosted then
+            if os.clock() - AntiFall.BoostTimer >= 4 then
+                AntiFall.IsBoosted = false
+                if not SETTINGS.SpeedHack_Enabled then hum.WalkSpeed = 16 end
+            else
+                if hum.WalkSpeed < 24 then hum.WalkSpeed = 24 end
+            end
+        end
+
+        if SETTINGS.SelfHeal_Enabled then
+            local now = os.clock()
+            if now - lastHealTime >= 1 then
+                lastHealTime = now
+                ProcessSelfHeal()
+            end
+        end
+    end)
 end
 
 local function CreatePlayerESP(target, text, color)
