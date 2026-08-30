@@ -1,4 +1,4 @@
--- [[ PROJECT: VIOLENCE DISTRICT - INSTANT V8.9 (FIXED ITEM TRACKER + MOBILE + HEAL + SCP) ]] --
+-- [[ PROJECT: VIOLENCE DISTRICT - INSTANT V9 (FIXED ITEM TRACKER + MOBILE + HEAL + SCP + CROSSHAIR) ]] --
 if _G.ViolenceDistrict_Loaded then
     pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", { Title = "System", Text = "Script is already loaded!", Duration = 3 }) end)
     return
@@ -35,6 +35,7 @@ local SETTINGS = {
     Key_SpeedHack = Enum.KeyCode.B,
     Key_Rejoin = Enum.KeyCode.L,
     Key_Help = Enum.KeyCode.Z, 
+    Key_Crosshair = Enum.KeyCode.M, -- [ADDED] ปุ่มเปิด/ปิดเป้าเล็ง
     
     ESP_Enabled = false,              
     Noclip_Enabled = false,
@@ -46,6 +47,7 @@ local SETTINGS = {
     CleanVision_Enabled = false,
     SpeedHack_Enabled = false,
     SelfHeal_Enabled = false,
+    Crosshair_Enabled = false, -- [ADDED] สถานะเป้าเล็งเริ่มต้น
     
     Aimbot_TargetMode = "Killer", -- "Killer", "SCP", "Both"
     
@@ -59,7 +61,8 @@ local SETTINGS = {
     Aimbot_Smoothness = 0.2,        
     Aimbot_Prediction = 0.13,        
     
-    SurvivorColor = LocalPlayer:GetAttribute("survaura") or Color3.fromRGB(0, 255, 100),    
+    -- [UPDATED] เปลี่ยนสีผู้เล่น (Survivor) เป็นสีเหลือง
+    SurvivorColor = Color3.fromRGB(255, 255, 0),    
     KillerColor = LocalPlayer:GetAttribute("killeraura") or Color3.fromRGB(255, 0, 0),        
     SuspectColor = Color3.fromRGB(255, 170, 0),        
     GenColor = LocalPlayer:GetAttribute("genaura") or Color3.fromRGB(0, 255, 255),
@@ -73,7 +76,7 @@ local SETTINGS = {
     GOAL_NAME = "Goal",
 }
 
--- [FIXED] ฐานข้อมูลไอเทมคูลดาวน์ (ลบเว้นวรรคและพิมพ์เล็กทั้งหมดเพื่อป้องกันชื่อไม่ตรง)
+-- [FIXED] ฐานข้อมูลไอเทมคูลดาวน์
 local ITEM_COOLDOWNS = {
     ["parryingdagger"] = 60,
     ["holywater"] = 70,
@@ -323,7 +326,6 @@ local function AutoCleanVision()
     end)
 end
 
--- เลื่อน GetPlayerRole มาไว้ตรงนี้ เพื่อให้ ConstantLogicLoop เรียกใช้ได้ทันที
 local function GetPlayerRole(plr)
     if not plr or not plr.Character then return "Unknown" end
     local success, teamName = pcall(function() return plr.Team.Name:lower() end)
@@ -348,7 +350,6 @@ local function GetPlayerRole(plr)
     return role or "Suspect"
 end
 
--- Fall, Speed & Heal Loop (อัปเดตระบบดัก Killer)
 local AntiFall = { IsBoosted = false, BoostTimer = 0 }
 local lastHealTime = 0
 local function ConstantLogicLoop()
@@ -457,7 +458,29 @@ table.insert(_G.ProScript_Connections, Workspace.DescendantAdded:Connect(AddWorl
 local function UpdateWorldESP()
     local activeObjects = {}
     local activeSCP = {}
-    for _, v in ipairs(cachedSCP) do if v and v:IsDescendantOf(Workspace) then table.insert(activeSCP, v) end end
+    
+    local myPos = Vector3.zero
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        myPos = LocalPlayer.Character.HumanoidRootPart.Position
+    end
+
+    for _, scp in ipairs(cachedSCP) do 
+        if scp and scp:IsDescendantOf(Workspace) then 
+            table.insert(activeSCP, scp) 
+            local targetPart = scp.PrimaryPart or scp:FindFirstChildWhichIsA("BasePart")
+            if targetPart then
+                local dist = (myPos ~= Vector3.zero) and (myPos - targetPart.Position).Magnitude or 0
+                local hi = scp:FindFirstChild("SCPESP_Highlight") or Instance.new("Highlight", scp)
+                hi.Name, hi.FillColor, hi.OutlineColor, hi.FillTransparency, hi.OutlineTransparency = "SCPESP_Highlight", SETTINGS.SCPColor, SETTINGS.SCPColor, 0.8, 0.2
+                hi.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                
+                local bg = targetPart:FindFirstChild("SCPESP_Tag") or Instance.new("BillboardGui", targetPart)
+                bg.Name, bg.Size, bg.AlwaysOnTop, bg.StudsOffset = "SCPESP_Tag", UDim2.new(0, 100, 0, 30), true, Vector3.new(0, 3, 0)
+                local tl = bg:FindFirstChild("Label") or Instance.new("TextLabel", bg)
+                tl.Name, tl.BackgroundTransparency, tl.Size, tl.Font, tl.TextSize, tl.Text, tl.TextColor3, tl.TextStrokeTransparency, tl.TextStrokeColor3 = "Label", 1, UDim2.new(1, 0, 1, 0), Enum.Font.GothamBold, 12, string.format("[SCP] [%dm]", math.floor(dist)), SETTINGS.SCPColor, 0, Color3.new(0,0,0)
+            end
+        end 
+    end
     cachedSCP = activeSCP
 
     for _, v in ipairs(cachedWorldObjects) do
@@ -639,36 +662,6 @@ local function UpdateParryVisual()
     ParryCircle.CFrame = CFrame.new(root.Position - Vector3.new(0, 2.5, 0)) * CFrame.Angles(0, 0, math.rad(90))
 end
 
-local function AutoParryCheck()
-    if not SETTINGS.AutoParry_Enabled or not LocalPlayer.Character then return end
-    local myRoot = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not myRoot then return end
-    
-    local now = os.clock()
-    if now - lastParryTime < SETTINGS.Parry_Cooldown then return end
-    
-    for _, p in pairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer and p.Character then
-            if GetPlayerRole(p) == "Killer" then
-                local kHum = p.Character:FindFirstChild("Humanoid")
-                local kRoot = p.Character:FindFirstChild("HumanoidRootPart")
-                if kRoot and kHum and kHum.Health > 0 then
-                    local dist = (kRoot.Position - myRoot.Position).Magnitude
-                    if dist <= SETTINGS.Parry_MaxRange then
-                        local isPanic = dist <= SETTINGS.Parry_PanicRange
-                        if isPanic or IsFacingMe(myRoot.Position, kRoot) then
-                            if CheckKillerAttacking(p.Character) then
-                                task.spawn(ExecuteParry) 
-                                return 
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-end
-
 local RaycastParamsBlacklist = RaycastParams.new()
 RaycastParamsBlacklist.FilterType = Enum.RaycastFilterType.Blacklist
 
@@ -737,7 +730,6 @@ local function AutoAim()
     end
 end
 
--- [ADDED] ตรวจจับคลิกเมาส์/สัมผัสจอสำหรับ Tracker Tool คูลดาวน์ (แก้บั๊ก Tool ไม่ยอมเช็ค)
 table.insert(_G.ProScript_Connections, UserInputService.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -754,6 +746,42 @@ table.insert(_G.ProScript_Connections, UserInputService.InputBegan:Connect(funct
         end
     end
 end))
+
+-- [ADDED] ระบบสร้าง Crosshair
+local function UpdateCrosshair()
+    local gui = PlayerGui:FindFirstChild("VD_Crosshair")
+    
+    if SETTINGS.Crosshair_Enabled then
+        if not gui then
+            gui = Instance.new("ScreenGui", PlayerGui)
+            gui.Name = "VD_Crosshair"
+            gui.ResetOnSpawn = false
+            gui.IgnoreGuiInset = true
+            
+            local center = Instance.new("Frame", gui)
+            center.AnchorPoint = Vector2.new(0.5, 0.5)
+            center.Position = UDim2.new(0.5, 0, 0.5, 0)
+            center.Size = UDim2.new(0, 0, 0, 0)
+            center.BackgroundTransparency = 1
+            
+            -- เส้นแนวตั้ง
+            local vLine = Instance.new("Frame", center)
+            vLine.Size = UDim2.new(0, 2, 0, 16)
+            vLine.Position = UDim2.new(0.5, -1, 0.5, -8)
+            vLine.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- สีเขียว
+            vLine.BorderSizePixel = 0
+            
+            -- เส้นแนวนอน
+            local hLine = Instance.new("Frame", center)
+            hLine.Size = UDim2.new(0, 16, 0, 2)
+            hLine.Position = UDim2.new(0.5, -8, 0.5, -1)
+            hLine.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- สีเขียว
+            hLine.BorderSizePixel = 0
+        end
+    else
+        if gui then gui:Destroy() end
+    end
+end
 
 -- Core Loops
 table.insert(_G.ProScript_Connections, RunService.RenderStepped:Connect(AutoSkillCheck))
@@ -794,7 +822,7 @@ table.insert(_G.ProScript_Connections, UserInputService.InputBegan:Connect(funct
         pcall(function() 
             StarterGui:SetCore("SendNotification", { 
                 Title = "📜 รายการปุ่มกด (Help)", 
-                Text = "E = ESP | R = Noclip | C = Anti-Blind\nG = AutoSkill | V = God AutoParry\nX = Aimbot | T = Switch Aim Target\nH = Auto Heal | K = Fullbright\nP = No Fog | B = Speed Hack\nL = Rejoin", 
+                Text = "E = ESP | R = Noclip | C = Anti-Blind\nG = AutoSkill | V = God AutoParry\nX = Aimbot | T = Switch Aim Target\nH = Auto Heal | K = Fullbright\nP = No Fog | B = Speed Hack\nM = Crosshair | L = Rejoin", 
                 Duration = 7 
             }) 
         end)
@@ -807,6 +835,10 @@ table.insert(_G.ProScript_Connections, UserInputService.InputBegan:Connect(funct
         SETTINGS.SelfHeal_Enabled = not SETTINGS.SelfHeal_Enabled
         if SETTINGS.SelfHeal_Enabled then SetupSelfHealUI() else if SelfHealLabel and SelfHealLabel.Parent then SelfHealLabel.Parent.Parent:Destroy() end end
         SendNotify("Auto Heal", SETTINGS.SelfHeal_Enabled and "ON (Heals 10HP/s)" or "OFF")
+    elseif input.KeyCode == SETTINGS.Key_Crosshair then
+        SETTINGS.Crosshair_Enabled = not SETTINGS.Crosshair_Enabled
+        UpdateCrosshair()
+        SendNotify("Crosshair", SETTINGS.Crosshair_Enabled and "ON" or "OFF")
     elseif input.KeyCode == SETTINGS.Key_ESP then
         SETTINGS.ESP_Enabled = not SETTINGS.ESP_Enabled
         if not SETTINGS.ESP_Enabled then CleanVisuals() end
@@ -923,4 +955,4 @@ if LocalPlayer.Character then
     if SETTINGS.SelfHeal_Enabled then SetupSelfHealUI() end
 end
 
-SendNotify("V8.9 (FIXED ITEM TRACKER + SCP + HEAL)", "Loaded! (Press Z for Keybinds)")
+SendNotify("V9 (CROSSHAIR + SCP + HEAL)", "Loaded! (Press Z for Keybinds)")
