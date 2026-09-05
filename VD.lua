@@ -1,4 +1,4 @@
--- [[ PROJECT: VIOLENCE DISTRICT - INSTANT V9.4 (REMOVED HEAL / FIXED PARRY + CROSSHAIR) ]] --
+-- [[ PROJECT: VIOLENCE DISTRICT - INSTANT V9.5 (REMOVED CUTSCENE SKIP) ]] --
 if _G.ViolenceDistrict_Loaded then
     pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", { Title = "System", Text = "Script is already loaded!", Duration = 3 }) end)
     return
@@ -261,10 +261,6 @@ local function AutoCleanVision()
                 local pestilence = effects:FindFirstChild("pestilence")
                 if pestilence and pestilence.Visible then pestilence.Visible = false end
             end
-        end
-        if LocalPlayer.Character then
-            local cutscene = LocalPlayer.Character:FindFirstChild("cutscene")
-            if cutscene and cutscene:IsA("LocalScript") and not cutscene.Disabled then cutscene.Disabled = true end
         end
     end)
 end
@@ -857,4 +853,4 @@ end
 
 UpdateCrosshair()
 
-SendNotify("V9.4 (FIXED PARRY + CROSSHAIR / REMOVED HEAL)", "Loaded! (Press Z for Keybinds)")
+SendNotify("V9.5 (REMOVED CUTSCENE SKIP)", "Loaded! (Press Z for Keybinds)")
