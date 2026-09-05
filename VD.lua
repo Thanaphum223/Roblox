@@ -1,4 +1,4 @@
--- [[ PROJECT: VIOLENCE DISTRICT - INSTANT V9 (FIXED ITEM TRACKER + MOBILE + HEAL + SCP + CROSSHAIR) ]] --
+-- [[ PROJECT: VIOLENCE DISTRICT - INSTANT V9.4 (REMOVED HEAL / FIXED PARRY + CROSSHAIR) ]] --
 if _G.ViolenceDistrict_Loaded then
     pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", { Title = "System", Text = "Script is already loaded!", Duration = 3 }) end)
     return
@@ -27,15 +27,13 @@ local SETTINGS = {
     Key_AutoSkill = Enum.KeyCode.G, 
     Key_AutoParry = Enum.KeyCode.V, 
     Key_Aimbot = Enum.KeyCode.X,
-    Key_SwitchAim = Enum.KeyCode.T, 
-    Key_SelfHeal = Enum.KeyCode.H, 
     Key_Fullbright = Enum.KeyCode.K, 
     Key_NoFog = Enum.KeyCode.P, 
     Key_CleanVision = Enum.KeyCode.C,
     Key_SpeedHack = Enum.KeyCode.B,
     Key_Rejoin = Enum.KeyCode.L,
     Key_Help = Enum.KeyCode.Z, 
-    Key_Crosshair = Enum.KeyCode.M, -- [ADDED] ปุ่มเปิด/ปิดเป้าเล็ง
+    Key_Crosshair = Enum.KeyCode.M, 
     
     ESP_Enabled = false,              
     Noclip_Enabled = false,
@@ -46,10 +44,7 @@ local SETTINGS = {
     NoFog_Enabled = false,
     CleanVision_Enabled = false,
     SpeedHack_Enabled = false,
-    SelfHeal_Enabled = false,
-    Crosshair_Enabled = false, -- [ADDED] สถานะเป้าเล็งเริ่มต้น
-    
-    Aimbot_TargetMode = "Killer", -- "Killer", "SCP", "Both"
+    Crosshair_Enabled = false, 
     
     Parry_Key = "RightClick", 
     Parry_MaxRange = 15, 
@@ -61,14 +56,12 @@ local SETTINGS = {
     Aimbot_Smoothness = 0.2,        
     Aimbot_Prediction = 0.13,        
     
-    -- [UPDATED] เปลี่ยนสีผู้เล่น (Survivor) เป็นสีเหลือง
-    SurvivorColor = Color3.fromRGB(255, 255, 0),    
+    SurvivorColor = Color3.fromRGB(255, 255, 0), -- สีเหลือง
     KillerColor = LocalPlayer:GetAttribute("killeraura") or Color3.fromRGB(255, 0, 0),        
     SuspectColor = Color3.fromRGB(255, 170, 0),        
     GenColor = LocalPlayer:GetAttribute("genaura") or Color3.fromRGB(0, 255, 255),
     PalletColor = Color3.fromRGB(74, 255, 181),
     WindowColor = Color3.fromRGB(100, 180, 255),
-    SCPColor = Color3.fromRGB(255, 0, 0),
     
     GUI_NAME = "SkillCheckPromptGui",
     FRAME_NAME = "Check",
@@ -76,7 +69,6 @@ local SETTINGS = {
     GOAL_NAME = "Goal",
 }
 
--- [FIXED] ฐานข้อมูลไอเทมคูลดาวน์
 local ITEM_COOLDOWNS = {
     ["parryingdagger"] = 60,
     ["holywater"] = 70,
@@ -126,54 +118,6 @@ local origLighting = {
 
 local function SendNotify(titleText, descText) pcall(function() StarterGui:SetCore("SendNotification", { Title = titleText, Text = descText, Duration = 2 }) end) end
 
--- [ADDED] SELF HEAL SYSTEM
-local SelfHealData = { HealAmount = 10, Progress = 0 }
-local SelfHealLabel = nil
-
-local function SetupSelfHealUI()
-    local oldGui = PlayerGui:FindFirstChild("VD_SelfHealGui")
-    if oldGui then oldGui:Destroy() end
-    if not SETTINGS.SelfHeal_Enabled then return end
-
-    local sg = Instance.new("ScreenGui", PlayerGui)
-    sg.Name = "VD_SelfHealGui"
-    sg.ResetOnSpawn = false
-    
-    local frame = Instance.new("Frame", sg)
-    frame.Size = UDim2.new(0, 200, 0, 35)
-    frame.Position = UDim2.new(0.5, -100, 0.9, 0)
-    frame.BackgroundColor3 = Color3.fromRGB(0,0,0)
-    frame.BackgroundTransparency = 0.5
-    frame.BorderSizePixel = 0
-    Instance.new("UICorner", frame).CornerRadius = UDim.new(1,0)
-    
-    SelfHealLabel = Instance.new("TextLabel", frame)
-    SelfHealLabel.Size = UDim2.new(1,0,1,0)
-    SelfHealLabel.BackgroundTransparency = 1
-    SelfHealLabel.TextColor3 = Color3.fromRGB(0,255,0)
-    SelfHealLabel.Font = Enum.Font.GothamBold
-    SelfHealLabel.TextSize = 14
-    SelfHealLabel.Text = "💚 Self Heal: Ready"
-end
-
-local function ProcessSelfHeal()
-    if not SETTINGS.SelfHeal_Enabled then return end
-    local char = LocalPlayer.Character
-    if not char then return end
-    local hum = char:FindFirstChild("Humanoid")
-    if not hum then return end
-
-    local healNeeded = hum.MaxHealth - hum.Health
-    if healNeeded > 0 then
-        SelfHealData.Progress = math.min(100, (healNeeded / hum.MaxHealth) * 100)
-        hum.Health = hum.Health + math.min(SelfHealData.HealAmount, healNeeded)
-        if SelfHealLabel then SelfHealLabel.Text = string.format("💚 Healing: %.0f%%", SelfHealData.Progress) end
-    else
-        if SelfHealLabel then SelfHealLabel.Text = "✅ Full Health" end
-    end
-end
-
--- [UPGRADED] TRACKER GUI
 local function GetTrackerContainer()
     local gui = PlayerGui:FindFirstChild("VD_ItemTracker")
     if not gui then
@@ -243,7 +187,6 @@ local function CreateCooldownBar(itemName, duration)
     end)
 end
 
--- [ADDED] ระบบเปลี่ยนแอนิเมชันข้ามสิ่งกีดขวางให้ไวขึ้น
 local function HookVault(char)
     local hum = char:WaitForChild("Humanoid", 5)
     if not hum then return end
@@ -351,7 +294,6 @@ local function GetPlayerRole(plr)
 end
 
 local AntiFall = { IsBoosted = false, BoostTimer = 0 }
-local lastHealTime = 0
 local function ConstantLogicLoop()
     pcall(function()
         local char = LocalPlayer.Character
@@ -377,14 +319,6 @@ local function ConstantLogicLoop()
                 if not SETTINGS.SpeedHack_Enabled then hum.WalkSpeed = 16 end
             else
                 if hum.WalkSpeed < 24 then hum.WalkSpeed = 24 end
-            end
-        end
-
-        if SETTINGS.SelfHeal_Enabled then
-            local now = os.clock()
-            if now - lastHealTime >= 1 then
-                lastHealTime = now
-                ProcessSelfHeal()
             end
         end
     end)
@@ -436,15 +370,11 @@ local function GetGenProgress(model)
 end
 
 local cachedWorldObjects = {}
-local cachedSCP = {}
 local function AddWorldObject(v)
     if v:IsA("Model") and not v:IsA("Character") then
         local name = v.Name:lower()
         if name:match("generator") or name:match("cipher") or name:match("repair") or name == "palletwrong" or name == "pallet" or name == "window" then
             table.insert(cachedWorldObjects, v)
-        end
-        if name:match("scp") then
-            table.insert(cachedSCP, v)
         end
     end
 end
@@ -457,32 +387,7 @@ table.insert(_G.ProScript_Connections, Workspace.DescendantAdded:Connect(AddWorl
 
 local function UpdateWorldESP()
     local activeObjects = {}
-    local activeSCP = {}
     
-    local myPos = Vector3.zero
-    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        myPos = LocalPlayer.Character.HumanoidRootPart.Position
-    end
-
-    for _, scp in ipairs(cachedSCP) do 
-        if scp and scp:IsDescendantOf(Workspace) then 
-            table.insert(activeSCP, scp) 
-            local targetPart = scp.PrimaryPart or scp:FindFirstChildWhichIsA("BasePart")
-            if targetPart then
-                local dist = (myPos ~= Vector3.zero) and (myPos - targetPart.Position).Magnitude or 0
-                local hi = scp:FindFirstChild("SCPESP_Highlight") or Instance.new("Highlight", scp)
-                hi.Name, hi.FillColor, hi.OutlineColor, hi.FillTransparency, hi.OutlineTransparency = "SCPESP_Highlight", SETTINGS.SCPColor, SETTINGS.SCPColor, 0.8, 0.2
-                hi.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                
-                local bg = targetPart:FindFirstChild("SCPESP_Tag") or Instance.new("BillboardGui", targetPart)
-                bg.Name, bg.Size, bg.AlwaysOnTop, bg.StudsOffset = "SCPESP_Tag", UDim2.new(0, 100, 0, 30), true, Vector3.new(0, 3, 0)
-                local tl = bg:FindFirstChild("Label") or Instance.new("TextLabel", bg)
-                tl.Name, tl.BackgroundTransparency, tl.Size, tl.Font, tl.TextSize, tl.Text, tl.TextColor3, tl.TextStrokeTransparency, tl.TextStrokeColor3 = "Label", 1, UDim2.new(1, 0, 1, 0), Enum.Font.GothamBold, 12, string.format("[SCP] [%dm]", math.floor(dist)), SETTINGS.SCPColor, 0, Color3.new(0,0,0)
-            end
-        end 
-    end
-    cachedSCP = activeSCP
-
     for _, v in ipairs(cachedWorldObjects) do
         if v and v:IsDescendantOf(Workspace) then
             table.insert(activeObjects, v) 
@@ -662,6 +567,36 @@ local function UpdateParryVisual()
     ParryCircle.CFrame = CFrame.new(root.Position - Vector3.new(0, 2.5, 0)) * CFrame.Angles(0, 0, math.rad(90))
 end
 
+local function AutoParryCheck()
+    if not SETTINGS.AutoParry_Enabled or not LocalPlayer.Character then return end
+    local myRoot = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return end
+    
+    local now = os.clock()
+    if now - lastParryTime < SETTINGS.Parry_Cooldown then return end
+    
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character then
+            if GetPlayerRole(p) == "Killer" then
+                local kHum = p.Character:FindFirstChild("Humanoid")
+                local kRoot = p.Character:FindFirstChild("HumanoidRootPart")
+                if kRoot and kHum and kHum.Health > 0 then
+                    local dist = (kRoot.Position - myRoot.Position).Magnitude
+                    if dist <= SETTINGS.Parry_MaxRange then
+                        local isPanic = dist <= SETTINGS.Parry_PanicRange
+                        if isPanic or IsFacingMe(myRoot.Position, kRoot) then
+                            if CheckKillerAttacking(p.Character) then
+                                task.spawn(ExecuteParry) 
+                                return 
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
 local RaycastParamsBlacklist = RaycastParams.new()
 RaycastParamsBlacklist.FilterType = Enum.RaycastFilterType.Blacklist
 
@@ -678,37 +613,17 @@ local function GetClosestTarget()
     local maxDist = SETTINGS.Aimbot_FOV
     local mousePos = Vector2.new(Mouse.X, Mouse.Y)
     
-    if SETTINGS.Aimbot_TargetMode == "Killer" or SETTINGS.Aimbot_TargetMode == "Both" then
-        for _, p in pairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer and p.Character and GetPlayerRole(p) == "Killer" then
-                local hum = p.Character:FindFirstChild("Humanoid")
-                local targetPart = p.Character:FindFirstChild("HumanoidRootPart")
-                if hum and targetPart and hum.Health > 0 then
-                    local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
-                    if onScreen then
-                        local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
-                        if dist < maxDist and IsTargetVisible(targetPart) then
-                            closestTarget = targetPart
-                            maxDist = dist
-                        end
-                    end
-                end
-            end
-        end
-    end
-
-    if SETTINGS.Aimbot_TargetMode == "SCP" or SETTINGS.Aimbot_TargetMode == "Both" then
-        for _, scp in ipairs(cachedSCP) do
-            if scp and scp.Parent then
-                local targetPart = scp.PrimaryPart or scp:FindFirstChildWhichIsA("BasePart")
-                if targetPart then
-                    local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
-                    if onScreen then
-                        local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
-                        if dist < maxDist and IsTargetVisible(targetPart) then
-                            closestTarget = targetPart
-                            maxDist = dist
-                        end
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character and GetPlayerRole(p) == "Killer" then
+            local hum = p.Character:FindFirstChild("Humanoid")
+            local targetPart = p.Character:FindFirstChild("HumanoidRootPart")
+            if hum and targetPart and hum.Health > 0 then
+                local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+                if onScreen then
+                    local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+                    if dist < maxDist and IsTargetVisible(targetPart) then
+                        closestTarget = targetPart
+                        maxDist = dist
                     end
                 end
             end
@@ -747,39 +662,35 @@ table.insert(_G.ProScript_Connections, UserInputService.InputBegan:Connect(funct
     end
 end))
 
--- [ADDED] ระบบสร้าง Crosshair
 local function UpdateCrosshair()
-    local gui = PlayerGui:FindFirstChild("VD_Crosshair")
+    local oldGui = PlayerGui:FindFirstChild("VD_Crosshair")
+    if oldGui then oldGui:Destroy() end
     
     if SETTINGS.Crosshair_Enabled then
-        if not gui then
-            gui = Instance.new("ScreenGui", PlayerGui)
-            gui.Name = "VD_Crosshair"
-            gui.ResetOnSpawn = false
-            gui.IgnoreGuiInset = true
-            
-            local center = Instance.new("Frame", gui)
-            center.AnchorPoint = Vector2.new(0.5, 0.5)
-            center.Position = UDim2.new(0.5, 0, 0.5, 0)
-            center.Size = UDim2.new(0, 0, 0, 0)
-            center.BackgroundTransparency = 1
-            
-            -- เส้นแนวตั้ง
-            local vLine = Instance.new("Frame", center)
-            vLine.Size = UDim2.new(0, 2, 0, 16)
-            vLine.Position = UDim2.new(0.5, -1, 0.5, -8)
-            vLine.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- สีเขียว
-            vLine.BorderSizePixel = 0
-            
-            -- เส้นแนวนอน
-            local hLine = Instance.new("Frame", center)
-            hLine.Size = UDim2.new(0, 16, 0, 2)
-            hLine.Position = UDim2.new(0.5, -8, 0.5, -1)
-            hLine.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- สีเขียว
-            hLine.BorderSizePixel = 0
-        end
-    else
-        if gui then gui:Destroy() end
+        local gui = Instance.new("ScreenGui", PlayerGui)
+        gui.Name = "VD_Crosshair"
+        gui.ResetOnSpawn = false
+        gui.IgnoreGuiInset = true
+        
+        local center = Instance.new("Frame", gui)
+        center.AnchorPoint = Vector2.new(0.5, 0.5)
+        center.Position = UDim2.new(0.5, 0, 0.5, 0)
+        center.Size = UDim2.new(0, 0, 0, 0)
+        center.BackgroundTransparency = 1
+        
+        local vLine = Instance.new("Frame", center)
+        vLine.Size = UDim2.new(0, 2, 0, 16)
+        vLine.Position = UDim2.new(0.5, -1, 0.5, -8)
+        vLine.BackgroundColor3 = Color3.fromRGB(0, 255, 0) 
+        vLine.BorderSizePixel = 0
+        Instance.new("UICorner", vLine).CornerRadius = UDim.new(1, 0)
+        
+        local hLine = Instance.new("Frame", center)
+        hLine.Size = UDim2.new(0, 16, 0, 2)
+        hLine.Position = UDim2.new(0.5, -8, 0.5, -1)
+        hLine.BackgroundColor3 = Color3.fromRGB(0, 255, 0) 
+        hLine.BorderSizePixel = 0
+        Instance.new("UICorner", hLine).CornerRadius = UDim.new(1, 0)
     end
 end
 
@@ -822,19 +733,10 @@ table.insert(_G.ProScript_Connections, UserInputService.InputBegan:Connect(funct
         pcall(function() 
             StarterGui:SetCore("SendNotification", { 
                 Title = "📜 รายการปุ่มกด (Help)", 
-                Text = "E = ESP | R = Noclip | C = Anti-Blind\nG = AutoSkill | V = God AutoParry\nX = Aimbot | T = Switch Aim Target\nH = Auto Heal | K = Fullbright\nP = No Fog | B = Speed Hack\nM = Crosshair | L = Rejoin", 
+                Text = "E = ESP | R = Noclip | C = Anti-Blind\nG = AutoSkill | V = God AutoParry\nX = Aimbot (Killer Only)\nK = Fullbright\nP = No Fog | B = Speed Hack\nM = Crosshair | L = Rejoin", 
                 Duration = 7 
             }) 
         end)
-    elseif input.KeyCode == SETTINGS.Key_SwitchAim then
-        if SETTINGS.Aimbot_TargetMode == "Killer" then SETTINGS.Aimbot_TargetMode = "SCP"
-        elseif SETTINGS.Aimbot_TargetMode == "SCP" then SETTINGS.Aimbot_TargetMode = "Both"
-        else SETTINGS.Aimbot_TargetMode = "Killer" end
-        SendNotify("Aimbot Target", "Switched to: " .. SETTINGS.Aimbot_TargetMode)
-    elseif input.KeyCode == SETTINGS.Key_SelfHeal then
-        SETTINGS.SelfHeal_Enabled = not SETTINGS.SelfHeal_Enabled
-        if SETTINGS.SelfHeal_Enabled then SetupSelfHealUI() else if SelfHealLabel and SelfHealLabel.Parent then SelfHealLabel.Parent.Parent:Destroy() end end
-        SendNotify("Auto Heal", SETTINGS.SelfHeal_Enabled and "ON (Heals 10HP/s)" or "OFF")
     elseif input.KeyCode == SETTINGS.Key_Crosshair then
         SETTINGS.Crosshair_Enabled = not SETTINGS.Crosshair_Enabled
         UpdateCrosshair()
@@ -947,12 +849,12 @@ table.insert(_G.ProScript_Connections, LocalPlayer.CharacterAdded:Connect(functi
     end
 
     HookVault(char)
-    if SETTINGS.SelfHeal_Enabled then SetupSelfHealUI() end
 end))
 
 if LocalPlayer.Character then
     HookVault(LocalPlayer.Character)
-    if SETTINGS.SelfHeal_Enabled then SetupSelfHealUI() end
 end
 
-SendNotify("V9 (CROSSHAIR + SCP + HEAL)", "Loaded! (Press Z for Keybinds)")
+UpdateCrosshair()
+
+SendNotify("V9.4 (FIXED PARRY + CROSSHAIR / REMOVED HEAL)", "Loaded! (Press Z for Keybinds)")
